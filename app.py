@@ -15,3 +15,10 @@ st.set_page_config(
 
 
 def normalizar(text):
+    if not text:
+        return ""
+    text = str(text).lower().strip()
+    reemplazos = [("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")]
+    for a, b in reemplazos:
+        text = text.replace(a, b)
+    return text
