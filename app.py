@@ -14,4 +14,4 @@ st.set_page_config(
 )
 
 
-def normalizar(text)
+def normalizar(text):
