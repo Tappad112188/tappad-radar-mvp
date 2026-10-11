@@ -1,80 +1,236 @@
+
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Radar de Licitaciones", page_icon="💼", layout="wide")
+st.set_page_config(
+    page_title="TAPPAD Radar",
+    page_icon="💼",
+    layout="wide"
+)
+
 
 def normalizar(text):
-    if not text: return ""
-    text = str(text).lower().strip()
-    reemplazos = [("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")]
-    for a, b in reemplazos: text = text.replace(a, b)
-    return text
+    if not text:
+        return ""
 
-# Inicializar bases de datos en la memoria de la app
-if "lista_clientes" not in st.session_state:
-    st.session_state.lista_clientes = [
-        {"nombre": "Constructora del Norte S.A.", "correo": "contacto@constnorte.com", "keywords": "construccion, pavimentacion, obra publica"}
+    text = str(text).lower().strip()
+    reemplazos = [
+        ("á", "a"), ("é", "e"), ("í", "i"),
+        ("ó", "o"), ("ú", "u"), ("ü", "u"),
+        ("ñ", "n")
     ]
 
+    for a, b in reemplazos:
+        text = text.replace(a, b)
+
+    return text
+
+
+# Datos temporales de demostración.
+# Todavía no constituyen una base de datos permanente.
+if "lista_clientes" not in st.session_state:
+    st.session_state.lista_clientes = []
+
 licitaciones_gobierno = [
-    {"id": "LO-2026-01", "portal": "ComprasMX", "titulo": "Construcción de puente vehicular y vialidades", "dependencia": "SCT"},
-    {"id": "CE-SEFIRC-99", "portal": "SEFIRC Coahuila", "titulo": "Adquisición de licencias de software y computadoras", "dependencia": "SEFIN Coahuila"},
-    {"id": "LO-2026-02", "portal": "ComprasMX", "titulo": "Servicio de limpieza profunda y sanitización", "dependencia": "IMSS"},
-    {"id": "CE-SEFIRC-100", "portal": "SEFIRC Coahuila", "titulo": "Pavimentación y bacheo asfáltico en Saltillo", "dependencia": "Infraestructura Coahuila"}
+    {
+        "id": "DEMO-001",
+        "portal": "ComprasMX (demo)",
+        "titulo": "Construcción de puente vehicular y vialidades",
+        "dependencia": "SCT"
+    },
+    {
+        "id": "DEMO-002",
+        "portal": "Coahuila (demo)",
+        "titulo": "Adquisición de licencias de software y computadoras",
+        "dependencia": "SEFIN Coahuila"
+    },
+    {
+        "id": "DEMO-003",
+        "portal": "ComprasMX (demo)",
+        "titulo": "Servicio de limpieza profunda y sanitización",
+        "dependencia": "IMSS"
+    },
+    {
+        "id": "DEMO-004",
+        "portal": "Coahuila (demo)",
+        "titulo": "Pavimentación y bacheo asfáltico en Saltillo",
+        "dependencia": "Infraestructura Coahuila"
+    }
 ]
 
-# --- INTERFAZ VISUAL ---
-st.title("💼 Sistema de Monitoreo de Licitaciones")
-st.write("Mapeo automático de ComprasMX y Portal de Licitaciones de Coahuila.")
 
-# CREAMOS DOS PESTAÑAS: UNA PARA EL CLIENTE Y OTRA PARA TI (ADMIN)
-tab1, tab2 = st.tabs(["📱 VISTA DEL CLIENTE (Registro)", "⚙️ VISTA DE CONSULTOR (Administrador)"])
+st.title("💼 TAPPAD Radar")
+st.caption(
+    "Prototipo de monitoreo de oportunidades de contratación pública."
+)
 
-with tab1:
-    st.header("¡Regístrate para recibir Alertas Premium!")
-    st.write("Ingresa tus datos para que nuestro sistema busque licitaciones por ti todas las mañanas.")
-    
-    # AQUÍ ESTÁ EL FORMULARIO QUE EL CLIENTE VE Y RELLENA:
+vista = st.radio(
+    "Selecciona una vista",
+    ["Vista del cliente", "Acceso de consultor"],
+    horizontal=True
+)
+
+
+# --------------------------------------------------
+# VISTA DEL CLIENTE
+# --------------------------------------------------
+if vista == "Vista del cliente":
+
+    st.header("Registro de empresas")
+    st.write(
+        "Registra tu empresa y las palabras clave "
+        "de los productos o servicios que ofreces."
+    )
+
     with st.form("formulario_registro", clear_on_submit=True):
-        nombre_cliente = st.text_input("1. Nombre de tu Empresa / Razón Social:", placeholder="Ej. Materiales Sierra Madre S.A.")
-        correo_cliente = st.text_input("2. Correo electrónico donde quieres recibir las notificaciones:", placeholder="ejemplo@empresa.com")
-        keywords_cliente = st.text_input("3. Palabras clave de lo que vendes (separadas por comas):", placeholder="Ej. software, computadoras, limpieza, construccion")
-        
-        boton_enviar = st.form_submit_button("CONTRATAR SERVICIO Y ACTIVAR RADAR")
-        
-        if boton_enviar:
-            if nombre_cliente and correo_cliente and keywords_cliente:
-                # Guardar al cliente visualmente
-                nuevo = {"nombre": nombre_cliente, "correo": correo_cliente, "keywords": keywords_cliente}
-                st.session_state.lista_clientes.append(nuevo)
-                
-                st.success(f"¡Registro Exitoso, {nombre_cliente}! El sistema se ha activado para el correo: {correo_cliente}")
-                st.balloons()
-                
-                # EJECUTAR EL CRUCE INMEDIATAMENTE PARA EL NUEVO CLIENTE
-                st.subheader("🔍 Buscando oportunidades en este momento...")
-                palabras_lista = [k.strip() for k in keywords_cliente.split(",")]
-                matches = []
-                
-                for lic in licitaciones_gobierno:
-                    titulo_norm = normalizar(lic["titulo"])
-                    for kw in palabras_lista:
-                        if normalizar(kw) in titulo_norm:
-                            if lic not in matches: matches.append(lic)
-                
-                if matches:
-                    st.info(f"📬 ¡Se han detectado las siguientes licitaciones vigentes para ti hoy! Se ha enviado una copia a {correo_cliente}:")
-                    for m in matches:
-                        st.markdown(f"* **[{m['portal']}]** {m['titulo']} — *Dependencia: {m['dependencia']} (ID: {m['id']})*")
-                else:
-                    st.warning("No se encontraron licitaciones con tus palabras clave el día de hoy, pero te notificaremos mañana en la madrugada si aparece alguna.")
-            else:
-                st.error("Por favor, rellena todos los campos del formulario.")
+        nombre = st.text_input(
+            "Nombre de la empresa / razón social",
+            placeholder="Ej. Materiales Sierra Madre S.A."
+        )
 
-with tab2:
-    st.header("Panel de Control Interno")
-    st.write("Aquí puedes ver a los clientes que se han registrado visualmente desde la otra pestaña.")
-    st.dataframe(pd.DataFrame(st.session_state.lista_clientes))
-    
-    st.subheader("Licitaciones Activas en el Servidor (Gobierno)")
-    st.dataframe(pd.DataFrame(licitaciones_gobierno))
+        correo = st.text_input(
+            "Correo electrónico",
+            placeholder="empresa@ejemplo.com"
+        )
+
+        palabras = st.text_input(
+            "Palabras clave separadas por comas",
+            placeholder="limpieza, software, computadoras"
+        )
+
+        enviar = st.form_submit_button(
+            "REGISTRAR EMPRESA"
+        )
+
+    if enviar:
+        if not nombre.strip() or not correo.strip() or not palabras.strip():
+            st.error("Completa los tres campos para continuar.")
+
+        elif "@" not in correo or "." not in correo.split("@")[-1]:
+            st.error("Introduce un correo electrónico válido.")
+
+        else:
+            nuevo = {
+                "nombre": nombre.strip(),
+                "correo": correo.strip().lower(),
+                "keywords": palabras.strip()
+            }
+
+            st.session_state.lista_clientes.append(nuevo)
+
+            st.success(
+                f"Registro de demostración recibido para {nombre.strip()}."
+            )
+
+            st.info(
+                "Este prototipo no guarda los registros de forma permanente, "
+                "no envía correos y no consulta automáticamente los portales. "
+                "Las oportunidades siguientes son datos de demostración."
+            )
+
+            palabras_lista = [
+                normalizar(p.strip())
+                for p in palabras.split(",")
+                if p.strip()
+            ]
+
+            coincidencias = []
+
+            for lic in licitaciones_gobierno:
+                texto = normalizar(
+                    lic["titulo"] + " " + lic["dependencia"]
+                )
+
+                if any(k in texto for k in palabras_lista):
+                    coincidencias.append(lic)
+
+            st.subheader("Coincidencias de demostración")
+
+            if coincidencias:
+                for lic in coincidencias:
+                    st.markdown(
+                        f"- **{lic['titulo']}** — "
+                        f"{lic['portal']} — {lic['dependencia']} "
+                        f"({lic['id']})"
+                    )
+            else:
+                st.warning(
+                    "No hay coincidencias en los datos de demostración."
+                )
+
+
+# --------------------------------------------------
+# VISTA PRIVADA DEL CONSULTOR
+# --------------------------------------------------
+elif vista == "Acceso de consultor":
+
+    st.header("Panel privado de consultor")
+
+    # La contraseña debe configurarse en Streamlit Secrets.
+    try:
+        clave_admin = st.secrets.get("admin_password", "")
+    except Exception:
+        clave_admin = ""
+
+    if not clave_admin:
+        st.error(
+            "El panel está bloqueado porque todavía no se ha configurado "
+            "la contraseña de administrador."
+        )
+        st.markdown(
+            "Configúrala en la sección **Settings → Secrets** "
+            "de la aplicación en Streamlit."
+        )
+
+    else:
+        if "admin_autenticado" not in st.session_state:
+            st.session_state.admin_autenticado = False
+
+        with st.form("formulario_admin"):
+            password = st.text_input(
+                "Contraseña de administrador",
+                type="password"
+            )
+
+            entrar = st.form_submit_button("Iniciar sesión")
+
+        if entrar:
+            if password == clave_admin:
+                st.session_state.admin_autenticado = True
+                st.rerun()
+            else:
+                st.session_state.admin_autenticado = False
+                st.error("Contraseña incorrecta.")
+
+        if st.session_state.admin_autenticado:
+            st.success("Sesión de administrador activa.")
+
+            if st.button("Cerrar sesión"):
+                st.session_state.admin_autenticado = False
+                st.rerun()
+
+            st.subheader("Clientes registrados en esta sesión")
+
+            if st.session_state.lista_clientes:
+                st.dataframe(
+                    pd.DataFrame(st.session_state.lista_clientes),
+                    use_container_width=True
+                )
+            else:
+                st.info(
+                    "No hay registros en esta sesión. "
+                    "Los registros aún no se comparten entre usuarios."
+                )
+
+            st.subheader("Datos de licitaciones de demostración")
+            st.dataframe(
+                pd.DataFrame(licitaciones_gobierno),
+                use_container_width=True
+            )
+
+            st.warning(
+                "El panel está protegido por contraseña, pero este "
+                "prototipo todavía no utiliza una base de datos compartida. "
+                "Las licitaciones son ejemplos, no resultados extraídos "
+                "en tiempo real."
+            )
