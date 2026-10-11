@@ -63,7 +63,7 @@ with tab1:
                             if lic not in matches: matches.append(lic)
                 
                 if matches:
-                    st.info(f"📬 ¡Se han detectado las siguientes licitaciones vigentes para ti! Se ha enviado una copia a {correo_cliente}:")
+                    st.info(f"📬 ¡Se han detectado las siguientes licitaciones vigentes para ti hoy! Se ha enviado una copia a {correo_cliente}:")
                     for m in matches:
                         st.markdown(f"* **[{m['portal']}]** {m['titulo']} — *Dependencia: {m['dependencia']} (ID: {m['id']})*")
                 else:
@@ -78,8 +78,3 @@ with tab2:
     
     st.subheader("Licitaciones Activas en el Servidor (Gobierno)")
     st.dataframe(pd.DataFrame(licitaciones_gobierno))
-
-                    st.write(f"• **[{opon['portal']}]** {opon['titulo']} | Dependencia: {opon['dependencia']} (ID: {opon['id']})")
-    
-    st.balloons()
-    st.success(f"¡Proceso terminado con éxito! Se simularon {alertas_enviadas} notificaciones premium.")
