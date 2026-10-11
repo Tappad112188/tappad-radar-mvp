@@ -56,7 +56,7 @@ with tab1:
                 palabras_lista = [k.strip() for k in keywords_cliente.split(",")]
                 matches = []
                 
-                for lic en licitaciones_gobierno:
+                for lic in licitaciones_gobierno:
                     titulo_norm = normalizar(lic["titulo"])
                     for kw in palabras_lista:
                         if normalizar(kw) in titulo_norm:
