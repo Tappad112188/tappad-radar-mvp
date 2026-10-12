@@ -3,218 +3,306 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 
+# ==========================================
+# CONFIGURACION GENERAL
+# ==========================================
+
 st.set_page_config(
     page_title="TAPPAD Radar",
-    page_icon="💼",
+    page_icon="📡",
     layout="wide"
 )
 
+# ==========================================
+# CONEXION A SUPABASE
+# ==========================================
 
-def normalizar(text):
-    if not text:
-        return ""
-
-    text = str(text).lower().strip()
-    for a, b in [
-        ("á", "a"), ("é", "e"), ("í", "i"),
-        ("ó", "o"), ("ú", "u"), ("ü", "u"),
-        ("ñ", "n")
-    ]:
-        text = text.replace(a, b)
-
-    return text
-
-
-@st.cache_resource
 def conectar_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
+
     return create_client(url, key)
 
 
-licitaciones_gobierno = [
+# ==========================================
+# LICITACIONES DE DEMOSTRACION
+# ==========================================
+
+licitaciones = [
     {
-        "id": "DEMO-001",
-        "portal": "ComprasMX (demo)",
-        "titulo": "Construcción de puente vehicular y vialidades",
-        "dependencia": "SCT"
+        "Procedimiento": "DEMO-001",
+        "Dependencia": "Dependencia de demostración A",
+        "Descripción": "Adquisición de material de oficina",
+        "Fuente": "ComprasMX",
+        "Estado": "Demostración"
     },
     {
-        "id": "DEMO-002",
-        "portal": "Coahuila (demo)",
-        "titulo": "Adquisición de licencias de software y computadoras",
-        "dependencia": "SEFIN Coahuila"
+        "Procedimiento": "DEMO-002",
+        "Dependencia": "Dependencia de demostración B",
+        "Descripción": "Servicio de limpieza de instalaciones",
+        "Fuente": "SECOP Coahuila",
+        "Estado": "Demostración"
     },
     {
-        "id": "DEMO-003",
-        "portal": "ComprasMX (demo)",
-        "titulo": "Servicio de limpieza profunda y sanitización",
-        "dependencia": "IMSS"
-    },
-    {
-        "id": "DEMO-004",
-        "portal": "Coahuila (demo)",
-        "titulo": "Pavimentación y bacheo asfáltico en Saltillo",
-        "dependencia": "Infraestructura Coahuila"
+        "Procedimiento": "DEMO-003",
+        "Dependencia": "Dependencia de demostración C",
+        "Descripción": "Mantenimiento de equipos de cómputo",
+        "Fuente": "ComprasMX",
+        "Estado": "Demostración"
     }
 ]
 
-st.title("TAPPAD Radar")
-st.caption(
-    "Prototipo de monitoreo de oportunidades de contratación pública."
+df = pd.DataFrame(licitaciones)
+
+
+# ==========================================
+# ENCABEZADO
+# ==========================================
+
+st.title("📡 TAPPAD Radar")
+
+st.subheader(
+    "Sistema de monitoreo de oportunidades "
+    "en licitaciones públicas"
 )
 
-vista = st.radio(
-    "Selecciona una vista",
-    ["Vista del cliente", "Acceso de consultor"],
-    horizontal=True
+st.info(
+    "Versión MVP. Las licitaciones mostradas "
+    "actualmente son datos de demostración."
 )
 
-if vista == "Vista del cliente":
-    st.header("Registro de empresas")
-    st.write(
-        "Registra tu empresa y las palabras clave "
-        "de los productos o servicios que ofreces."
+st.divider()
+
+
+# ==========================================
+# MENU PRINCIPAL
+# ==========================================
+
+menu = st.sidebar.radio(
+    "Menú principal",
+    [
+        "Explorar licitaciones",
+        "Registrar empresa",
+        "Panel administrativo"
+    ]
+)
+
+
+# ==========================================
+# EXPLORAR LICITACIONES
+# ==========================================
+
+if menu == "Explorar licitaciones":
+
+    st.header("Oportunidades de contratación")
+
+    busqueda = st.text_input(
+        "Buscar por palabra clave"
     )
 
-    with st.form("formulario_registro", clear_on_submit=True):
+    if busqueda.strip():
+
+        filtro = df[
+            df["Descripción"].str.contains(
+                busqueda.strip(),
+                case=False,
+                na=False,
+                regex=False
+            )
+            |
+            df["Dependencia"].str.contains(
+                busqueda.strip(),
+                case=False,
+                na=False,
+                regex=False
+            )
+        ]
+
+    else:
+        filtro = df
+
+    st.dataframe(
+        filtro,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption(
+        "Próximamente: integración automática "
+        "con ComprasMX y SECOP Coahuila."
+    )
+
+
+# ==========================================
+# REGISTRO DE EMPRESAS
+# ==========================================
+
+elif menu == "Registrar empresa":
+
+    st.header("Registro de empresas")
+
+    st.write(
+        "Registra tu empresa para recibir "
+        "información sobre oportunidades "
+        "de contratación pública."
+    )
+
+    with st.form("formulario_registro"):
+
         nombre = st.text_input(
-            "Nombre de la empresa / razón social"
+            "Nombre de la empresa"
         )
-        correo = st.text_input("Correo electrónico")
-        palabras = st.text_input(
-            "Palabras clave separadas por comas"
+
+        correo = st.text_input(
+            "Correo electrónico"
         )
-        enviar = st.form_submit_button("REGISTRAR EMPRESA")
+
+        palabras = st.text_area(
+            "Productos o servicios de interés",
+            placeholder=(
+                "Ejemplo: limpieza, papelería, "
+                "mantenimiento, seguridad"
+            )
+        )
+
+        enviar = st.form_submit_button(
+            "Registrar empresa"
+        )
 
     if enviar:
-        if not nombre.strip() or not correo.strip() or not palabras.strip():
-            st.error("Completa los tres campos para continuar.")
 
-        elif "@" not in correo or "." not in correo.split("@")[-1]:
-            st.error("Introduce un correo electrónico válido.")
+        if not nombre.strip():
+            st.warning(
+                "Ingresa el nombre de la empresa."
+            )
+
+        elif not correo.strip():
+            st.warning(
+                "Ingresa un correo electrónico."
+            )
+
+        elif not palabras.strip():
+            st.warning(
+                "Ingresa los productos o servicios "
+                "de interés."
+            )
 
         else:
+
             try:
-                
-supabase = conectar_supabase()
 
-supabase.table("clientes").insert(
-    {
-        "empresa": nombre.strip(),
-        "correo": correo.strip().lower(),
-        "palabras_clave": palabras.strip()
-    },
-    returning="minimal"
-).execute()
+                supabase = conectar_supabase()
 
-st.success("¡Registro guardado correctamente!")
+                supabase.table("clientes").insert(
+                    {
+                        "empresa": nombre.strip(),
+                        "correo": correo.strip().lower(),
+                        "palabras_clave": palabras.strip()
+                    },
+                    returning="minimal"
+                ).execute()
 
+                st.success(
+                    "¡Registro guardado correctamente!"
+                )
 
-                if resultado.data:
-                    st.success(
-                        "Empresa registrada correctamente. "
-                        "El registro quedó guardado en la base de datos."
-                    )
-                else:
-                    st.error(
-                        "No se confirmó el registro. "
-                        "Verifica la tabla en Supabase antes de volver a intentarlo."
-                    )
+                st.info(
+                    "Tu empresa ha sido registrada "
+                    "en TAPPAD Radar."
+                )
 
             except Exception as error:
-                st.error(
-                    "No fue posible guardar el registro en Supabase. "
-                    "Revisa la configuración y los permisos de la base de datos."
-                )
-                st.caption(f"Detalle técnico: {error}")
 
-            palabras_lista = [
-                normalizar(p.strip())
-                for p in palabras.split(",")
-                if p.strip()
+                st.error(
+                    "No fue posible guardar el registro "
+                    "en Supabase."
+                )
+
+                st.caption(
+                    f"Detalle técnico: {error}"
+                )
+
+
+# ==========================================
+# PANEL ADMINISTRATIVO
+# ==========================================
+
+elif menu == "Panel administrativo":
+
+    st.header("Panel administrativo")
+
+    st.write(
+        "Acceso exclusivo para "
+        "TAPPAD Consultoría."
+    )
+
+    clave = st.text_input(
+        "Contraseña de administrador",
+        type="password"
+    )
+
+    if st.button("Ingresar"):
+
+        try:
+            clave_correcta = st.secrets[
+                "admin_password"
             ]
 
-            coincidencias = []
+            if clave == clave_correcta:
 
-            for lic in licitaciones_gobierno:
-                texto = normalizar(
-                    lic["titulo"] + " " + lic["dependencia"]
+                st.success(
+                    "Acceso administrativo autorizado."
                 )
-                if any(k in texto for k in palabras_lista):
-                    coincidencias.append(lic)
 
-            st.subheader("Coincidencias de demostración")
+                st.subheader(
+                    "Estado del sistema"
+                )
 
-            if coincidencias:
-                for lic in coincidencias:
-                    st.markdown(
-                        f"- **{lic['titulo']}** — {lic['portal']} — "
-                        f"{lic['dependencia']} ({lic['id']})"
-                    )
-            else:
+                st.write(
+                    "Aplicación: TAPPAD Radar MVP"
+                )
+
+                st.write(
+                    "Base de datos: Supabase"
+                )
+
+                st.write(
+                    "Fuentes previstas: ComprasMX "
+                    "y SECOP Coahuila"
+                )
+
                 st.info(
-                    "No hay coincidencias en los datos de demostración."
+                    "La consulta administrativa de "
+                    "clientes se implementará "
+                    "posteriormente mediante "
+                    "un acceso seguro."
                 )
 
-            st.warning(
-                "Las licitaciones mostradas son ejemplos. "
-                "Todavía no se consultan automáticamente los portales "
-                "ni se envían alertas por correo."
-            )
-
-elif vista == "Acceso de consultor":
-    st.header("Panel privado de consultor")
-
-    try:
-        clave_admin = st.secrets.get("admin_password", "")
-    except Exception:
-        clave_admin = ""
-
-    if not clave_admin:
-        st.error(
-            "Falta configurar admin_password en Streamlit → Settings → Secrets."
-        )
-    else:
-        if "admin_autenticado" not in st.session_state:
-            st.session_state.admin_autenticado = False
-
-        with st.form("formulario_admin"):
-            password = st.text_input(
-                "Contraseña de administrador",
-                type="password"
-            )
-            entrar = st.form_submit_button("Iniciar sesión")
-
-        if entrar:
-            st.session_state.admin_autenticado = (
-                password == clave_admin
-            )
-
-            if st.session_state.admin_autenticado:
-                st.rerun()
             else:
-                st.error("Contraseña incorrecta.")
 
-        if st.session_state.admin_autenticado:
-            st.success("Sesión de administrador activa.")
+                st.error(
+                    "Contraseña incorrecta."
+                )
 
-            if st.button("Cerrar sesión"):
-                st.session_state.admin_autenticado = False
-                st.rerun()
+        except Exception as error:
 
-            st.subheader("Estado del sistema")
-            st.write(
-                "Los nuevos registros se guardan en Supabase. "
-                "La consulta de los registros desde este panel privado "
-                "se configurará en un siguiente paso."
+            st.error(
+                "No fue posible verificar "
+                "el acceso administrativo."
             )
 
-            st.subheader("Licitaciones de demostración")
-            st.dataframe(
-                pd.DataFrame(licitaciones_gobierno),
-                use_container_width=True
-            )
+
+# ==========================================
+# PIE DE PAGINA
+# ==========================================
+
+st.divider()
+
+st.caption(
+    "TAPPAD Radar | "
+    "Desarrollado por TAPPAD Consultoría"
+)
+
 
             st.warning(
                 "Los cuatro registros de licitaciones son ejemplos, "
