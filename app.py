@@ -302,9 +302,3 @@ st.caption(
     "TAPPAD Radar | "
     "Desarrollado por TAPPAD Consultoría"
 )
-
-
-            st.warning(
-                "Los cuatro registros de licitaciones son ejemplos, "
-                "no datos extraídos en tiempo real."
-            )
