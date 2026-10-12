@@ -96,13 +96,20 @@ if vista == "Vista del cliente":
 
         else:
             try:
-                supabase = conectar_supabase()
+                
+supabase = conectar_supabase()
 
-                resultado = supabase.table("clientes").insert({
-                    "empresa": nombre.strip(),
-                    "correo": correo.strip().lower(),
-                    "palabras_clave": palabras.strip()
-                }).execute()
+supabase.table("clientes").insert(
+    {
+        "empresa": nombre.strip(),
+        "correo": correo.strip().lower(),
+        "palabras_clave": palabras.strip()
+    },
+    returning="minimal"
+).execute()
+
+st.success("¡Registro guardado correctamente!")
+
 
                 if resultado.data:
                     st.success(
