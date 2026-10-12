@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+from supabase import create_client
 
 st.set_page_config(
     page_title="TAPPAD Radar",
@@ -14,22 +15,22 @@ def normalizar(text):
         return ""
 
     text = str(text).lower().strip()
-    reemplazos = [
+    for a, b in [
         ("á", "a"), ("é", "e"), ("í", "i"),
         ("ó", "o"), ("ú", "u"), ("ü", "u"),
         ("ñ", "n")
-    ]
-
-    for a, b in reemplazos:
+    ]:
         text = text.replace(a, b)
 
     return text
 
 
-# Datos temporales de demostración.
-# Todavía no constituyen una base de datos permanente.
-if "lista_clientes" not in st.session_state:
-    st.session_state.lista_clientes = []
+@st.cache_resource
+def conectar_supabase():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
 
 licitaciones_gobierno = [
     {
@@ -58,8 +59,7 @@ licitaciones_gobierno = [
     }
 ]
 
-
-st.title("💼 TAPPAD Radar")
+st.title("TAPPAD Radar")
 st.caption(
     "Prototipo de monitoreo de oportunidades de contratación pública."
 )
@@ -70,12 +70,7 @@ vista = st.radio(
     horizontal=True
 )
 
-
-# --------------------------------------------------
-# VISTA DEL CLIENTE
-# --------------------------------------------------
 if vista == "Vista del cliente":
-
     st.header("Registro de empresas")
     st.write(
         "Registra tu empresa y las palabras clave "
@@ -84,23 +79,13 @@ if vista == "Vista del cliente":
 
     with st.form("formulario_registro", clear_on_submit=True):
         nombre = st.text_input(
-            "Nombre de la empresa / razón social",
-            placeholder="Ej. Materiales Sierra Madre S.A."
+            "Nombre de la empresa / razón social"
         )
-
-        correo = st.text_input(
-            "Correo electrónico",
-            placeholder="empresa@ejemplo.com"
-        )
-
+        correo = st.text_input("Correo electrónico")
         palabras = st.text_input(
-            "Palabras clave separadas por comas",
-            placeholder="limpieza, software, computadoras"
+            "Palabras clave separadas por comas"
         )
-
-        enviar = st.form_submit_button(
-            "REGISTRAR EMPRESA"
-        )
+        enviar = st.form_submit_button("REGISTRAR EMPRESA")
 
     if enviar:
         if not nombre.strip() or not correo.strip() or not palabras.strip():
@@ -110,23 +95,32 @@ if vista == "Vista del cliente":
             st.error("Introduce un correo electrónico válido.")
 
         else:
-            nuevo = {
-                "nombre": nombre.strip(),
-                "correo": correo.strip().lower(),
-                "keywords": palabras.strip()
-            }
+            try:
+                supabase = conectar_supabase()
 
-            st.session_state.lista_clientes.append(nuevo)
+                resultado = supabase.table("clientes").insert({
+                    "empresa": nombre.strip(),
+                    "correo": correo.strip().lower(),
+                    "palabras_clave": palabras.strip()
+                }).execute()
 
-            st.success(
-                f"Registro de demostración recibido para {nombre.strip()}."
-            )
+                if resultado.data:
+                    st.success(
+                        "Empresa registrada correctamente. "
+                        "El registro quedó guardado en la base de datos."
+                    )
+                else:
+                    st.error(
+                        "No se confirmó el registro. "
+                        "Verifica la tabla en Supabase antes de volver a intentarlo."
+                    )
 
-            st.info(
-                "Este prototipo no guarda los registros de forma permanente, "
-                "no envía correos y no consulta automáticamente los portales. "
-                "Las oportunidades siguientes son datos de demostración."
-            )
+            except Exception as error:
+                st.error(
+                    "No fue posible guardar el registro en Supabase. "
+                    "Revisa la configuración y los permisos de la base de datos."
+                )
+                st.caption(f"Detalle técnico: {error}")
 
             palabras_lista = [
                 normalizar(p.strip())
@@ -140,7 +134,6 @@ if vista == "Vista del cliente":
                 texto = normalizar(
                     lic["titulo"] + " " + lic["dependencia"]
                 )
-
                 if any(k in texto for k in palabras_lista):
                     coincidencias.append(lic)
 
@@ -149,24 +142,23 @@ if vista == "Vista del cliente":
             if coincidencias:
                 for lic in coincidencias:
                     st.markdown(
-                        f"- **{lic['titulo']}** — "
-                        f"{lic['portal']} — {lic['dependencia']} "
-                        f"({lic['id']})"
+                        f"- **{lic['titulo']}** — {lic['portal']} — "
+                        f"{lic['dependencia']} ({lic['id']})"
                     )
             else:
-                st.warning(
+                st.info(
                     "No hay coincidencias en los datos de demostración."
                 )
 
+            st.warning(
+                "Las licitaciones mostradas son ejemplos. "
+                "Todavía no se consultan automáticamente los portales "
+                "ni se envían alertas por correo."
+            )
 
-# --------------------------------------------------
-# VISTA PRIVADA DEL CONSULTOR
-# --------------------------------------------------
 elif vista == "Acceso de consultor":
-
     st.header("Panel privado de consultor")
 
-    # La contraseña debe configurarse en Streamlit Secrets.
     try:
         clave_admin = st.secrets.get("admin_password", "")
     except Exception:
@@ -174,14 +166,8 @@ elif vista == "Acceso de consultor":
 
     if not clave_admin:
         st.error(
-            "El panel está bloqueado porque todavía no se ha configurado "
-            "la contraseña de administrador."
+            "Falta configurar admin_password en Streamlit → Settings → Secrets."
         )
-        st.markdown(
-            "Configúrala en la sección **Settings → Secrets** "
-            "de la aplicación en Streamlit."
-        )
-
     else:
         if "admin_autenticado" not in st.session_state:
             st.session_state.admin_autenticado = False
@@ -191,15 +177,16 @@ elif vista == "Acceso de consultor":
                 "Contraseña de administrador",
                 type="password"
             )
-
             entrar = st.form_submit_button("Iniciar sesión")
 
         if entrar:
-            if password == clave_admin:
-                st.session_state.admin_autenticado = True
+            st.session_state.admin_autenticado = (
+                password == clave_admin
+            )
+
+            if st.session_state.admin_autenticado:
                 st.rerun()
             else:
-                st.session_state.admin_autenticado = False
                 st.error("Contraseña incorrecta.")
 
         if st.session_state.admin_autenticado:
@@ -209,28 +196,20 @@ elif vista == "Acceso de consultor":
                 st.session_state.admin_autenticado = False
                 st.rerun()
 
-            st.subheader("Clientes registrados en esta sesión")
+            st.subheader("Estado del sistema")
+            st.write(
+                "Los nuevos registros se guardan en Supabase. "
+                "La consulta de los registros desde este panel privado "
+                "se configurará en un siguiente paso."
+            )
 
-            if st.session_state.lista_clientes:
-                st.dataframe(
-                    pd.DataFrame(st.session_state.lista_clientes),
-                    use_container_width=True
-                )
-            else:
-                st.info(
-                    "No hay registros en esta sesión. "
-                    "Los registros aún no se comparten entre usuarios."
-                )
-
-            st.subheader("Datos de licitaciones de demostración")
+            st.subheader("Licitaciones de demostración")
             st.dataframe(
                 pd.DataFrame(licitaciones_gobierno),
                 use_container_width=True
             )
 
             st.warning(
-                "El panel está protegido por contraseña, pero este "
-                "prototipo todavía no utiliza una base de datos compartida. "
-                "Las licitaciones son ejemplos, no resultados extraídos "
-                "en tiempo real."
+                "Los cuatro registros de licitaciones son ejemplos, "
+                "no datos extraídos en tiempo real."
             )
