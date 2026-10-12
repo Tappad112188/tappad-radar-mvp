@@ -124,8 +124,11 @@ elif menu == "Panel administrativo":
                 st.info("Todavía no hay empresas registradas.")
         except KeyError:
             st.error("Falta configurar SUPABASE_ADMIN_KEY o SUPABASE_URL en Streamlit Secrets.")
-        except Exception:
+        
+        except Exception as error:
             st.error("No fue posible consultar los clientes. Revisa la clave administrativa y los permisos de Supabase.")
+            st.caption(f"Detalle técnico: {error}")
+
 
 st.divider()
 st.caption("TAPPAD Radar | Desarrollado por TAPPAD Consultoría")
