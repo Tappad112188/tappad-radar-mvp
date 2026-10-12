@@ -16,31 +16,83 @@ def conectar_supabase_admin():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_ADMIN_KEY"])
 
 
-LICITACIONES_DEMO = [
-    {"Procedimiento": "DEMO-001", "Dependencia": "Dependencia de demostración A", "Descripción": "Adquisición de material de oficina", "Fuente": "ComprasMX", "Estado": "Demostración"},
-    {"Procedimiento": "DEMO-002", "Dependencia": "Dependencia de demostración B", "Descripción": "Servicio de limpieza de instalaciones", "Fuente": "SECOP Coahuila", "Estado": "Demostración"},
-    {"Procedimiento": "DEMO-003", "Dependencia": "Dependencia de demostración C", "Descripción": "Mantenimiento de equipos de cómputo", "Fuente": "ComprasMX", "Estado": "Demostración"},
-]
-
 st.title("📡 TAPPAD Radar")
 st.subheader("Sistema de monitoreo de oportunidades en licitaciones públicas")
-st.info("Versión MVP. Las licitaciones mostradas son datos de demostración.")
+st.info("Versión MVP. Se muestran expedientes reales almacenados en TAPPAD Radar; la actualización automática aún está en desarrollo.")
 st.divider()
 
 menu = st.sidebar.radio("Menú principal", ["Explorar licitaciones", "Registrar empresa", "Panel administrativo"])
 
 if menu == "Explorar licitaciones":
     st.header("Oportunidades de contratación")
+    st.caption("Fuente: registros guardados en Supabase. Algunos expedientes pueden estar concluidos.")
     busqueda = st.text_input("Buscar por palabra clave").strip()
-    df = pd.DataFrame(LICITACIONES_DEMO)
-    if busqueda:
-        filtro = (
-            df["Descripción"].str.contains(busqueda, case=False, na=False, regex=False)
-            | df["Dependencia"].str.contains(busqueda, case=False, na=False, regex=False)
+
+    try:
+        # Consulta exclusivamente del lado del servidor: la clave administrativa
+        # permanece en Streamlit Secrets y nunca se envía al navegador.
+        supabase_admin = conectar_supabase_admin()
+        respuesta = (
+            supabase_admin.table("licitaciones")
+            .select("numero_procedimiento,nombre_procedimiento,descripcion,nombre_dependencia,"
+                    "tipo_procedimiento,estatus,entidad_federativa,fecha_publicacion,"
+                    "fecha_apertura,fecha_fallo,fuente,url_procedimiento")
+            .order("fecha_publicacion", desc=True)
+            .limit(1000)
+            .execute()
         )
-        df = df.loc[filtro]
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    st.caption("Próximamente: integración automática con ComprasMX y SECOP Coahuila.")
+        licitaciones = respuesta.data or []
+        df = pd.DataFrame(licitaciones)
+        if df.empty:
+            st.info("Aún no hay licitaciones almacenadas.")
+        else:
+            if busqueda:
+                columnas_busqueda = [
+                    "numero_procedimiento", "nombre_procedimiento", "descripcion",
+                    "nombre_dependencia", "tipo_procedimiento", "entidad_federativa"
+                ]
+                filtro = pd.Series(False, index=df.index)
+                for columna in columnas_busqueda:
+                    filtro = filtro | df[columna].fillna("").astype(str).str.contains(
+                        busqueda, case=False, na=False, regex=False
+                    )
+                df = df.loc[filtro]
+
+            st.metric("Licitaciones encontradas", len(df))
+            if df.empty:
+                st.info("No se encontraron procedimientos con esa palabra clave.")
+            else:
+                columnas = {
+                    "numero_procedimiento": "Procedimiento",
+                    "nombre_procedimiento": "Nombre",
+                    "descripcion": "Descripción",
+                    "nombre_dependencia": "Dependencia",
+                    "tipo_procedimiento": "Tipo",
+                    "estatus": "Estado",
+                    "entidad_federativa": "Entidad",
+                    "fecha_publicacion": "Publicación",
+                    "fecha_apertura": "Apertura",
+                    "fecha_fallo": "Fallo programado",
+                    "fuente": "Fuente",
+                    "url_procedimiento": "Expediente",
+                }
+                st.dataframe(
+                    df[list(columnas)].rename(columns=columnas),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Expediente": st.column_config.LinkColumn(
+                            "Expediente", display_text="Abrir en ComprasMX"
+                        )
+                    },
+                )
+            st.caption("Se consultan hasta 1,000 expedientes, ordenados por publicación. Las fechas provienen de ComprasMX.")
+    except KeyError:
+        st.error("Falta configurar SUPABASE_URL o SUPABASE_ADMIN_KEY en Streamlit Secrets.")
+    except Exception:
+        st.error("No fue posible consultar las licitaciones. Revisa los permisos de Supabase.")
+
+    st.caption("Próximamente: actualización automática de ComprasMX y SECOP Coahuila.")
 
 elif menu == "Registrar empresa":
     st.header("Registro de empresas")
