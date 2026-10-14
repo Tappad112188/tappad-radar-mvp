@@ -89,8 +89,9 @@ if menu == "Explorar licitaciones":
             st.caption("Se consultan hasta 1,000 expedientes, ordenados por publicación. Las fechas provienen de ComprasMX.")
     except KeyError:
         st.error("Falta configurar SUPABASE_URL o SUPABASE_ADMIN_KEY en Streamlit Secrets.")
-    except Exception:
-        st.error("No fue posible consultar las licitaciones. Revisa los permisos de Supabase.")
+    except Exception as e:
+    st.error("No fue posible consultar las licitaciones.")
+    st.error(f"Tipo de error: {type(e).__name__}")
 
     st.caption("Próximamente: actualización automática de ComprasMX y SECOP Coahuila.")
 
