@@ -12,7 +12,7 @@ def conectar_supabase():
 
 
 def conectar_supabase_admin():
-    # Solo se llama después de comprobar la contraseña administrativa.
+    # La clave administrativa permanece en Streamlit Secrets.
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_ADMIN_KEY"])
 
 
@@ -29,8 +29,7 @@ if menu == "Explorar licitaciones":
     busqueda = st.text_input("Buscar por palabra clave").strip()
 
     try:
-        # Consulta exclusivamente del lado del servidor: la clave administrativa
-        # permanece en Streamlit Secrets y nunca se envía al navegador.
+        # Consulta del lado del servidor: la clave administrativa no se muestra en la interfaz.
         supabase_admin = conectar_supabase_admin()
         respuesta = (
             supabase_admin.table("licitaciones")
@@ -89,9 +88,9 @@ if menu == "Explorar licitaciones":
             st.caption("Se consultan hasta 1,000 expedientes, ordenados por publicación. Las fechas provienen de ComprasMX.")
     except KeyError:
         st.error("Falta configurar SUPABASE_URL o SUPABASE_ADMIN_KEY en Streamlit Secrets.")
-            except Exception as e:
-            st.error("No fue posible consultar las licitaciones.")
-            st.error(f"Tipo de error: {type(e).__name__}")
+    except Exception as e:
+        st.error("No fue posible consultar las licitaciones.")
+        st.error(f"Tipo de error: {type(e).__name__}")
 
     st.caption("Próximamente: actualización automática de ComprasMX y SECOP Coahuila.")
 
@@ -177,11 +176,9 @@ elif menu == "Panel administrativo":
                 st.info("Todavía no hay empresas registradas.")
         except KeyError:
             st.error("Falta configurar SUPABASE_ADMIN_KEY o SUPABASE_URL en Streamlit Secrets.")
-        
         except Exception as error:
             st.error("No fue posible consultar los clientes. Revisa la clave administrativa y los permisos de Supabase.")
-            st.caption(f"Detalle técnico: {error}")
-
+            st.caption(f"Tipo de error: {type(error).__name__}")
 
 st.divider()
 st.caption("TAPPAD Radar | Desarrollado por TAPPAD Consultoría")
