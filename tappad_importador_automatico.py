@@ -1,27 +1,33 @@
-"""TAPPAD Radar — descarga y prueba/importación de expedientes ComprasMX.
+"""TAPPAD Radar: descarga e importación controlada de expedientes ComprasMX.
 
-Por defecto NO escribe en Supabase. Para importar se requiere --importar y
-SUPABASE_URL / SUPABASE_ADMIN_KEY en variables de entorno.
+Modo prueba (sin escrituras):
+    python tappad_importador_automatico.py --dias 2 --limite 1000
+
+Modo importación (requiere SUPABASE_URL y SUPABASE_ADMIN_KEY):
+    python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
 """
 import argparse
 import csv
 import os
 import re
+import shutil
 import tempfile
 import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
-CSV_URL = ("https://upcp-cnetservicios.buengobierno.gob.mx/norah/documentos/"
-           "recursos/lck/expedientes/obtener/Expedientes_ComprasMX_2026.csv")
+CSV_URL = (
+    "https://upcp-cnetservicios.buengobierno.gob.mx/norah/documentos/"
+    "recursos/lck/expedientes/obtener/Expedientes_ComprasMX_2026.csv"
+)
 UUID_RE = re.compile(r"/detalle/([0-9a-f]{32})/procedimiento", re.I)
 
 
 def fecha(valor):
     try:
         return datetime.fromisoformat((valor or "").strip())
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 
@@ -56,23 +62,22 @@ def registro(fila):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Descarga CSV ComprasMX e importa registros nuevos")
+    parser = argparse.ArgumentParser(description="Descarga CSV ComprasMX e importa expedientes nuevos")
     parser.add_argument("--dias", type=int, default=2)
     parser.add_argument("--limite", type=int, default=1000)
-    parser.add_argument("--importar", action="store_true", help="Habilita escritura en Supabase")
+    parser.add_argument("--importar", action="store_true")
     args = parser.parse_args()
-    if args.dias < 0 or args.limite < 1:
-        parser.error("--dias debe ser >= 0 y --limite >= 1")
+    if args.dias < 0 or not 1 <= args.limite <= 1000:
+        parser.error("--dias debe ser >= 0 y --limite debe estar entre 1 y 1000")
 
     with tempfile.TemporaryDirectory() as folder:
         ruta = Path(folder) / "Expedientes_ComprasMX_2026.csv"
         print("Descargando CSV oficial de ComprasMX...")
         request = urllib.request.Request(CSV_URL, headers={"User-Agent": "TAPPAD-Radar/1.0"})
         with urllib.request.urlopen(request, timeout=180) as response, ruta.open("wb") as out:
-            import shutil
             shutil.copyfileobj(response, out)
         if ruta.stat().st_size < 1000:
-            raise RuntimeError("La descarga es demasiado pequeña para ser un CSV de expedientes")
+            raise RuntimeError("Descarga demasiado pequeña para ser el CSV esperado")
 
         items = {}
         total = sin_uuid = 0
@@ -81,7 +86,7 @@ def main():
             lector = csv.DictReader(archivo)
             requeridas = {"Dirección del anuncio", "Fecha publicación", "Número de procedimiento/proyecto"}
             if not requeridas.issubset(set(lector.fieldnames or [])):
-                raise RuntimeError("El archivo no contiene los encabezados esperados de ComprasMX")
+                raise RuntimeError("El CSV no contiene los encabezados esperados")
             for fila in lector:
                 total += 1
                 item = registro(fila)
@@ -94,8 +99,7 @@ def main():
                 items[item["uuid_procedimiento"]] = item
 
         if max_fecha is None:
-            raise RuntimeError("El CSV no tiene fechas de publicación válidas")
-        # No importar desde una descarga antigua o incompleta.
+            raise RuntimeError("El CSV no contiene fechas válidas")
         if datetime.now() - max_fecha > timedelta(days=7):
             raise RuntimeError(f"CSV desactualizado: última publicación {max_fecha}")
         desde = max_fecha - timedelta(days=args.dias)
@@ -112,16 +116,16 @@ def main():
             print("MODO PRUEBA: no se escribió nada en Supabase.")
             return
 
-        url, key = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ADMIN_KEY")
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ADMIN_KEY")
         if not url or not key:
             raise RuntimeError("Faltan SUPABASE_URL o SUPABASE_ADMIN_KEY")
         from supabase import create_client
         db = create_client(url, key)
         nuevos = existentes = 0
         for item in seleccion:
-            consulta = (db.table("licitaciones").select("id")
-                        .eq("uuid_procedimiento", item["uuid_procedimiento"])
-                        .limit(1).execute())
+            uuid = item["uuid_procedimiento"]
+            consulta = db.table("licitaciones").select("id").eq("uuid_procedimiento", uuid).limit(1).execute()
             if consulta.data:
                 existentes += 1
                 continue
