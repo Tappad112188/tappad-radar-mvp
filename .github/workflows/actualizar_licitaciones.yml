@@ -1,0 +1,24 @@
+name: TAPPAD Radar - prueba de descarga ComprasMX
+
+on:
+  workflow_dispatch:
+
+# La programación y la importación se activarán después de validar
+# una ejecución manual desde GitHub Actions.
+# Saltillo: 08:00 y 18:00 = UTC 14:00 y 00:00.
+# schedule:
+#   - cron: '0 14,0 * * *'
+
+jobs:
+  verificar-csv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Obtener archivos del repositorio
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probar descarga y lectura sin importar
+        run: python tappad_importador_automatico.py --dias 2 --limite 5
