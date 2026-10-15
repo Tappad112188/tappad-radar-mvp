@@ -1,10 +1,7 @@
-"""TAPPAD Radar: descarga e importación controlada de expedientes ComprasMX.
+"""TAPPAD Radar: descarga ComprasMX e importa expedientes nuevos por lotes.
 
-Modo prueba (sin escrituras):
-    python tappad_importador_automatico.py --dias 2 --limite 1000
-
-Modo importación (requiere SUPABASE_URL y SUPABASE_ADMIN_KEY):
-    python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
+Prueba: python tappad_importador_automatico.py --dias 2 --limite 1000
+Importar: python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
 """
 import argparse
 import csv
@@ -22,6 +19,7 @@ CSV_URL = (
     "recursos/lck/expedientes/obtener/Expedientes_ComprasMX_2026.csv"
 )
 UUID_RE = re.compile(r"/detalle/([0-9a-f]{32})/procedimiento", re.I)
+TAMANO_LOTE = 100
 
 
 def fecha(valor):
@@ -59,6 +57,11 @@ def registro(fila):
         "fuente": "ComprasMX",
         "url_procedimiento": url,
     }
+
+
+def lotes(lista, tamano=TAMANO_LOTE):
+    for inicio in range(0, len(lista), tamano):
+        yield lista[inicio:inicio + tamano]
 
 
 def main():
@@ -123,15 +126,22 @@ def main():
         from supabase import create_client
         db = create_client(url, key)
         nuevos = existentes = 0
-        for item in seleccion:
-            uuid = item["uuid_procedimiento"]
-            consulta = db.table("licitaciones").select("id").eq("uuid_procedimiento", uuid).limit(1).execute()
-            if consulta.data:
-                existentes += 1
-                continue
-            db.table("licitaciones").insert(item, returning="minimal").execute()
-            nuevos += 1
-        print(f"Importación completada: {nuevos} nuevos, {existentes} existentes omitidos")
+        for grupo in lotes(seleccion):
+            uuids = [item["uuid_procedimiento"] for item in grupo]
+            respuesta = (db.table("licitaciones").select("uuid_procedimiento")
+                         .in_("uuid_procedimiento", uuids).execute())
+            ya_guardados = {fila["uuid_procedimiento"] for fila in respuesta.data}
+            pendientes = [item for item in grupo if item["uuid_procedimiento"] not in ya_guardados]
+            existentes += len(grupo) - len(pendientes)
+            if pendientes:
+                # La restricción UNIQUE de Supabase protege también frente a duplicados.
+                db.table("licitaciones").upsert(
+                    pendientes, on_conflict="uuid_procedimiento", ignore_duplicates=True,
+                    returning="minimal"
+                ).execute()
+                nuevos += len(pendientes)
+            print(f"Lote procesado: {len(grupo)} | candidatos nuevos: {len(pendientes)}")
+        print(f"Importación completada: {nuevos} candidatos nuevos, {existentes} existentes omitidos")
 
 
 if __name__ == "__main__":
