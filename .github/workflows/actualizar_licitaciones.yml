@@ -30,4 +30,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
-        run: python tappad_importador_automatico.py --dias 2 --limite 1000
+        run: python tappad_importador_automatico.py --dias 2 --limite 200 --importar
