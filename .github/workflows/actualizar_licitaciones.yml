@@ -2,6 +2,9 @@ name: TAPPAD Radar - prueba controlada de importacion ComprasMX
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 14 * * *'
+    - cron: '0 0 * * *'
 
 permissions:
   contents: read
