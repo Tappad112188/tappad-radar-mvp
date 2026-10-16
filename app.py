@@ -18,18 +18,17 @@ def conectar_supabase_admin():
 
 st.title("📡 TAPPAD Radar")
 st.subheader("Sistema de monitoreo de oportunidades en licitaciones públicas")
-st.info("Versión MVP. Se muestran expedientes reales almacenados en TAPPAD Radar; la actualización automática aún está en desarrollo.")
+st.info("Versión MVP. Importación automática de ComprasMX configurada dos veces al día. Los expedientes pueden estar vigentes o concluidos.")
 st.divider()
 
 menu = st.sidebar.radio("Menú principal", ["Explorar licitaciones", "Registrar empresa", "Panel administrativo"])
 
 if menu == "Explorar licitaciones":
     st.header("Oportunidades de contratación")
-    st.caption("Fuente: registros guardados en Supabase. Algunos expedientes pueden estar concluidos.")
+    st.caption("Fuente: expedientes guardados en Supabase. Verifica siempre los detalles en ComprasMX.")
     busqueda = st.text_input("Buscar por palabra clave").strip()
 
     try:
-        # Consulta del lado del servidor: la clave administrativa no se muestra en la interfaz.
         supabase_admin = conectar_supabase_admin()
         respuesta = (
             supabase_admin.table("licitaciones")
@@ -40,11 +39,21 @@ if menu == "Explorar licitaciones":
             .limit(1000)
             .execute()
         )
-        licitaciones = respuesta.data or []
-        df = pd.DataFrame(licitaciones)
+        df = pd.DataFrame(respuesta.data or [])
         if df.empty:
             st.info("Aún no hay licitaciones almacenadas.")
         else:
+            def opciones(columna):
+                return sorted(df[columna].dropna().astype(str).loc[lambda s: s.str.strip() != ""].unique().tolist())
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                estados = st.multiselect("Estatus del procedimiento", opciones("estatus"))
+            with col2:
+                entidades = st.multiselect("Entidad federativa", opciones("entidad_federativa"))
+            with col3:
+                tipos = st.multiselect("Tipo de procedimiento", opciones("tipo_procedimiento"))
+
             if busqueda:
                 columnas_busqueda = [
                     "numero_procedimiento", "nombre_procedimiento", "descripcion",
@@ -52,14 +61,20 @@ if menu == "Explorar licitaciones":
                 ]
                 filtro = pd.Series(False, index=df.index)
                 for columna in columnas_busqueda:
-                    filtro = filtro | df[columna].fillna("").astype(str).str.contains(
+                    filtro |= df[columna].fillna("").astype(str).str.contains(
                         busqueda, case=False, na=False, regex=False
                     )
                 df = df.loc[filtro]
+            if estados:
+                df = df[df["estatus"].isin(estados)]
+            if entidades:
+                df = df[df["entidad_federativa"].isin(entidades)]
+            if tipos:
+                df = df[df["tipo_procedimiento"].isin(tipos)]
 
             st.metric("Licitaciones encontradas", len(df))
             if df.empty:
-                st.info("No se encontraron procedimientos con esa palabra clave.")
+                st.info("No se encontraron procedimientos con los filtros seleccionados.")
             else:
                 columnas = {
                     "numero_procedimiento": "Procedimiento",
@@ -85,14 +100,14 @@ if menu == "Explorar licitaciones":
                         )
                     },
                 )
-            st.caption("Se consultan hasta 1,000 expedientes, ordenados por publicación. Las fechas provienen de ComprasMX.")
+            st.caption("Los filtros se aplican a los 1,000 expedientes más recientes consultados. Las fechas provienen de ComprasMX.")
     except KeyError:
         st.error("Falta configurar SUPABASE_URL o SUPABASE_ADMIN_KEY en Streamlit Secrets.")
     except Exception as e:
         st.error("No fue posible consultar las licitaciones.")
         st.error(f"Tipo de error: {type(e).__name__}")
 
-    st.caption("Próximamente: actualización automática de ComprasMX y SECOP Coahuila.")
+    st.caption("Próximamente: integración de SECOP Coahuila y alertas personalizadas.")
 
 elif menu == "Registrar empresa":
     st.header("Registro de empresas")
