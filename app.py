@@ -212,7 +212,7 @@ elif menu == "Registrar empresa":
                     }).execute()
                     st.success("Solicitud de registro recibida correctamente.")
                     st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
-                                except Exception as error:
+                except Exception as error:
                     codigo = str(getattr(error, "code", ""))
                     if codigo == "23505":
                         st.warning("Este correo ya está registrado. Contacta a TAPPAD Consultoría si necesitas actualizar tus datos.")
