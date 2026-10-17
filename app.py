@@ -5,6 +5,41 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client
 
+TURNSTILE_JS = """
+export default function({ parentElement, data, setStateValue }) {
+    const container = parentElement.querySelector("#tappad-turnstile");
+
+    function renderWidget() {
+        if (!container || container.dataset.rendered) return;
+        if (!window.turnstile) return;
+
+        container.dataset.rendered = "true";
+
+        window.turnstile.render(container, {
+            sitekey: data.sitekey,
+            callback: (token) => setStateValue("token", token),
+            "expired-callback": () => setStateValue("token", ""),
+            "error-callback": () => setStateValue("token", "")
+        });
+    }
+
+    if (window.turnstile) {
+        renderWidget();
+    } else {
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.onload = renderWidget;
+        document.head.appendChild(script);
+    }
+}
+"""
+
+turnstile_component = st.components.v2.component(
+    "tappad_turnstile",
+    html='<div id="tappad-turnstile"></div>',
+    js=TURNSTILE_JS,
+)
+
 st.set_page_config(page_title="TAPPAD Radar", page_icon="📡", layout="wide")
 
 
