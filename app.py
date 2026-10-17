@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 import streamlit as st
 from supabase import create_client
-
+TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
     const container = parentElement.querySelector("#tappad-turnstile");
