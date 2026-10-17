@@ -165,7 +165,7 @@ elif menu == "Registrar empresa":
                 "Municipios de ese estado, separados por coma",
                 placeholder="Ejemplo: Saltillo, Ramos Arizpe",
                 max_chars=500,
-                disabled=estado_municipio == "Ninguno",
+                
             )
             consentimiento = st.checkbox(
                 "Confirmo que tengo autorización para proporcionar estos datos y recibir comunicaciones relacionadas con mi solicitud."
