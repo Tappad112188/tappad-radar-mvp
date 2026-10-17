@@ -212,8 +212,12 @@ elif menu == "Registrar empresa":
                     }).execute()
                     st.success("Solicitud de registro recibida correctamente.")
                     st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
-                except Exception:
-                    st.error("No fue posible completar el registro. Inténtalo más tarde.")
+                                except Exception as error:
+                    codigo = str(getattr(error, "code", ""))
+                    if codigo == "23505":
+                        st.warning("Este correo ya está registrado. Contacta a TAPPAD Consultoría si necesitas actualizar tus datos.")
+                    else:
+                        st.error("No fue posible completar el registro. Revisa tus datos e inténtalo más tarde.")
     elif not catalogo:
         st.info("El registro estará disponible cuando se cargue el catálogo de giros.")
 
