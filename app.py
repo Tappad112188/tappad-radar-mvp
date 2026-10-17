@@ -1,4 +1,5 @@
 import hmac
+import re
 
 import pandas as pd
 import streamlit as st
@@ -15,6 +16,15 @@ def conectar_supabase_admin():
     # La clave administrativa permanece en Streamlit Secrets.
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_ADMIN_KEY"])
 
+
+ESTADOS_MX = [
+    "Aguascalientes", "Baja California", "Baja California Sur", "Campeche",
+    "Chiapas", "Chihuahua", "Ciudad de México", "Coahuila", "Colima",
+    "Durango", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "México",
+    "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla",
+    "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora",
+    "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas",
+]
 
 st.title("📡 TAPPAD Radar")
 st.subheader("Sistema de monitoreo de oportunidades en licitaciones públicas")
@@ -110,32 +120,102 @@ if menu == "Explorar licitaciones":
     st.caption("Próximamente: integración de SECOP Coahuila y alertas personalizadas.")
 
 elif menu == "Registrar empresa":
-    st.header("Registro de empresas")
-    st.write("Registra tu empresa para recibir información sobre oportunidades de contratación pública.")
-    with st.form("formulario_registro"):
-        nombre = st.text_input("Nombre de la empresa")
-        correo = st.text_input("Correo electrónico")
-        palabras = st.text_area("Productos o servicios de interés", placeholder="Ejemplo: limpieza, papelería, mantenimiento")
-        enviar = st.form_submit_button("Registrar empresa")
+    st.header("Registro de proveedores")
+    st.write("Registra tu empresa e indica qué licitaciones te interesan.")
+    st.caption("El registro no activa una suscripción ni el envío automático de alertas.")
 
-    if enviar:
-        if not nombre.strip():
-            st.warning("Ingresa el nombre de la empresa.")
-        elif not correo.strip():
-            st.warning("Ingresa un correo electrónico.")
-        elif not palabras.strip():
-            st.warning("Ingresa los productos o servicios de interés.")
-        else:
-            try:
-                supabase = conectar_supabase()
-                supabase.table("clientes").insert(
-                    {"empresa": nombre.strip(), "correo": correo.strip().lower(), "palabras_clave": palabras.strip()},
-                    returning="minimal",
-                ).execute()
-                st.success("¡Registro guardado correctamente!")
-                st.info("Tu empresa ha sido registrada en TAPPAD Radar.")
-            except Exception:
-                st.error("No fue posible guardar el registro. Inténtalo de nuevo o contacta a TAPPAD Consultoría.")
+    try:
+        supabase = conectar_supabase()
+        catalogo = (
+            supabase.table("giros_comerciales")
+            .select("id,nombre")
+            .eq("activo", True)
+            .order("nombre")
+            .execute()
+        ).data or []
+    except Exception:
+        catalogo = []
+        st.error("No fue posible consultar los giros comerciales. Inténtalo más tarde.")
+
+    if catalogo:
+        nombres_giros = {item["nombre"]: item["id"] for item in catalogo}
+        with st.form("formulario_registro_proveedor"):
+            st.subheader("Datos empresariales")
+            empresa = st.text_input("Razón social o nombre comercial *", max_chars=200)
+            rfc = st.text_input("RFC", max_chars=13)
+            contacto = st.text_input("Nombre de contacto", max_chars=150)
+            correo = st.text_input("Correo electrónico *", max_chars=254)
+            telefono = st.text_input("Teléfono", max_chars=25)
+            ciudad = st.text_input("Ciudad de domicilio", max_chars=120)
+            estado_domicilio = st.selectbox("Estado de domicilio", ["No especificado"] + ESTADOS_MX)
+
+            st.subheader("Productos y servicios")
+            giros = st.multiselect("Giros comerciales *", list(nombres_giros))
+            palabras = st.text_area(
+                "Productos o servicios específicos *",
+                placeholder="Ejemplo: artículos de limpieza, mantenimiento de oficinas",
+                max_chars=2000,
+            )
+
+            st.subheader("Cobertura de oportunidades")
+            st.caption("Selecciona estados completos o municipios específicos. Esta cobertura es independiente de tu domicilio.")
+            estados_cobertura = st.multiselect("Estados completos", ESTADOS_MX)
+            estado_municipio = st.selectbox("Estado de municipios específicos", ["Ninguno"] + ESTADOS_MX)
+            municipios = st.text_input(
+                "Municipios de ese estado, separados por coma",
+                placeholder="Ejemplo: Saltillo, Ramos Arizpe",
+                max_chars=500,
+                disabled=estado_municipio == "Ninguno",
+            )
+            consentimiento = st.checkbox(
+                "Confirmo que tengo autorización para proporcionar estos datos y recibir comunicaciones relacionadas con mi solicitud."
+            )
+            enviar = st.form_submit_button("Registrar proveedor")
+
+        if enviar:
+            rfc_limpio = rfc.strip().upper()
+            correo_limpio = correo.strip().lower()
+            ubicaciones = [{"estado": estado, "municipio": None} for estado in estados_cobertura]
+            if estado_municipio != "Ninguno":
+                municipios_unicos = list(dict.fromkeys(
+                    m.strip() for m in municipios.split(",") if m.strip()
+                ))
+                ubicaciones.extend(
+                    {"estado": estado_municipio, "municipio": municipio}
+                    for municipio in municipios_unicos
+                )
+            email_valido = re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo_limpio)
+            rfc_valido = not rfc_limpio or re.fullmatch(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}", rfc_limpio)
+            if not empresa.strip() or not email_valido or not palabras.strip():
+                st.warning("Completa la empresa, un correo válido y los servicios de interés.")
+            elif not rfc_valido:
+                st.warning("Verifica el formato del RFC (12 o 13 caracteres).")
+            elif not giros:
+                st.warning("Selecciona al menos un giro comercial.")
+            elif not ubicaciones:
+                st.warning("Selecciona al menos un estado o municipio de cobertura.")
+            elif not consentimiento:
+                st.warning("Confirma que tienes autorización para proporcionar los datos.")
+            else:
+                try:
+                    supabase.rpc("registrar_proveedor", {
+                        "p_empresa": empresa.strip(),
+                        "p_correo": correo_limpio,
+                        "p_palabras_clave": palabras.strip(),
+                        "p_rfc": rfc_limpio or None,
+                        "p_nombre_contacto": contacto.strip() or None,
+                        "p_telefono": telefono.strip() or None,
+                        "p_ciudad": ciudad.strip() or None,
+                        "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
+                        "p_giros": [nombres_giros[nombre] for nombre in giros],
+                        "p_ubicaciones": ubicaciones,
+                    }).execute()
+                    st.success("Solicitud de registro recibida correctamente.")
+                    st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
+                except Exception:
+                    st.error("No fue posible completar el registro. Inténtalo más tarde.")
+    elif not catalogo:
+        st.info("El registro estará disponible cuando se cargue el catálogo de giros.")
 
 elif menu == "Panel administrativo":
     st.header("Panel administrativo")
