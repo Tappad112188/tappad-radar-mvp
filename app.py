@@ -174,6 +174,16 @@ elif menu == "Registrar empresa":
 
     if catalogo:
         nombres_giros = {item["nombre"]: item["id"] for item in catalogo}
+
+        st.write("### Verificación de seguridad")
+        verificacion = turnstile_component(
+            data={"sitekey": TURNSTILE_SITE_KEY},
+            default={"token": ""},
+            key="turnstile_registro",
+            on_token_change=lambda: None,
+        )
+        token_turnstile = verificacion.token
+
         with st.form("formulario_registro_proveedor"):
             st.subheader("Datos empresariales")
             empresa = st.text_input("Razón social o nombre comercial *", max_chars=200)
