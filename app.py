@@ -241,28 +241,39 @@ elif menu == "Registrar empresa":
                 st.warning("Selecciona al menos un estado o municipio de cobertura.")
             elif not consentimiento:
                 st.warning("Confirma que tienes autorización para proporcionar los datos.")
+            elif not token_turnstile:
+                st.warning("Completa la verificación de seguridad antes de registrarte.")
             else:
+                datos = {
+                    "p_empresa": empresa.strip(),
+                    "p_correo": correo_limpio,
+                    "p_palabras_clave": palabras.strip(),
+                    "p_rfc": rfc_limpio or None,
+                    "p_nombre_contacto": contacto.strip() or None,
+                    "p_telefono": telefono.strip() or None,
+                    "p_ciudad": ciudad.strip() or None,
+                    "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
+                    "p_giros": [nombres_giros[nombre] for nombre in giros],
+                    "p_ubicaciones": ubicaciones,
+                }
                 try:
-                    supabase.rpc("registrar_proveedor", {
-                        "p_empresa": empresa.strip(),
-                        "p_correo": correo_limpio,
-                        "p_palabras_clave": palabras.strip(),
-                        "p_rfc": rfc_limpio or None,
-                        "p_nombre_contacto": contacto.strip() or None,
-                        "p_telefono": telefono.strip() or None,
-                        "p_ciudad": ciudad.strip() or None,
-                        "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
-                        "p_giros": [nombres_giros[nombre] for nombre in giros],
-                        "p_ubicaciones": ubicaciones,
-                    }).execute()
-                    st.success("Solicitud de registro recibida correctamente.")
-                    st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
-                except Exception as error:
-                    codigo = str(getattr(error, "code", ""))
-                    if codigo == "23505":
+                    respuesta = requests.post(
+                        st.secrets["SUPABASE_URL"].rstrip("/")
+                        + "/functions/v1/registro-proveedor-seguro",
+                        json={"turnstile_token": token_turnstile, "datos": datos},
+                        timeout=15,
+                    )
+                    if respuesta.status_code == 200 and respuesta.json().get("ok") is True:
+                        st.success("Solicitud de registro recibida correctamente.")
+                        st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
+                    elif respuesta.status_code == 409:
                         st.warning("Este correo ya está registrado. Contacta a TAPPAD Consultoría si necesitas actualizar tus datos.")
+                    elif respuesta.status_code == 403:
+                        st.warning("La verificación de seguridad no fue válida o expiró. Inténtalo de nuevo.")
                     else:
                         st.error("No fue posible completar el registro. Revisa tus datos e inténtalo más tarde.")
+                except (requests.RequestException, ValueError, KeyError):
+                    st.error("No fue posible conectar con el servicio de registro. Inténtalo más tarde.")
     elif not catalogo:
         st.info("El registro estará disponible cuando se cargue el catálogo de giros.")
 
