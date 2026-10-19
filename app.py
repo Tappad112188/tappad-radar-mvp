@@ -184,6 +184,7 @@ elif menu == "Registrar empresa":
             default={"token": "", "error_code": ""},
             key="turnstile_registro",
             on_token_change=lambda: None,
+            on_error_code_change=lambda: None,
         )
         token_turnstile = verificacion.token
         if verificacion.error_code:
