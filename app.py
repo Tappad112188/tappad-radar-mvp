@@ -19,7 +19,10 @@ export default function({ parentElement, data, setStateValue }) {
             sitekey: data.sitekey,
             callback: (token) => setStateValue("token", token),
             "expired-callback": () => setStateValue("token", ""),
-            "error-callback": () => setStateValue("token", "")
+            "error-callback": (code) => {
+                setStateValue("token", "");
+                setStateValue("error_code", String(code || "desconocido"));
+            }
         });
     }
 
@@ -178,11 +181,13 @@ elif menu == "Registrar empresa":
         st.write("### Verificación de seguridad")
         verificacion = turnstile_component(
             data={"sitekey": TURNSTILE_SITE_KEY},
-            default={"token": ""},
+            default={"token": "", "error_code": ""},
             key="turnstile_registro",
             on_token_change=lambda: None,
         )
         token_turnstile = verificacion.token
+        if verificacion.error_code:
+            st.warning(f"Turnstile informó el código de error: {verificacion.error_code}")
 
         with st.form("formulario_registro_proveedor"):
             st.subheader("Datos empresariales")
