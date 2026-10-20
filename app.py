@@ -349,11 +349,15 @@ elif menu == "Panel administrativo":
         if st.button("Calcular coincidencias", key="calcular_coincidencias"):
             try:
                 db = conectar_supabase_admin()
+                etapa_consulta = "proveedores"
                 proveedores = db.table("clientes").select("id,empresa,palabras_clave,activo").eq("activo", True).limit(1000).execute().data or []
+                etapa_consulta = "coberturas"
                 coberturas = db.table("clientes_ubicaciones").select("cliente_id,estado,municipio").limit(10000).execute().data or []
+                etapa_consulta = "licitaciones"
                 licitaciones = db.table("licitaciones").select(
                     "id,numero_procedimiento,nombre_procedimiento,descripcion,tipo_contratacion,entidad_federativa,fecha_publicacion,url_procedimiento"
                 ).order("id").limit(1000).execute().data or []
+                etapa_consulta = "procesamiento"
                 por_cliente = {}
                 for cobertura in coberturas:
                     por_cliente.setdefault(cobertura["cliente_id"], []).append(cobertura)
@@ -386,7 +390,13 @@ elif menu == "Panel administrativo":
                     st.info("No se encontraron coincidencias temáticas con los criterios actuales.")
             except Exception as error:
                 st.error("No fue posible calcular las coincidencias.")
-                st.caption(f"Tipo de error: {type(error).__name__}")
+                st.caption(f"Etapa: {locals().get('etapa_consulta', 'inicialización')} | Tipo: {type(error).__name__}")
+                codigo = getattr(error, "code", None)
+                mensaje = getattr(error, "message", None)
+                if codigo:
+                    st.caption(f"Código Supabase: {codigo}")
+                if mensaje:
+                    st.caption(f"Mensaje Supabase: {str(mensaje)[:350]}")
 
 st.divider()
 st.caption("TAPPAD Radar | Desarrollado por TAPPAD Consultoría")
