@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import streamlit as st
 from supabase import create_client
+from motor_coincidencias import generar_coincidencias
 TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
@@ -340,6 +341,52 @@ elif menu == "Panel administrativo":
         except Exception as error:
             st.error("No fue posible consultar los clientes. Revisa la clave administrativa y los permisos de Supabase.")
             st.caption(f"Tipo de error: {type(error).__name__}")
+
+
+        st.divider()
+        st.subheader("Vista previa de coincidencias")
+        st.caption("Solo para administración. No guarda resultados ni envía alertas. La cobertura se evalúa por estado, no por municipio.")
+        if st.button("Calcular coincidencias", key="calcular_coincidencias"):
+            try:
+                db = conectar_supabase_admin()
+                proveedores = db.table("clientes").select("id,empresa,palabras_clave,activo").eq("activo", True).limit(1000).execute().data or []
+                coberturas = db.table("clientes_ubicaciones").select("cliente_id,estado,municipio").limit(10000).execute().data or []
+                licitaciones = db.table("licitaciones").select(
+                    "id,numero_procedimiento,nombre_procedimiento,descripcion,tipo_contratacion,entidad_federativa,fecha_publicacion,url_procedimiento"
+                ).order("id").limit(1000).execute().data or []
+                por_cliente = {}
+                for cobertura in coberturas:
+                    por_cliente.setdefault(cobertura["cliente_id"], []).append(cobertura)
+                resultados = generar_coincidencias(proveedores, licitaciones, por_cliente, incluir_fuera_de_cobertura=True)
+                empresas = {p["id"]: p["empresa"] for p in proveedores}
+                expedientes = {l["id"]: l for l in licitaciones}
+                filas = []
+                for resultado in resultados:
+                    expediente = expedientes[resultado["licitacion_id"]]
+                    filas.append({
+                        "Empresa": empresas.get(resultado["cliente_id"], "Sin nombre"),
+                        "Categoría": resultado["categoria"].replace("_", " "),
+                        "Palabras encontradas": ", ".join(resultado["terminos"]),
+                        "Procedimiento": expediente.get("numero_procedimiento"),
+                        "Nombre": expediente.get("nombre_procedimiento"),
+                        "Entidad": expediente.get("entidad_federativa"),
+                        "Publicación": expediente.get("fecha_publicacion"),
+                        "Expediente": expediente.get("url_procedimiento"),
+                    })
+                st.metric("Coincidencias temáticas", len(filas))
+                st.caption(f"Analizados: {len(proveedores)} proveedores activos y {len(licitaciones)} licitaciones. Las oportunidades fuera de cobertura son exploratorias.")
+                if filas:
+                    vista = pd.DataFrame(filas)
+                    st.dataframe(vista, use_container_width=True, hide_index=True,
+                        column_config={"Expediente": st.column_config.LinkColumn("Expediente", display_text="Abrir")})
+                    st.download_button("Descargar resultados CSV",
+                        data=vista.to_csv(index=False).encode("utf-8-sig"),
+                        file_name="tappad_coincidencias_prueba.csv", mime="text/csv")
+                else:
+                    st.info("No se encontraron coincidencias temáticas con los criterios actuales.")
+            except Exception as error:
+                st.error("No fue posible calcular las coincidencias.")
+                st.caption(f"Tipo de error: {type(error).__name__}")
 
 st.divider()
 st.caption("TAPPAD Radar | Desarrollado por TAPPAD Consultoría")
