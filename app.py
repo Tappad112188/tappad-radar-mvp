@@ -379,6 +379,20 @@ elif menu == "Panel administrativo":
                     })
                 st.metric("Coincidencias temáticas", len(filas))
                 st.caption(f"Analizados: {len(proveedores)} proveedores activos y {len(licitaciones)} licitaciones. Las oportunidades fuera de cobertura son exploratorias.")
+                st.subheader("Resumen por proveedor")
+                resumen = []
+                for proveedor in proveedores:
+                    propios = [r for r in resultados if r["cliente_id"] == proveedor["id"]]
+                    resumen.append({
+                        "Empresa": proveedor["empresa"],
+                        "Dentro de cobertura": sum(r["categoria"] == "dentro_de_cobertura" for r in propios),
+                        "Fuera de cobertura": sum(r["categoria"] == "fuera_de_cobertura" for r in propios),
+                        "Cobertura sin definir": sum(r["categoria"] == "cobertura_sin_definir" for r in propios),
+                        "Total": len(propios),
+                    })
+                st.dataframe(pd.DataFrame(resumen), use_container_width=True, hide_index=True)
+                st.caption("Cobertura sin definir: proveedor sin cobertura registrada o expediente sin entidad; requiere revisión.")
+
                 if filas:
                     vista = pd.DataFrame(filas)
                     st.dataframe(vista, use_container_width=True, hide_index=True,
