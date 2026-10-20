@@ -6,6 +6,7 @@ requieren validación del plazo oficial antes de su notificación real.
 from control_notificaciones import separar_notificaciones
 from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
+from formato_alertas import fecha_legible, frase_oportunidades
 
 
 def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historial, ahora=None):
@@ -48,7 +49,7 @@ def vista_previa_correo(empresa, oportunidades):
     lineas = [
         "Hola, " + str(empresa) + ":",
         "",
-        "TAPPAD Radar identificó oportunidades potencialmente relevantes para tu empresa.",
+        frase_oportunidades(len(oportunidades)),
         "Revisa los expedientes oficiales antes de participar:",
         "",
     ]
@@ -57,7 +58,7 @@ def vista_previa_correo(empresa, oportunidades):
             "- " + str(oportunidad.get("numero_procedimiento") or "Sin número"),
             "  " + str(oportunidad.get("nombre_procedimiento") or "Sin título"),
             "  Coincidencia: " + ", ".join(oportunidad.get("terminos") or []),
-            "  Apertura estimada: " + str(oportunidad.get("fecha_apertura") or "No disponible"),
+            "  Apertura estimada: " + fecha_legible(oportunidad.get("fecha_apertura")),
             "  Expediente: " + str(oportunidad.get("url_procedimiento") or "No disponible"),
             "",
         ])
