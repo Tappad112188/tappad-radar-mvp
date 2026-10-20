@@ -10,7 +10,7 @@ def _texto(valor):
 def _enlace_seguro(valor):
     url = str(valor or "").strip()
     partes = urlparse(url)
-    if partes.scheme != "https" or not partes.netloc or parts.username or parts.password:
+    if partes.scheme != "https" or not partes.netloc or partes.username or partes.password:
         return None
     return escape(url, quote=True)
 
