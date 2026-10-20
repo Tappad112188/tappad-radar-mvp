@@ -1,6 +1,7 @@
 """Plantilla HTML de TAPPAD Radar para vista previa, sin envíos."""
 from html import escape
 from urllib.parse import urlparse
+from formato_alertas import fecha_legible, frase_oportunidades
 
 
 def _texto(valor):
@@ -22,7 +23,7 @@ def construir_correo_html(empresa, oportunidades):
         numero = _texto(oportunidad.get("numero_procedimiento") or "Sin número")
         nombre = _texto(oportunidad.get("nombre_procedimiento") or "Sin título")
         terminos = _texto(", ".join(oportunidad.get("terminos") or []))
-        apertura = _texto(oportunidad.get("fecha_apertura") or "No disponible")
+        apertura = _texto(fecha_legible(oportunidad.get("fecha_apertura")))
         url = _enlace_seguro(oportunidad.get("url_procedimiento"))
         enlace = (
             '<a href="' + url + '" style="display:inline-block;background:#116b59;color:#ffffff;'
@@ -53,8 +54,7 @@ def construir_correo_html(empresa, oportunidades):
         '<p style="margin:8px 0 0;color:#e0eef2;font-size:15px">Oportunidades de contratación pública</p>'
         '</td></tr><tr><td style="padding:24px">'
         '<p style="font-size:17px">Hola, <b>' + _texto(empresa) + '</b>:</p>'
-        '<p style="font-size:15px;line-height:1.6">Identificamos ' + str(len(oportunidades)) +
-        ' oportunidad(es) potencialmente relevante(s) para tu empresa.</p>'
+        '<p style="font-size:15px;line-height:1.6">' + _texto(frase_oportunidades(len(oportunidades))) + '</p>'
         '<p style="font-size:14px;color:#526476">Consulta el expediente oficial antes de participar.</p>'
         '</td></tr>' + "".join(tarjetas) +
         '<tr><td style="padding:10px 24px 26px;color:#526476;font-size:12px;line-height:1.6">'
