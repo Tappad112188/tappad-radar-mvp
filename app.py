@@ -6,6 +6,7 @@ import streamlit as st
 from supabase import create_client
 from motor_coincidencias import generar_coincidencias
 from clasificador_licitaciones import clasificar_licitacion
+from priorizador_alertas import priorizar_oportunidad
 TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
@@ -369,7 +370,9 @@ elif menu == "Panel administrativo":
                 for resultado in resultados:
                     expediente = expedientes[resultado["licitacion_id"]]
                     vigencia = clasificar_licitacion(expediente)
+                    prioridad = priorizar_oportunidad(resultado, expediente)
                     filas.append({
+                        "Estado para alerta": prioridad["categoria_alerta"].replace("_", " "),
                         "Vigencia": vigencia["categoria"].replace("_", " "),
                         "Motivo vigencia": vigencia["motivo"],
                         "Empresa": empresas.get(resultado["cliente_id"], "Sin nombre"),
@@ -381,6 +384,11 @@ elif menu == "Panel administrativo":
                         "Publicación": expediente.get("fecha_publicacion"),
                         "Expediente": expediente.get("url_procedimiento"),
                     })
+                st.subheader("Priorización para futuras alertas")
+                if filas:
+                    resumen_alertas = pd.Series([fila["Estado para alerta"] for fila in filas]).value_counts()
+                    st.dataframe(pd.DataFrame({"Estado": resumen_alertas.index, "Oportunidades": resumen_alertas.values}), use_container_width=True, hide_index=True)
+                st.caption("Candidata a revisión no significa alerta autorizada: verificar expediente oficial y plazo de presentación.")
                 st.metric("Coincidencias temáticas", len(filas))
                 st.caption("Vigencia orientativa: confirmar el plazo oficial de presentación en ComprasMX.")
                 if filas:
