@@ -4,6 +4,7 @@ import streamlit as st
 from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
 from preparador_alertas import vista_previa_correo
+from plantilla_correo_html import construir_correo_html
 
 
 def mostrar_simulador(conectar_admin, estados):
@@ -72,6 +73,12 @@ def mostrar_simulador(conectar_admin, estados):
             correo = vista_previa_correo("Empresa de ejemplo", candidatas_correo)
             st.text_input("Asunto simulado", value=correo["asunto"], disabled=True, key="simulador_asunto_correo")
             st.text_area("Contenido del correo simulado", value=correo["cuerpo"], height=330, disabled=True, key="simulador_cuerpo_correo")
+            st.markdown("**Diseño HTML del correo**")
+            st.components.v1.html(
+                construir_correo_html("Empresa de ejemplo", candidatas_correo),
+                height=min(1000, 460 + 270 * len(candidatas_correo)),
+                scrolling=True,
+            )
             st.caption(f"El correo incluiría {len(candidatas_correo)} oportunidades candidatas a revisión.")
         else:
             st.info("Con estos criterios no hay candidatas para preparar un correo. Puedes probar otras palabras clave o cobertura.")
