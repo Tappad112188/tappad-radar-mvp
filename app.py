@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client
 from motor_coincidencias import generar_coincidencias
+from clasificador_licitaciones import clasificar_licitacion
 TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
@@ -355,7 +356,7 @@ elif menu == "Panel administrativo":
                 coberturas = db.table("clientes_ubicaciones").select("cliente_id,estado,municipio").limit(10000).execute().data or []
                 etapa_consulta = "licitaciones"
                 licitaciones = db.table("licitaciones").select(
-                    "id,numero_procedimiento,nombre_procedimiento,descripcion,tipo_contratacion,entidad_federativa,fecha_publicacion,url_procedimiento"
+                    "id,numero_procedimiento,nombre_procedimiento,descripcion,tipo_contratacion,entidad_federativa,fecha_publicacion,fecha_apertura,estatus,url_procedimiento"
                 ).order("id").limit(1000).execute().data or []
                 etapa_consulta = "procesamiento"
                 por_cliente = {}
@@ -367,7 +368,10 @@ elif menu == "Panel administrativo":
                 filas = []
                 for resultado in resultados:
                     expediente = expedientes[resultado["licitacion_id"]]
+                    vigencia = clasificar_licitacion(expediente)
                     filas.append({
+                        "Vigencia": vigencia["categoria"].replace("_", " "),
+                        "Motivo vigencia": vigencia["motivo"],
                         "Empresa": empresas.get(resultado["cliente_id"], "Sin nombre"),
                         "Categoría": resultado["categoria"].replace("_", " "),
                         "Palabras encontradas": ", ".join(resultado["terminos"]),
@@ -378,6 +382,11 @@ elif menu == "Panel administrativo":
                         "Expediente": expediente.get("url_procedimiento"),
                     })
                 st.metric("Coincidencias temáticas", len(filas))
+                st.caption("Vigencia orientativa: confirmar el plazo oficial de presentación en ComprasMX.")
+                if filas:
+                    conteos = pd.Series([fila["Vigencia"] for fila in filas]).value_counts()
+                    st.subheader("Clasificación de vigencia")
+                    st.dataframe(pd.DataFrame({"Clasificación": conteos.index, "Coincidencias": conteos.values}), use_container_width=True, hide_index=True)
                 st.caption(f"Analizados: {len(proveedores)} proveedores activos y {len(licitaciones)} licitaciones. Las oportunidades fuera de cobertura son exploratorias.")
                 st.subheader("Resumen por proveedor")
                 resumen = []
