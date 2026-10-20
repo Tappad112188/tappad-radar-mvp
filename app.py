@@ -7,6 +7,7 @@ from supabase import create_client
 from motor_coincidencias import generar_coincidencias
 from clasificador_licitaciones import clasificar_licitacion
 from priorizador_alertas import priorizar_oportunidad
+from simulador_alertas import mostrar_simulador
 TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
@@ -428,6 +429,8 @@ elif menu == "Panel administrativo":
                     st.caption(f"Código Supabase: {codigo}")
                 if mensaje:
                     st.caption(f"Mensaje Supabase: {str(mensaje)[:350]}")
+
+        mostrar_simulador(conectar_supabase_admin, ESTADOS_MX)
 
 st.divider()
 st.caption("TAPPAD Radar | Desarrollado por TAPPAD Consultoría")
