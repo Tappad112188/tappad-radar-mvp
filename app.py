@@ -8,6 +8,7 @@ from motor_coincidencias import generar_coincidencias
 from clasificador_licitaciones import clasificar_licitacion
 from priorizador_alertas import priorizar_oportunidad
 from simulador_alertas import mostrar_simulador
+from preparador_alertas import preparar_alertas, vista_previa_correo
 TURNSTILE_SITE_KEY = st.secrets.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_JS = """
 export default function({ parentElement, data, setStateValue }) {
@@ -429,6 +430,46 @@ elif menu == "Panel administrativo":
                     st.caption(f"Código Supabase: {codigo}")
                 if mensaje:
                     st.caption(f"Mensaje Supabase: {str(mensaje)[:350]}")
+
+        st.divider()
+        st.subheader("Vista previa de correos por revisión")
+        st.caption("Solo administración. No envía correos, no crea notificaciones y no modifica proveedores.")
+        if st.button("Preparar correos de prueba", key="preparar_correos_prueba"):
+            try:
+                db = conectar_supabase_admin()
+                proveedores_alerta = db.table("clientes").select("id,empresa,correo,palabras_clave,activo").eq("activo", True).limit(1000).execute().data or []
+                coberturas_alerta = db.table("clientes_ubicaciones").select("cliente_id,estado,municipio").limit(10000).execute().data or []
+                licitaciones_alerta = db.table("licitaciones").select(
+                    "id,numero_procedimiento,nombre_procedimiento,descripcion,tipo_contratacion,entidad_federativa,fecha_apertura,estatus,url_procedimiento"
+                ).order("id").limit(1000).execute().data or []
+                historial_alerta = db.table("notificaciones_enviadas").select(
+                    "cliente_id,licitacion_id,estado"
+                ).limit(10000).execute().data or []
+                cobertura_por_cliente = {}
+                for item in coberturas_alerta:
+                    cobertura_por_cliente.setdefault(item["cliente_id"], []).append(item)
+                preparacion = preparar_alertas(
+                    proveedores_alerta, licitaciones_alerta, cobertura_por_cliente, historial_alerta
+                )
+                st.metric("Proveedores con correo preparado", len(preparacion["por_proveedor"]))
+                st.caption(
+                    f'Candidatas: {len(preparacion["candidatas"])} | '
+                    f'Ya registradas: {len(preparacion["retenidas"])} | '
+                    f'Reintentos pendientes de revisión: {len(preparacion["reintentos"])}'
+                )
+                empresas_alerta = {p["id"]: p for p in proveedores_alerta}
+                if not preparacion["por_proveedor"]:
+                    st.info("No hay correos nuevos para preparar con los criterios actuales.")
+                for cliente_id, oportunidades in preparacion["por_proveedor"].items():
+                    empresa = empresas_alerta[cliente_id]
+                    correo = vista_previa_correo(empresa["empresa"], oportunidades)
+                    with st.expander(f'{empresa["empresa"]} — {len(oportunidades)} oportunidades'):
+                        st.text_input("Asunto", value=correo["asunto"], disabled=True, key=f'asunto_{cliente_id}')
+                        st.text_area("Mensaje de prueba", value=correo["cuerpo"], height=300, disabled=True, key=f'cuerpo_{cliente_id}')
+                        st.caption("Destinatario no mostrado por privacidad. Ningún correo fue enviado.")
+            except Exception as error:
+                st.error("No fue posible preparar los correos de prueba.")
+                st.caption(f"Tipo de error: {type(error).__name__}")
 
         mostrar_simulador(conectar_supabase_admin, ESTADOS_MX)
 
