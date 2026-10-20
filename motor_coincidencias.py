@@ -47,8 +47,12 @@ def evaluar_licitacion(proveedor, licitacion, coberturas):
     texto = f" {texto} "
     encontrados = [t for t in palabras_proveedor(proveedor.get("palabras_clave")) if f" {t} " in texto]
     dentro, motivo = coincide_estado(licitacion.get("entidad_federativa"), coberturas)
+    categoria = ("dentro_de_cobertura" if dentro and motivo == "coincidencia" else
+                 "cobertura_sin_definir" if dentro else "fuera_de_cobertura")
     return {
         "coincide": bool(encontrados) and dentro,
+        "coincidencia_tematica": bool(encontrados),
+        "categoria": categoria,
         "terminos": encontrados,
         "cobertura": motivo,
         "cliente_id": proveedor.get("id"),
@@ -56,8 +60,11 @@ def evaluar_licitacion(proveedor, licitacion, coberturas):
     }
 
 
-def generar_coincidencias(proveedores, licitaciones, coberturas_por_cliente):
-    """Calcula resultados en memoria, sin persistencia ni notificaciones."""
+def generar_coincidencias(proveedores, licitaciones, coberturas_por_cliente, incluir_fuera_de_cobertura=False):
+    """Devuelve coincidencias temáticas; fuera de cobertura solo si se solicita.
+
+    Las oportunidades fuera de cobertura son exploratorias, no alertas automáticas.
+    """
     resultados = []
     for proveedor in proveedores:
         if proveedor.get("activo") is False:
@@ -66,6 +73,6 @@ def generar_coincidencias(proveedores, licitaciones, coberturas_por_cliente):
             resultado = evaluar_licitacion(
                 proveedor, licitacion, coberturas_por_cliente.get(proveedor.get("id"), [])
             )
-            if resultado["coincide"]:
+            if resultado["coincidencia_tematica"] and (resultado["coincide"] or incluir_fuera_de_cobertura):
                 resultados.append(resultado)
     return resultados
