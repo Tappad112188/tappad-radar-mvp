@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
+from preparador_alertas import vista_previa_correo
 
 
 def mostrar_simulador(conectar_admin, estados):
@@ -31,9 +32,18 @@ def mostrar_simulador(conectar_admin, estados):
         )
         expedientes = {item["id"]: item for item in licitaciones}
         filas = []
+        candidatas_correo = []
         for resultado in coincidencias:
             licitacion = expedientes[resultado["licitacion_id"]]
             prioridad = priorizar_oportunidad(resultado, licitacion)
+            if prioridad["categoria_alerta"] == "candidata_revision":
+                candidatas_correo.append({
+                    "numero_procedimiento": licitacion.get("numero_procedimiento"),
+                    "nombre_procedimiento": licitacion.get("nombre_procedimiento"),
+                    "terminos": resultado["terminos"],
+                    "fecha_apertura": licitacion.get("fecha_apertura"),
+                    "url_procedimiento": licitacion.get("url_procedimiento"),
+                })
             filas.append({
                 "Estado para alerta": prioridad["categoria_alerta"].replace("_", " "),
                 "Cobertura": resultado["categoria"].replace("_", " "),
@@ -56,6 +66,15 @@ def mostrar_simulador(conectar_admin, estados):
                 file_name="tappad_simulacion_alertas.csv", mime="text/csv")
         else:
             st.info("No hay coincidencias con los criterios simulados.")
+        st.subheader("Vista previa del correo simulado")
+        st.caption("Ejemplo para un proveedor ficticio. No utiliza direcciones reales ni envía mensajes.")
+        if candidatas_correo:
+            correo = vista_previa_correo("Empresa de ejemplo", candidatas_correo)
+            st.text_input("Asunto simulado", value=correo["asunto"], disabled=True, key="simulador_asunto_correo")
+            st.text_area("Contenido del correo simulado", value=correo["cuerpo"], height=330, disabled=True, key="simulador_cuerpo_correo")
+            st.caption(f"El correo incluiría {len(candidatas_correo)} oportunidades candidatas a revisión.")
+        else:
+            st.info("Con estos criterios no hay candidatas para preparar un correo. Puedes probar otras palabras clave o cobertura.")
         st.caption("Una candidata a revisión requiere verificar el plazo oficial en ComprasMX; no implica envío automático.")
     except Exception as error:
         st.error("No fue posible completar la simulación.")
