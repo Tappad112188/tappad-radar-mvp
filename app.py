@@ -1,4 +1,5 @@
 import hmac
+from pathlib import Path
 import re
 import requests
 import pandas as pd
@@ -69,7 +70,8 @@ ESTADOS_MX = [
     "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas",
 ]
 
-st.title("📡 TAPPAD Radar")
+st.image(str(Path(__file__).parent / "assets" / "logo_tappad.svg"), width=165)
+st.title("TAPPAD Radar")
 st.subheader("Sistema de monitoreo de oportunidades en licitaciones públicas")
 st.info("Versión MVP. Importación automática de ComprasMX configurada dos veces al día. Los expedientes pueden estar vigentes o concluidos.")
 st.divider()
