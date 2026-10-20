@@ -5,6 +5,7 @@ from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
 from preparador_alertas import vista_previa_correo
 from plantilla_correo_html import construir_correo_html
+from validador_plazo_oficial import validar_envio_oportunidad
 
 
 def mostrar_simulador(conectar_admin, estados):
@@ -37,6 +38,7 @@ def mostrar_simulador(conectar_admin, estados):
         for resultado in coincidencias:
             licitacion = expedientes[resultado["licitacion_id"]]
             prioridad = priorizar_oportunidad(resultado, licitacion)
+            decision_plazo = validar_envio_oportunidad(prioridad, verificacion=None)
             if prioridad["categoria_alerta"] == "candidata_revision":
                 candidatas_correo.append({
                     "numero_procedimiento": licitacion.get("numero_procedimiento"),
@@ -47,6 +49,8 @@ def mostrar_simulador(conectar_admin, estados):
                 })
             filas.append({
                 "Estado para alerta": prioridad["categoria_alerta"].replace("_", " "),
+                "Plazo oficial": "Autorizado" if decision_plazo["autorizada"] else "Sin autorización",
+                "Motivo de bloqueo": decision_plazo["motivo"],
                 "Cobertura": resultado["categoria"].replace("_", " "),
                 "Vigencia": prioridad["vigencia"].replace("_", " "),
                 "Términos": ", ".join(resultado["terminos"]),
@@ -67,8 +71,13 @@ def mostrar_simulador(conectar_admin, estados):
                 file_name="tappad_simulacion_alertas.csv", mime="text/csv")
         else:
             st.info("No hay coincidencias con los criterios simulados.")
+        st.subheader("Control de plazo oficial para alertas")
+        st.metric("Candidatas sin plazo oficial verificado", len(candidatas_correo))
+        st.metric("Autorizadas para envío", 0)
+        st.warning("No hay verificaciones oficiales del plazo registradas en esta simulación. Ninguna oportunidad está autorizada para envío.")
+        st.caption("La fecha de apertura registrada no confirma que aún se reciban proposiciones. Es necesario verificar el expediente y su calendario oficial.")
         st.subheader("Vista previa del correo simulado")
-        st.caption("Ejemplo para un proveedor ficticio. No utiliza direcciones reales ni envía mensajes.")
+        st.caption("Solo demostración del diseño. Este mensaje NO está autorizado para envío; no utiliza direcciones reales ni envía mensajes.")
         if candidatas_correo:
             correo = vista_previa_correo("Empresa de ejemplo", candidatas_correo)
             st.text_input("Asunto simulado", value=correo["asunto"], disabled=True, key="simulador_asunto_correo")
@@ -79,7 +88,7 @@ def mostrar_simulador(conectar_admin, estados):
                 height=min(1000, 460 + 270 * len(candidatas_correo)),
                 scrolling=True,
             )
-            st.caption(f"El correo incluiría {len(candidatas_correo)} oportunidades candidatas a revisión.")
+            st.caption(f"Vista previa hipotética de {len(candidatas_correo)} oportunidades. Ninguna está autorizada para envío.")
         else:
             st.info("Con estos criterios no hay candidatas para preparar un correo. Puedes probar otras palabras clave o cobertura.")
         st.caption("Una candidata a revisión requiere verificar el plazo oficial en ComprasMX; no implica envío automático.")
