@@ -10,6 +10,31 @@ def mostrar_envio_prueba(conectar):
     st.caption("Solo los dos proveedores de prueba. No habilita envíos automáticos.")
     if not st.checkbox("Autorizo enviar correos reales a los dos destinatarios de prueba.", key="autorizar_smtp"):
         return
+    st.caption("Demostración HTML: utiliza un procedimiento ficticio, no consulta ni modifica Supabase.")
+    if st.button("Enviar demostración HTML a las dos cuentas", key="enviar_demo_html"):
+        try:
+            usuario = st.secrets["GMAIL_USER"]
+            clave = st.secrets["GMAIL_APP_PASSWORD"]
+            ejemplo = [{
+                "numero_procedimiento": "DEMO-TAPPAD-2026",
+                "nombre_procedimiento": "Ejemplo ficticio de contratación de servicios",
+                "terminos": ["servicios", "mantenimiento"],
+                "fecha_apertura": "2026-10-30T11:00:00",
+                "url_procedimiento": None,
+            }]
+            for cliente_id, destino in DESTINATARIOS_PRUEBA.items():
+                enviar_prueba_gmail(
+                    cliente_id, destino,
+                    "[PRUEBA] TAPPAD Radar — Diseño de correo",
+                    "Este es un correo de demostración con datos ficticios. No es una licitación real.",
+                    usuario, clave, empresa="Proveedor de prueba", oportunidades=ejemplo,
+                )
+                st.success("Demostración enviada a " + destino)
+        except KeyError:
+            st.error("Faltan GMAIL_USER o GMAIL_APP_PASSWORD en Streamlit Secrets.")
+        except Exception as error:
+            st.error("No se completó la demostración: " + type(error).__name__)
+        return
     if not st.button("Enviar correos reales de prueba", key="enviar_smtp_controlado"):
         return
     try:
