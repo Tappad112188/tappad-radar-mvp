@@ -26,10 +26,9 @@ def enviar_prueba_gmail(cliente_id, correo_registrado, asunto, cuerpo, usuario, 
     if empresa is not None and oportunidades is not None:
         from plantilla_correo_html import construir_correo_html
         mensaje.add_alternative(construir_correo_html(empresa, oportunidades), subtype="html")
-        import cairosvg
         from pathlib import Path
-        logo = Path(__file__).resolve().parent / "assets" / "logo_tappad.svg"
-        png = cairosvg.svg2png(url=str(logo), output_width=276, output_height=276)
+        logo = Path(__file__).resolve().parent / "assets" / "logo_tappad.png"
+        png = logo.read_bytes()
         mensaje.get_body(preferencelist=("html",)).add_related(
             png, maintype="image", subtype="png", cid="<tappad-logo>",
             filename="tappad-logo.png", disposition="inline")
