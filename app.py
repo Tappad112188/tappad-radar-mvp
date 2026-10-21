@@ -474,6 +474,9 @@ elif menu == "Panel administrativo":
                 st.error("No fue posible preparar los correos de prueba.")
                 st.caption(f"Tipo de error: {type(error).__name__}")
 
+        from panel_envio_pruebas import mostrar_envio_prueba
+        mostrar_envio_prueba(conectar_supabase_admin)
+
         mostrar_simulador(conectar_supabase_admin, ESTADOS_MX)
 
 st.divider()
