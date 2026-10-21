@@ -20,6 +20,9 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
     candidatas = []
     for coincidencia in coincidencias:
         licitacion = expedientes[coincidencia["licitacion_id"]]
+        # Solo coincidencias con cobertura geográfica confirmada pueden notificarse.
+        if coincidencia["categoria"] != "dentro_de_cobertura":
+            continue
         prioridad = priorizar_oportunidad(coincidencia, licitacion, ahora=ahora)
         decision = validar_envio_oportunidad({**prioridad, "fecha_apertura": licitacion.get("fecha_apertura"), "estatus": licitacion.get("estatus")}, ahora=ahora)
         if not decision["autorizada"]:
@@ -42,6 +45,13 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
         "candidatas": candidatas,
         "retenidas": separadas["retenidas"],
         "reintentos": separadas["reintentos"],
+        "resumen": {
+            "oportunidades_aptas": len(candidatas),
+            "nuevas": len(separadas["nuevas"]),
+            "duplicadas": len(separadas["retenidas"]),
+            "reintentos": len(separadas["reintentos"]),
+            "correos_simulados": len(por_proveedor),
+        },
     }
 
 
