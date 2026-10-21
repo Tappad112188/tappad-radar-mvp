@@ -22,6 +22,7 @@ def mostrar_envio_prueba(conectar):
                 "fecha_apertura": "2026-10-30T11:00:00",
                 "url_procedimiento": None,
             }]
+            st.info("Preparando demostración. El envío se realizará únicamente a las dos cuentas autorizadas.")
             for cliente_id, destino in DESTINATARIOS_PRUEBA.items():
                 enviar_prueba_gmail(
                     cliente_id, destino,
@@ -32,8 +33,12 @@ def mostrar_envio_prueba(conectar):
                 st.success("Demostración enviada a " + destino)
         except KeyError:
             st.error("Faltan GMAIL_USER o GMAIL_APP_PASSWORD en Streamlit Secrets.")
+        except OSError as error:
+            st.error("Error del sistema durante la demostración: " + type(error).__name__)
+            st.caption("Detalle técnico (sin credenciales): " + str(error))
         except Exception as error:
             st.error("No se completó la demostración: " + type(error).__name__)
+            st.caption("Detalle técnico: " + str(error) if not isinstance(error, (ValueError,)) else "Revisar configuración de destinatario o remitente.")
         return
     if not st.button("Enviar correos reales de prueba", key="enviar_smtp_controlado"):
         return
