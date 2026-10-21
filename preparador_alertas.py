@@ -7,6 +7,7 @@ from control_notificaciones import separar_notificaciones
 from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
 from formato_alertas import fecha_legible, frase_oportunidades
+from validador_plazo_oficial import validar_envio_oportunidad
 
 
 def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historial, ahora=None):
@@ -20,7 +21,8 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
     for coincidencia in coincidencias:
         licitacion = expedientes[coincidencia["licitacion_id"]]
         prioridad = priorizar_oportunidad(coincidencia, licitacion, ahora=ahora)
-        if prioridad["categoria_alerta"] != "candidata_revision":
+        decision = validar_envio_oportunidad({**prioridad, "fecha_apertura": licitacion.get("fecha_apertura"), "estatus": licitacion.get("estatus")}, ahora=ahora)
+        if not decision["autorizada"]:
             continue
         candidatas.append({
             "cliente_id": coincidencia["cliente_id"],
