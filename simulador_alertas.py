@@ -35,18 +35,22 @@ def mostrar_simulador(conectar_admin, estados):
         expedientes = {item["id"]: item for item in licitaciones}
         filas = []
         candidatas_correo = []
+        autorizadas_correo = []
         for resultado in coincidencias:
             licitacion = expedientes[resultado["licitacion_id"]]
             prioridad = priorizar_oportunidad(resultado, licitacion)
-            decision_plazo = validar_envio_oportunidad(prioridad, verificacion=None)
+            decision_plazo = validar_envio_oportunidad({**prioridad, "fecha_apertura": licitacion.get("fecha_apertura"), "estatus": licitacion.get("estatus")})
             if prioridad["categoria_alerta"] == "candidata_revision":
-                candidatas_correo.append({
+                oportunidad_correo = {
                     "numero_procedimiento": licitacion.get("numero_procedimiento"),
                     "nombre_procedimiento": licitacion.get("nombre_procedimiento"),
                     "terminos": resultado["terminos"],
                     "fecha_apertura": licitacion.get("fecha_apertura"),
                     "url_procedimiento": licitacion.get("url_procedimiento"),
-                })
+                }
+                candidatas_correo.append(oportunidad_correo)
+                if decision_plazo["autorizada"]:
+                    autorizadas_correo.append(oportunidad_correo)
             filas.append({
                 "Estado para alerta": prioridad["categoria_alerta"].replace("_", " "),
                 "Plazo oficial": "Autorizado" if decision_plazo["autorizada"] else "Sin autorización",
@@ -71,13 +75,14 @@ def mostrar_simulador(conectar_admin, estados):
                 file_name="tappad_simulacion_alertas.csv", mime="text/csv")
         else:
             st.info("No hay coincidencias con los criterios simulados.")
-        st.subheader("Control de plazo oficial para alertas")
-        st.metric("Candidatas sin plazo oficial verificado", len(candidatas_correo))
-        st.metric("Autorizadas para envío", 0)
-        st.warning("No hay verificaciones oficiales del plazo registradas en esta simulación. Ninguna oportunidad está autorizada para envío.")
-        st.caption("La fecha de apertura registrada no confirma que aún se reciban proposiciones. Es necesario verificar el expediente y su calendario oficial.")
+        st.subheader("Control de plazo de presentación")
+        st.metric("Candidatas con apertura futura", len(candidatas_correo))
+        st.metric("Aptas según fecha y estatus", len(autorizadas_correo))
+        st.caption("La fecha de apertura registrada se utiliza como límite de presentación. El resultado es una simulación, no autoriza un envío real.")
+        if len(autorizadas_correo) < len(candidatas_correo):
+            st.warning("Algunas candidatas están bloqueadas por fecha o estatus.")
         st.subheader("Vista previa del correo simulado")
-        st.caption("Solo demostración del diseño. Este mensaje NO está autorizado para envío; no utiliza direcciones reales ni envía mensajes.")
+        st.caption("Demostración del diseño. No utiliza direcciones reales ni envía mensajes.")
         if candidatas_correo:
             correo = vista_previa_correo("Empresa de ejemplo", candidatas_correo)
             st.text_input("Asunto simulado", value=correo["asunto"], disabled=True, key="simulador_asunto_correo")
@@ -88,7 +93,7 @@ def mostrar_simulador(conectar_admin, estados):
                 height=min(1000, 460 + 270 * len(candidatas_correo)),
                 scrolling=True,
             )
-            st.caption(f"Vista previa hipotética de {len(candidatas_correo)} oportunidades. Ninguna está autorizada para envío.")
+            st.caption(f"Vista previa hipotética de {len(candidatas_correo)} oportunidades. Aptas según fecha y estatus: {len(autorizadas_correo)}. Ningún correo fue enviado.")
         else:
             st.info("Con estos criterios no hay candidatas para preparar un correo. Puedes probar otras palabras clave o cobertura.")
         st.caption("Una candidata a revisión requiere verificar el plazo oficial en ComprasMX; no implica envío automático.")
