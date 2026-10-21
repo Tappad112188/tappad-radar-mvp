@@ -4,7 +4,7 @@ on:
     branches: [desarrollo-registro-proveedores]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   validar-correo:
     runs-on: ubuntu-latest
@@ -13,7 +13,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Instalar dependencia de imagen
-        run: python -m pip install "CairoSVG>=2.7.1"
+      - name: Generar logo PNG una sola vez
+        run: |
+          python -m pip install "CairoSVG>=2.7.1"
+          if [ ! -f assets/logo_tappad.png ]; then
+            python -c "import cairosvg; cairosvg.svg2png(url='assets/logo_tappad.svg',write_to='assets/logo_tappad.png',output_width=276,output_height=276)"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add assets/logo_tappad.png
+            git commit -m "Agregar logo PNG preconvertido para correos"
+            git push
+          fi
       - name: Pruebas de plantilla y MIME sin enviar correos
         run: python -m unittest -v test_plantilla_correo_html.py
