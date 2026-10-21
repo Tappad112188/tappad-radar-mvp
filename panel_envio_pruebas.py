@@ -43,7 +43,7 @@ def mostrar_envio_prueba(conectar):
                 continue
             mensaje = vista_previa_correo(proveedor["empresa"], reservadas)
             try:
-                enviar_prueba_gmail(identificador, proveedor["correo"], mensaje["asunto"], mensaje["cuerpo"], usuario, clave)
+                enviar_prueba_gmail(identificador, proveedor["correo"], mensaje["asunto"], mensaje["cuerpo"], usuario, clave, empresa=proveedor["empresa"], oportunidades=reservadas)
             except Exception as error:
                 st.error("Error SMTP para " + proveedor["empresa"] + ": " + type(error).__name__)
                 for oportunidad in reservadas:
