@@ -49,7 +49,7 @@ def construir_correo_html(empresa, oportunidades):
         '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
         'style="max-width:640px;background:#ffffff">'
         '<tr><td style="background:#123b52;color:#ffffff;padding:28px 24px">'
-        '<img src="https://raw.githubusercontent.com/Tappad112188/tappad-radar-mvp/desarrollo-registro-proveedores/assets/logo_tappad.svg" alt="TAPPAD Consultoría" width="165" height="165" style="display:block;border:0;margin:0 0 10px">'
+        '<img src="cid:tappad-logo" alt="TAPPAD Consultoría" width="165" height="165" style="display:block;border:0;margin:0 0 10px">'
         '<div style="font-size:17px;letter-spacing:1.5px;color:#ffffff;font-weight:bold">TAPPAD CONSULTORÍA</div>'
         '<h1 style="font-size:28px;margin:10px 0 0;color:#ffffff">TAPPAD Radar</h1>'
         '<p style="margin:8px 0 0;color:#e0eef2;font-size:15px">Oportunidades de contratación pública</p>'
