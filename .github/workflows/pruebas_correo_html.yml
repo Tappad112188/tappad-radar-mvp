@@ -24,5 +24,5 @@ jobs:
             git commit -m "Agregar logo PNG preconvertido para correos"
             git push
           fi
-      - name: Pruebas de plantilla y MIME sin enviar correos
-        run: python -m unittest -v test_plantilla_correo_html.py
+      - name: Pruebas integrales de alertas y correo sin envíos
+        run: python -m unittest discover -p "test_*.py" -v
