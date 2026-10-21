@@ -70,7 +70,7 @@ def vista_previa_correo(empresa, oportunidades):
             "- " + str(oportunidad.get("numero_procedimiento") or "Sin número"),
             "  " + str(oportunidad.get("nombre_procedimiento") or "Sin título"),
             "  Coincidencia: " + ", ".join(oportunidad.get("terminos") or []),
-            "  Apertura estimada: " + fecha_legible(oportunidad.get("fecha_apertura")),
+            "  Fecha de apertura registrada: " + fecha_legible(oportunidad.get("fecha_apertura")),
             "  Expediente: " + str(oportunidad.get("url_procedimiento") or "No disponible"),
             "",
         ])
