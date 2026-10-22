@@ -487,6 +487,30 @@ elif menu == "Panel administrativo":
                     st.info("Sin alertas nuevas para exportar en esta revisión.")
                 if len(proveedores_alerta) >= 1000 or len(licitaciones_alerta) >= 1000 or len(coberturas_alerta) >= 10000 or len(historial_alerta) >= 10000:
                     st.warning("La consulta alcanzó el límite de registros; el reporte podría ser parcial.")
+                st.subheader("Auditoría del historial de alertas")
+                st.caption("Consulta de solo lectura: muestra el estado registrado para cada coincidencia apta.")
+                historial_por_par = {
+                    (str(r["cliente_id"]), str(r["licitacion_id"])): str(r.get("estado") or "sin estado")
+                    for r in historial_alerta
+                }
+                empresas_auditoria = {str(p["id"]): p.get("empresa") or "Sin nombre" for p in proveedores_alerta}
+                filas_auditoria = []
+                for oportunidad in preparacion["candidatas"]:
+                    cliente_id = oportunidad["cliente_id"]
+                    licitacion_id = oportunidad["licitacion_id"]
+                    estado_historial = historial_por_par.get((str(cliente_id), str(licitacion_id)), "sin registro")
+                    filas_auditoria.append({
+                        "Proveedor": empresas_auditoria.get(str(cliente_id), "Desconocido"),
+                        "ID proveedor": cliente_id,
+                        "ID licitación": licitacion_id,
+                        "Procedimiento": oportunidad.get("numero_procedimiento") or "",
+                        "Estado en historial": estado_historial,
+                    })
+                if filas_auditoria:
+                    st.dataframe(pd.DataFrame(filas_auditoria), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No hay coincidencias aptas para auditar.")
+                st.caption("Los estados pendiente y enviado bloquean duplicados; error requiere revisión antes de reintentar.")
                 st.metric("Proveedores con correo preparado", len(preparacion["por_proveedor"]))
                 st.caption(
                     f'Candidatas: {len(preparacion["candidatas"])} | '
