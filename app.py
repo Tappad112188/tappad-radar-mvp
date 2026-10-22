@@ -454,6 +454,39 @@ elif menu == "Panel administrativo":
                 preparacion = preparar_alertas(
                     proveedores_alerta, licitaciones_alerta, cobertura_por_cliente, historial_alerta
                 )
+                st.subheader("Reporte de simulación con datos reales")
+                st.caption("Consulta de solo lectura. No se envían correos ni se actualiza el historial.")
+                resumen_alerta = preparacion["resumen"]
+                indicadores = st.columns(4)
+                indicadores[0].metric("Oportunidades aptas", resumen_alerta["oportunidades_aptas"])
+                indicadores[1].metric("Alertas nuevas", resumen_alerta["nuevas"])
+                indicadores[2].metric("Ya registradas", resumen_alerta["duplicadas"])
+                indicadores[3].metric("Reintentos", resumen_alerta["reintentos"])
+                filas_reporte = []
+                for cliente_id, oportunidades in preparacion["por_proveedor"].items():
+                    for oportunidad in oportunidades:
+                        filas_reporte.append({
+                            "ID proveedor": cliente_id,
+                            "ID licitación": oportunidad["licitacion_id"],
+                            "Procedimiento": oportunidad.get("numero_procedimiento") or "",
+                            "Nombre": oportunidad.get("nombre_procedimiento") or "",
+                            "Apertura": str(oportunidad.get("fecha_apertura") or ""),
+                            "Coincidencias": ", ".join(oportunidad.get("terminos") or []),
+                        })
+                if filas_reporte:
+                    df_reporte = pd.DataFrame(filas_reporte)
+                    st.dataframe(df_reporte, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        "Descargar reporte CSV (sin correos ni datos de contacto)",
+                        data=df_reporte.to_csv(index=False).encode("utf-8-sig"),
+                        file_name="tappad_simulacion_alertas.csv",
+                        mime="text/csv",
+                        key="descargar_reporte_alertas",
+                    )
+                else:
+                    st.info("Sin alertas nuevas para exportar en esta revisión.")
+                if len(proveedores_alerta) >= 1000 or len(licitaciones_alerta) >= 1000 or len(coberturas_alerta) >= 10000 or len(historial_alerta) >= 10000:
+                    st.warning("La consulta alcanzó el límite de registros; el reporte podría ser parcial.")
                 st.metric("Proveedores con correo preparado", len(preparacion["por_proveedor"]))
                 st.caption(
                     f'Candidatas: {len(preparacion["candidatas"])} | '
