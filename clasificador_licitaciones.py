@@ -4,25 +4,31 @@ No sustituye la verificación del calendario oficial del procedimiento.
 No modifica datos ni envía notificaciones.
 """
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
+
+ZONA_OPERATIVA = ZoneInfo("America/Monterrey")
 from motor_coincidencias import normalizar
 
 
 def _fecha(valor):
     if isinstance(valor, datetime):
-        return valor
+        fecha = valor
+        return fecha.replace(tzinfo=ZONA_OPERATIVA) if fecha.tzinfo is None else fecha.astimezone(ZONA_OPERATIVA)
     if isinstance(valor, date):
-        return datetime.combine(valor, datetime.min.time())
+        return datetime.combine(valor, datetime.min.time(), tzinfo=ZONA_OPERATIVA)
     if not valor:
         return None
     try:
-        return datetime.fromisoformat(str(valor).replace("Z", "+00:00")).replace(tzinfo=None)
+        fecha = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        return fecha.replace(tzinfo=ZONA_OPERATIVA) if fecha.tzinfo is None else fecha.astimezone(ZONA_OPERATIVA)
     except (ValueError, TypeError):
         return None
 
 
 def clasificar_licitacion(licitacion, ahora=None):
     """Devuelve una categoría explicable sin afirmar que aún admite ofertas."""
-    ahora = ahora or datetime.now()
+    ahora = ahora or datetime.now(ZONA_OPERATIVA)
+    ahora = ahora.replace(tzinfo=ZONA_OPERATIVA) if ahora.tzinfo is None else ahora.astimezone(ZONA_OPERATIVA)
     estatus = normalizar(licitacion.get("estatus"))
     apertura = _fecha(licitacion.get("fecha_apertura"))
 
