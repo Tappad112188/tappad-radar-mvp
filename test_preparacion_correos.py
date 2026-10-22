@@ -68,6 +68,16 @@ class TestPreparacionCorreos(unittest.TestCase):
         ])
         self.assertEqual(r["resumen"]["reintentos"], 1)
         self.assertEqual(r["resumen"]["nuevas"], 1)
+    def test_oportunidad_nueva_sin_historial(self):
+        r = simular([licitacion(999)], [
+            {"cliente_id": 1, "licitacion_id": 403, "estado": "enviado"},
+            {"cliente_id": 2, "licitacion_id": 403, "estado": "enviado"},
+        ])
+        self.assertEqual(r["resumen"]["nuevas"], 2)
+        self.assertEqual(r["resumen"]["duplicadas"], 0)
+        self.assertEqual(r["resumen"]["correos_simulados"], 2)
+        self.assertEqual({item["licitacion_id"] for items in r["por_proveedor"].values() for item in items}, {999})
+
     def test_correo_agrupado(self):
         r = simular([licitacion(101), licitacion(102)])
         correo = vista_previa_correo("Empresa A", r["por_proveedor"][1])
