@@ -64,7 +64,7 @@ async def main():
                     await page.locator(selector).click(timeout=15000)
                     await page.wait_for_function(
                         "(n) => document.querySelector('#CardView_DXPagerBottom .dxp-current')?.textContent?.trim() === String(n)",
-                        numero, timeout=20000)
+                        arg=numero, timeout=20000)
                 tarjetas = await page.locator("td[id^='CardView_DXDataCard']").evaluate_all(EXTRAER)
                 print(f"Página {numero}/{total_paginas}: {len(tarjetas)} registros")
                 for item in tarjetas:
