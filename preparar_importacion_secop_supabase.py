@@ -9,7 +9,7 @@ ENTRADA=BASE/"fichas_comerciales_secop.json"
 SALIDA=BASE/"secop_importacion_pendiente_revision.json"
 def fecha(evento):
  if not isinstance(evento,dict) or not evento.get("fecha"):return None
- return evento["fecha"]+("T"+evento["hora"]+":00" if evento.get("hora") else "T00:00:00")
+ return evento["fecha"]+("T"+evento["hora"]+":00" if evento.get("hora") else "")
 def adaptar(f):
  codigo=f.get("codigo") or f.get("referencia")
  if not codigo:raise ValueError("Ficha sin codigo ni referencia")
@@ -24,8 +24,9 @@ def adaptar(f):
   "entidad_federativa":"Coahuila",
   "estatus":f.get("estatus_portal"),
   "fecha_publicacion":f.get("publicacion"),
+  "fecha_junta_aclaraciones":fecha(calendario.get("junta_aclaraciones")),
   "fecha_apertura":fecha(calendario.get("limite_presentacion_propuestas")),
-  "fecha_fallo":fecha(calendario.get("fallo_programado")),
+  "fecha_fallo_programado":fecha(calendario.get("fallo_programado")),
   "url_procedimiento":f.get("url_procedimiento"),
  }
 def main():
@@ -35,11 +36,12 @@ def main():
  ids=[r["uuid_procedimiento"] for r in registros]
  if len(ids)!=len(set(ids)):raise ValueError("Hay procedimientos duplicados en el lote")
  salida={"estado":"PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE",
- "advertencia":"El esquema actual de licitaciones no incluye junta de aclaraciones. No se importa sin acordar su almacenamiento.",
+ "advertencia":"Las fechas documentales aun requieren validacion oficial. El campo fecha_fallo no se utiliza para representar un fallo programado.",
  "total":len(registros),"registros":registros}
  SALIDA.write_text(json.dumps(salida,ensure_ascii=False,indent=2),encoding="utf-8")
  print("Procedimientos SECOP preparados:",len(registros))
  for r in registros:print(r["uuid_procedimiento"],"|",r["numero_procedimiento"])
  print("Archivo de revision:",SALIDA)
+ print("Campos calendario: publicacion, junta, apertura y fallo programado.")
  print("No se ha importado nada a Supabase. Fechas pendientes de validacion.")
 if __name__=="__main__":main()
