@@ -7,10 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from preparador_alertas import preparar_alertas, vista_previa_correo
+from plantilla_correo_html import construir_correo_html
 
 BASE=Path(__file__).resolve().parent/"documentos_secop_lote"
 ENTRADA=BASE/"fichas_comerciales_secop.json"
 SALIDA=BASE/"prueba_motor_existente_secop.txt"
+SALIDA_HTML=BASE/"prueba_correo_secop.html"
 PROVEEDORES=[
  {"id":"prueba-limpieza","empresa":"EJEMPLO - Limpieza","palabras_clave":"limpieza, jardineria","activo":True},
  {"id":"prueba-vigilancia","empresa":"EJEMPLO - Vigilancia","palabras_clave":"seguridad, vigilancia","activo":True},
@@ -46,6 +48,10 @@ def main():
  # Fecha fija de la prueba: reproducible y anterior a los actos de apertura.
  ahora=datetime(2026,10,23,9,0,tzinfo=ZoneInfo("America/Monterrey"))
  resultado=preparar_alertas(PROVEEDORES,licitaciones,COBERTURAS,[],ahora=ahora)
+ html_oportunidades=[]
+ for p in PROVEEDORES:
+  html_oportunidades.extend(resultado["por_proveedor"].get(p["id"],[]))
+ SALIDA_HTML.write_text(construir_correo_html("SIMULACIÓN - PROVEEDORES DE PRUEBA",html_oportunidades),encoding="utf-8")
  lineas=["PRUEBA DE INTEGRACION CON MOTOR EXISTENTE DE COMPRASMX",
          "NO ENVIAR: FECHAS SECOP PENDIENTES DE VALIDACION OFICIAL",
          "Fecha de simulacion: 2026-10-23 09:00 America/Monterrey",""]
@@ -61,5 +67,6 @@ def main():
  for p in PROVEEDORES:
   print(p["empresa"],"->",len(resultado["por_proveedor"].get(p["id"],[])),"coincidencia(s)")
  print("Vista previa:",SALIDA)
+ print("Vista HTML de demostración (datos ficticios agrupados solo para revisión):",SALIDA_HTML)
  print("AVISO: no apto para envio real sin validar las fechas de SECOP.")
 if __name__=="__main__":main()
