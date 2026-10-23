@@ -63,22 +63,29 @@ def main():
  for campo,(inicio,fin) in REGLAS.items():
   candidatos=[]
   if campo=="fallo_programado":
-   # El encabezado 5. FALLO aparece en la página 6 de las bases de referencia.
-   # Buscar el encabezado dentro de cada página, no menciones generales al fallo.
+   # En las bases el encabezado puede variar de formato o estar separado en líneas.
+   # Solo aceptar un encabezado aislado de FALLO y fecha cercana; nunca referencias genéricas.
    for indice,pagina_texto in enumerate(paginas):
-    limpio=normalizar(pagina_texto)
-    encabezado=re.search(r"(?m)^\s*5\s*\.\s*fallo\s*:",limpio,re.I)
-    if not encabezado:
-     continue
-    seccion=pagina_texto[encabezado.end():encabezado.end()+900]
-    for pos_inicio,pos_fin,fecha in fechas_en(seccion)[:1]:
-     m=HORA.search(seccion[pos_fin:pos_fin+100])
+    lineas=pagina_texto.splitlines(keepends=True)
+    for j,linea in enumerate(lineas):
+     titulo=normalizar(linea).strip()
+     if not re.fullmatch(r"(?:(?:\d{1,2})\s*\.\s*)?fallo\s*:?(?:\s*\([^)]*\))?",titulo,re.I):
+      continue
+     seccion="".join(lineas[j+1:j+12])
+     fechas=fechas_en(seccion)
+     if not fechas:
+      continue
+     pos_inicio,pos_fin,fecha=fechas[0]
+     m=HORA.search(seccion[pos_fin:pos_fin+120])
      hora=f"{int(m.group(1)):02d}:{m.group(2)}" if m and int(m.group(1))<24 else None
      candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":seccion[max(0,pos_inicio-100):min(len(seccion),pos_fin+120)].strip(),"validacion":"pendiente"})
-   if not candidatos:
-    salida["advertencias"].append("No se encontró fecha bajo encabezado 5. FALLO")
-   else:
+   if len(candidatos)==1:
     salida["calendario"][campo]=candidatos[0]
+   elif len(candidatos)>1:
+    salida["calendario"][campo]={"candidatos":candidatos,"validacion":"ambigua"}
+    salida["advertencias"].append("Múltiples fechas bajo encabezados FALLO")
+   else:
+    salida["advertencias"].append("No identificado: fallo_programado (sin encabezado aislado y fecha próxima)")
    continue
   for pagina,contenido in bloques:
    limpio=normalizar(contenido)
@@ -118,6 +125,7 @@ def main():
  for k,v in salida["calendario"].items():
   print(k,v.get("fecha","AMBIGUO"),v.get("hora",""),"página",v.get("pagina",""))
  print("Advertencias:",len(salida["advertencias"]))
+ for aviso in salida["advertencias"]: print(" -",aviso)
  print("Resultado:",destino)
  print("No se modificó Supabase ni se enviaron correos.")
 if __name__=="__main__":
