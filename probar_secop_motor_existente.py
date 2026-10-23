@@ -3,6 +3,7 @@ SOLO PREVISUALIZACION: las fechas documentales aun requieren validacion oficial.
 No envia correos, no escribe en bases de datos ni activa automatizaciones.
 """
 import json
+import base64
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -51,7 +52,14 @@ def main():
  html_oportunidades=[]
  for p in PROVEEDORES:
   html_oportunidades.extend(resultado["por_proveedor"].get(p["id"],[]))
- SALIDA_HTML.write_text(construir_correo_html("SIMULACIÓN - PROVEEDORES DE PRUEBA",html_oportunidades),encoding="utf-8")
+ html=construir_correo_html("SIMULACIÓN - PROVEEDORES DE PRUEBA",html_oportunidades)
+ logo=Path(__file__).resolve().parent/"assets"/"logo_tappad.png"
+ if logo.exists():
+  uri="data:image/png;base64,"+base64.b64encode(logo.read_bytes()).decode("ascii")
+  html=html.replace("cid:tappad-logo",uri)
+ else:
+  html=html.replace('src="cid:tappad-logo"', 'src="data:,"')
+ SALIDA_HTML.write_text(html,encoding="utf-8")
  lineas=["PRUEBA DE INTEGRACION CON MOTOR EXISTENTE DE COMPRASMX",
          "NO ENVIAR: FECHAS SECOP PENDIENTES DE VALIDACION OFICIAL",
          "Fecha de simulacion: 2026-10-23 09:00 America/Monterrey",""]
@@ -66,6 +74,7 @@ def main():
  SALIDA.write_text("\n".join(lineas),encoding="utf-8")
  for p in PROVEEDORES:
   print(p["empresa"],"->",len(resultado["por_proveedor"].get(p["id"],[])),"coincidencia(s)")
+ print("Logo local:", "encontrado" if (Path(__file__).resolve().parent/"assets"/"logo_tappad.png").exists() else "no encontrado; descarga el logo para verlo")
  print("Vista previa:",SALIDA)
  print("Vista HTML de demostración (datos ficticios agrupados solo para revisión):",SALIDA_HTML)
  print("AVISO: no apto para envio real sin validar las fechas de SECOP.")
