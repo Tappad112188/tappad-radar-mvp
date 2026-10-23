@@ -1,0 +1,45 @@
+"""SECOP Coahuila -> formato de importacion de licitaciones Supabase.
+Prepara JSON para revision. No conecta ni escribe en Supabase.
+Solo incluye datos verificados de las fichas y conserva su estado pendiente.
+"""
+import json
+from pathlib import Path
+BASE=Path(__file__).resolve().parent/"documentos_secop_lote"
+ENTRADA=BASE/"fichas_comerciales_secop.json"
+SALIDA=BASE/"secop_importacion_pendiente_revision.json"
+def fecha(evento):
+ if not isinstance(evento,dict) or not evento.get("fecha"):return None
+ return evento["fecha"]+("T"+evento["hora"]+":00" if evento.get("hora") else "T00:00:00")
+def adaptar(f):
+ codigo=f.get("codigo") or f.get("referencia")
+ if not codigo:raise ValueError("Ficha sin codigo ni referencia")
+ calendario=f.get("calendario") or {}
+ return {
+  "uuid_procedimiento":"secop-coahuila:"+str(codigo).strip().lower(),
+  "fuente":"SECOP Coahuila",
+  "numero_procedimiento":f.get("referencia") or codigo,
+  "cod_expediente":codigo,
+  "nombre_procedimiento":f.get("objeto"),
+  "descripcion":f.get("objeto"),
+  "entidad_federativa":"Coahuila",
+  "estatus":f.get("estatus_portal"),
+  "fecha_publicacion":f.get("publicacion"),
+  "fecha_apertura":fecha(calendario.get("limite_presentacion_propuestas")),
+  "fecha_fallo":fecha(calendario.get("fallo_programado")),
+  "url_procedimiento":f.get("url_procedimiento"),
+ }
+def main():
+ if not ENTRADA.exists():raise SystemExit("No se encontro fichas_comerciales_secop.json")
+ datos=json.loads(ENTRADA.read_text(encoding="utf-8-sig"))
+ registros=[adaptar(f) for f in datos.get("fichas",[])]
+ ids=[r["uuid_procedimiento"] for r in registros]
+ if len(ids)!=len(set(ids)):raise ValueError("Hay procedimientos duplicados en el lote")
+ salida={"estado":"PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE",
+ "advertencia":"El esquema actual de licitaciones no incluye junta de aclaraciones. No se importa sin acordar su almacenamiento.",
+ "total":len(registros),"registros":registros}
+ SALIDA.write_text(json.dumps(salida,ensure_ascii=False,indent=2),encoding="utf-8")
+ print("Procedimientos SECOP preparados:",len(registros))
+ for r in registros:print(r["uuid_procedimiento"],"|",r["numero_procedimiento"])
+ print("Archivo de revision:",SALIDA)
+ print("No se ha importado nada a Supabase. Fechas pendientes de validacion.")
+if __name__=="__main__":main()
