@@ -5,6 +5,7 @@ Requiere: py -m pip install pymupdf
 import argparse
 import json
 import re
+import unicodedata
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,7 @@ def leer_docx(datos):
 
 def leer_pdf(datos):
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
         return [], "Falta PyMuPDF. Instala con: py -m pip install pymupdf"
     try:
@@ -52,21 +53,20 @@ def analizar_texto(texto, documento, pagina=None):
     lineas = [s.strip() for s in texto.splitlines() if s.strip()]
     hallazgos = []
     for i, linea in enumerate(lineas):
-        alrededor = " ".join(lineas[max(0, i-2):min(len(lineas), i+3)])
+        contexto = " ".join(lineas[max(0,i-3):min(len(lineas),i+5)])
         for etapa, terminos in ETAPAS.items():
-            if not any(t in linea.lower() for t in terminos):
+            if not any(normalizar(t) in normalizar(linea) for t in terminos):
                 continue
-            for dia, mes, anio in PATRON_FECHA.findall(alrededor):
+            for m in PATRON_FECHA.finditer(contexto):
                 try:
-                    fecha = datetime(int(anio), int(mes), int(dia)).date().isoformat()
-                except ValueError:
+                    if m.group(1):
+                        dia,mes,anio = map(int,m.group(1,2,3))
+                    else:
+                        dia=int(m.group(4));mes=MESES[normalizar(m.group(5))];anio=int(m.group(6))
+                    fecha=datetime(anio,mes,dia).date().isoformat()
+                except (ValueError,KeyError):
                     continue
-                hallazgos.append({
-                    "campo_candidato": etapa, "fecha": fecha,
-                    "documento": documento, "pagina": pagina,
-                    "evidencia": alrededor[:450],
-                    "validacion": "pendiente_revision"
-                })
+                hallazgos.append({"campo_candidato":etapa,"fecha":fecha,"documento":documento,"pagina":pagina,"evidencia":contexto[:650],"validacion":"pendiente_revision"})
     return hallazgos
 
 def main():
@@ -116,6 +116,7 @@ def main():
             procesar(convocatoria.name, convocatoria.read_bytes())
         else:
             resultado["advertencias"].append({"documento": str(convocatoria), "motivo": "No encontrado"})
+    resultado["fechas_candidatas"] = list({(x["campo_candidato"],x["fecha"],x["documento"],x["pagina"]):x for x in resultado["fechas_candidatas"]}.values())
     salida = origen.parent / "extraccion_expediente_secop.json"
     salida.write_text(json.dumps(resultado, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Documentos analizados: {len(resultado['documentos'])}")
