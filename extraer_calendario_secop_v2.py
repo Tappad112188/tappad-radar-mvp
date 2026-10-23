@@ -1,0 +1,106 @@
+"""TAPPAD Radar: extrae calendario de un ZIP SECOP sin modificar bases de datos.
+Uso: py extraer_calendario_secop_v2.py "archivo.zip"
+Requiere: py -m pip install pymupdf
+"""
+import argparse
+import json
+import re
+import unicodedata
+import zipfile
+from datetime import date
+from pathlib import Path
+import pymupdf
+
+MESES = {m:i for i,m in enumerate("enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(),1)}
+MESES["setiembre"] = 9
+FECHA = re.compile(r"(?<!\d)(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(20\d{2})(?!\d)", re.I)
+FECHA_NUM = re.compile(r"(?<!\d)(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})(?!\d)")
+HORA = re.compile(r"\b(?:a\s+las|a\s+la|las)\s+(\d{1,2}):([0-5]\d)\s*horas",re.I)
+REGLAS = {
+ "visita_obra": (r"\bvisita\s+al\s+sitio\b", r"\bjunta\s+de\s+aclaraciones\b"),
+ "junta_aclaraciones": (r"\bjunta\s+de\s+aclaraciones\b", r"\bpresentacion\s+de\s+proposiciones\b"),
+ "presentacion_apertura": (r"\bpresentacion\s+de\s+proposiciones\s+y\s+apertura\b", r"\bfallo\b"),
+ "fallo_programado": (r"\bf(?:echa\s+del\s+)?fallo\b", r"\bforma\s+de\s+pago\b"),
+ "inicio_obra": (r"\bfecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\b", r"\bnumero\s+de\s+convocatoria\b"),
+ "terminacion_obra": (r"\bfecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\b", r"\bnumero\s+de\s+convocatoria\b")
+}
+def normalizar(s):
+ return "".join(c for c in unicodedata.normalize("NFD",s.lower()) if unicodedata.category(c)!="Mn")
+def fechas_en(texto):
+ encontrados=[]
+ for patron in (FECHA, FECHA_NUM):
+  for m in patron.finditer(texto):
+   try:
+    if patron is FECHA:
+     d,mo,y=int(m.group(1)),MESES[normalizar(m.group(2))],int(m.group(3))
+    else:
+     d,mo,y=map(int,m.groups())
+    f=date(y,mo,d).isoformat()
+    encontrados.append((m.start(),m.end(),f))
+   except (ValueError,KeyError):
+    pass
+ return sorted(encontrados)
+def main():
+ parser=argparse.ArgumentParser(description="Calendario SECOP: extracción local con evidencia")
+ parser.add_argument("zip",type=Path,help="ZIP descargado desde SECOP")
+ args=parser.parse_args()
+ if not args.zip.is_file():
+  parser.error("No existe el ZIP: "+str(args.zip))
+ with zipfile.ZipFile(args.zip) as z:
+  pdfs=[n for n in z.namelist() if n.lower().endswith(".pdf") and "bases" in Path(n).name.lower() and not n.startswith("__MACOSX")]
+  pdfs.sort(key=lambda n:(0 if re.search(r"^bases\s",Path(n).name,re.I) else 1,len(n)))
+  if not pdfs:
+   parser.error("No encontré un PDF de bases en el ZIP")
+  elegido=pdfs[0]
+  doc=pymupdf.open(stream=z.read(elegido),filetype="pdf")
+  paginas=[p.get_text("text") for p in doc]
+  doc.close()
+ salida={"expediente":args.zip.name,"documento_base":elegido,"paginas":len(paginas),"calendario":{},"advertencias":[],"estado":"pendiente_validacion_humana"}
+ # Buscar por página y en páginas consecutivas, conservando evidencia y localización.
+ bloques=[]
+ for i in range(len(paginas)):
+  bloques.append((i+1,paginas[i] + ("\n"+paginas[i+1] if i+1<len(paginas) else "")))
+ for campo,(inicio,fin) in REGLAS.items():
+  candidatos=[]
+  for pagina,contenido in bloques:
+   limpio=normalizar(contenido)
+   encabezados=list(re.finditer(inicio,limpio,re.I))
+   for enc in encabezados:
+    limite=re.search(fin,limpio[enc.end():],re.I)
+    tope=enc.end()+limite.start() if limite else min(len(contenido),enc.end()+1000)
+    fragmento=contenido[enc.end():tope][:1400]
+    fechas=fechas_en(fragmento)
+    if not fechas:continue
+    # Inicio/terminación comparten sección y pueden tener dos fechas.
+    seleccionado=fechas[-1] if campo=="terminacion_obra" else fechas[0]
+    a,b,fecha=seleccionado
+    contexto=fragmento[max(0,a-150):min(len(fragmento),b+120)].strip()
+    hora=None
+    if campo not in ("inicio_obra","terminacion_obra"):
+     m=HORA.search(fragmento[b:b+100])
+     if m and int(m.group(1))<24:hora=f"{int(m.group(1)):02d}:{m.group(2)}"
+    # Cálculo de página si el evento cae en la página siguiente.
+    offset=enc.end()+a
+    pagina_origen=pagina+1 if offset>=len(paginas[pagina-1])+1 else pagina
+    candidatos.append({"fecha":fecha,"hora":hora,"pagina":pagina_origen,"evidencia":contexto,"validacion":"pendiente"})
+  unicos={(c["fecha"],c["hora"],c["pagina"]):c for c in candidatos}
+  if len(unicos)==1:
+   salida["calendario"][campo]=next(iter(unicos.values()))
+  elif not unicos:
+   salida["advertencias"].append("No identificado: "+campo)
+  else:
+   salida["advertencias"].append("Múltiples candidatos para "+campo+"; requiere revisión")
+   salida["calendario"][campo]={"candidatos":list(unicos.values()),"validacion":"ambigua"}
+ if "presentacion_apertura" in salida["calendario"] and "fecha" in salida["calendario"]["presentacion_apertura"]:
+  salida["calendario"]["limite_presentacion_propuestas"]=dict(salida["calendario"]["presentacion_apertura"])
+  salida["calendario"]["limite_presentacion_propuestas"]["criterio"]="Misma fecha y hora del acto de apertura, sujeto a validación"
+ destino=args.zip.with_name(args.zip.stem+"_calendario_v2.json")
+ destino.write_text(json.dumps(salida,ensure_ascii=False,indent=2),encoding="utf-8")
+ print("Documento:",elegido)
+ for k,v in salida["calendario"].items():
+  print(k,v.get("fecha","AMBIGUO"),v.get("hora",""),"página",v.get("pagina",""))
+ print("Advertencias:",len(salida["advertencias"]))
+ print("Resultado:",destino)
+ print("No se modificó Supabase ni se enviaron correos.")
+if __name__=="__main__":
+ main()
