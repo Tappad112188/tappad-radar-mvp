@@ -62,6 +62,23 @@ def main():
   bloques.append((i+1,paginas[i] + ("\n"+paginas[i+1] if i+1<len(paginas) else "")))
  for campo,(inicio,fin) in REGLAS.items():
   candidatos=[]
+  if campo=="fallo_programado":
+   # Buscar exclusivamente el encabezado numerado del acto, no menciones incidentales a "fallo".
+   for indice,pagina_texto in enumerate(paginas):
+    limpio=normalizar(pagina_texto)
+    encabezado=re.search(r"(?m)^\\s*5\\s*\\.\\s*fallo\\s*:",limpio,re.I)
+    if not encabezado:
+     continue
+    seccion=pagina_texto[encabezado.end():encabezado.end()+900]
+    for a,b,fecha in fechas_en(seccion)[:1]:
+     m=HORA.search(seccion[b:b+100])
+     hora=f"{int(m.group(1)):02d}:{m.group(2)}" if m and int(m.group(1))<24 else None
+     candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":seccion[max(0,a-100):min(len(seccion),b+120)].strip(),"validacion":"pendiente"})
+   if not candidatos:
+    salida["advertencias"].append("No se encontró fecha bajo encabezado 5. FALLO")
+   else:
+    salida["calendario"][campo]=candidatos[0]
+   continue
   for pagina,contenido in bloques:
    limpio=normalizar(contenido)
    encabezados=list(re.finditer(inicio,limpio,re.I))
