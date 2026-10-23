@@ -63,17 +63,18 @@ def main():
  for campo,(inicio,fin) in REGLAS.items():
   candidatos=[]
   if campo=="fallo_programado":
-   # Buscar exclusivamente el encabezado numerado del acto, no menciones incidentales a "fallo".
+   # El encabezado 5. FALLO aparece en la página 6 de las bases de referencia.
+   # Buscar el encabezado dentro de cada página, no menciones generales al fallo.
    for indice,pagina_texto in enumerate(paginas):
     limpio=normalizar(pagina_texto)
-    encabezado=re.search(r"(?m)^\\s*5\\s*\\.\\s*fallo\\s*:",limpio,re.I)
+    encabezado=re.search(r"(?m)^\s*5\s*\.\s*fallo\s*:",limpio,re.I)
     if not encabezado:
      continue
     seccion=pagina_texto[encabezado.end():encabezado.end()+900]
-    for a,b,fecha in fechas_en(seccion)[:1]:
-     m=HORA.search(seccion[b:b+100])
+    for pos_inicio,pos_fin,fecha in fechas_en(seccion)[:1]:
+     m=HORA.search(seccion[pos_fin:pos_fin+100])
      hora=f"{int(m.group(1)):02d}:{m.group(2)}" if m and int(m.group(1))<24 else None
-     candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":seccion[max(0,a-100):min(len(seccion),b+120)].strip(),"validacion":"pendiente"})
+     candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":seccion[max(0,pos_inicio-100):min(len(seccion),pos_fin+120)].strip(),"validacion":"pendiente"})
    if not candidatos:
     salida["advertencias"].append("No se encontró fecha bajo encabezado 5. FALLO")
    else:
