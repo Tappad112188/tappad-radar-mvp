@@ -63,29 +63,32 @@ def main():
  for campo,(inicio,fin) in REGLAS.items():
   candidatos=[]
   if campo=="fallo_programado":
-   # En las bases el encabezado puede variar de formato o estar separado en líneas.
-   # Solo aceptar un encabezado aislado de FALLO y fecha cercana; nunca referencias genéricas.
+   # Buscar encabezado "FALLO:" aun cuando incluya referencias legales en la misma línea.
+   # La fecha se toma del texto posterior inmediato, no de menciones incidentales.
    for indice,pagina_texto in enumerate(paginas):
-    lineas=pagina_texto.splitlines(keepends=True)
-    for j,linea in enumerate(lineas):
-     titulo=normalizar(linea).strip()
-     if not re.fullmatch(r"(?:(?:\d{1,2})\s*\.\s*)?fallo\s*:?(?:\s*\([^)]*\))?",titulo,re.I):
+    limpio=normalizar(pagina_texto)
+    for enc in re.finditer(r"\bfallo\s*:",limpio,re.I):
+     antes=limpio[max(0,enc.start()-70):enc.start()]
+     despues=pagina_texto[enc.end():enc.end()+1100]
+     # Debe ser un encabezado de acto: numerado o con referencias a artículos legales.
+     if not (re.search(r"(?:^|\n)\s*\d{1,2}\s*\.\s*$",antes) or re.search(r"art[ií]culos?\s+32",normalizar(despues[:180])) or re.search(r"\b5\s*\.\s*$",antes)):
       continue
-     seccion="".join(lineas[j+1:j+12])
-     fechas=fechas_en(seccion)
-     if not fechas:
-      continue
+     # Cortar al próximo encabezado numerado para evitar capturar otras etapas.
+     corte=re.search(r"(?m)^\s*\d{1,2}\s*\.\s*[A-ZÁÉÍÓÚÑ]",despues)
+     if corte: despues=despues[:corte.start()]
+     fechas=fechas_en(despues)
+     if not fechas: continue
      pos_inicio,pos_fin,fecha=fechas[0]
-     m=HORA.search(seccion[pos_fin:pos_fin+120])
+     m=HORA.search(despues[pos_fin:pos_fin+120])
      hora=f"{int(m.group(1)):02d}:{m.group(2)}" if m and int(m.group(1))<24 else None
-     candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":seccion[max(0,pos_inicio-100):min(len(seccion),pos_fin+120)].strip(),"validacion":"pendiente"})
+     candidatos.append({"fecha":fecha,"hora":hora,"pagina":indice+1,"evidencia":despues[max(0,pos_inicio-130):min(len(despues),pos_fin+120)].strip(),"validacion":"pendiente"})
    if len(candidatos)==1:
     salida["calendario"][campo]=candidatos[0]
    elif len(candidatos)>1:
     salida["calendario"][campo]={"candidatos":candidatos,"validacion":"ambigua"}
     salida["advertencias"].append("Múltiples fechas bajo encabezados FALLO")
    else:
-    salida["advertencias"].append("No identificado: fallo_programado (sin encabezado aislado y fecha próxima)")
+    salida["advertencias"].append("No identificado: fallo_programado (no se halló fecha próxima al encabezado FALLO)")
    continue
   for pagina,contenido in bloques:
    limpio=normalizar(contenido)
