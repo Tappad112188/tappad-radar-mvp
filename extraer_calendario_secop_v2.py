@@ -20,7 +20,7 @@ REGLAS = {
  "visita_obra": (r"\bvisita\s+al\s+sitio\b", r"\bjunta\s+de\s+aclaraciones\b"),
  "junta_aclaraciones": (r"\bjunta\s+de\s+aclaraciones\b", r"\bpresentacion\s+de\s+proposiciones\b"),
  "presentacion_apertura": (r"\bpresentacion\s+de\s+proposiciones\s+y\s+apertura\b", r"\bfallo\b"),
- "fallo_programado": (r"\bf(?:echa\s+del\s+)?fallo\b", r"\bforma\s+de\s+pago\b"),
+ "fallo_programado": (r"\b(?:5\s*\.\s*)?fallo\b", r"\b(?:6\s*\.\s*)?(?:forma\s+de\s+pago|estimaciones|anticipo)\b"),
  "inicio_obra": (r"\bfecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\b", r"\bnumero\s+de\s+convocatoria\b"),
  "terminacion_obra": (r"\bfecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\b", r"\bnumero\s+de\s+convocatoria\b")
 }
