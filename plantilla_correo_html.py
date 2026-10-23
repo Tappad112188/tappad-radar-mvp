@@ -24,6 +24,10 @@ def construir_correo_html(empresa, oportunidades):
         nombre = _texto(oportunidad.get("nombre_procedimiento") or "Sin título")
         terminos = _texto(", ".join(oportunidad.get("terminos") or []))
         apertura = _texto(fecha_legible(oportunidad.get("fecha_apertura")))
+        fuente = _texto(oportunidad.get("fuente") or "ComprasMX")
+        publicacion = _texto(fecha_legible(oportunidad.get("fecha_publicacion")))
+        junta = _texto(fecha_legible(oportunidad.get("fecha_junta_aclaraciones")))
+        fallo = _texto(fecha_legible(oportunidad.get("fecha_fallo_programado")))
         url = _enlace_seguro(oportunidad.get("url_procedimiento"))
         enlace = (
             '<a href="' + url + '" style="display:inline-block;background:#116b59;color:#ffffff;'
@@ -37,7 +41,11 @@ def construir_correo_html(empresa, oportunidades):
             '<div style="font-size:12px;color:#526476;font-weight:bold">PROCEDIMIENTO ' + numero + '</div>'
             '<h2 style="font-size:17px;line-height:1.4;color:#16354a;margin:10px 0">' + nombre + '</h2>'
             '<p style="font-size:14px;color:#364b59"><b>Coincidencia:</b> ' + terminos + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Fecha de apertura registrada:</b> ' + apertura + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fuente:</b> ' + fuente + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Publicación:</b> ' + publicacion + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Junta de aclaraciones:</b> ' + junta + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Presentación y apertura (fecha límite):</b> ' + apertura + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fallo programado:</b> ' + fallo + '</p>'
             + enlace + '</td></tr></table></td></tr>'
         )
     return (
