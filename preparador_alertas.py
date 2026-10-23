@@ -35,6 +35,10 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
             "nombre_procedimiento": licitacion.get("nombre_procedimiento"),
             "url_procedimiento": licitacion.get("url_procedimiento"),
             "fecha_apertura": licitacion.get("fecha_apertura"),
+            "fuente": licitacion.get("fuente") or "ComprasMX",
+            "fecha_publicacion": licitacion.get("fecha_publicacion"),
+            "fecha_junta_aclaraciones": licitacion.get("fecha_junta_aclaraciones"),
+            "fecha_fallo_programado": licitacion.get("fecha_fallo_programado"),
         })
     separadas = separar_notificaciones(candidatas, historial)
     por_proveedor = {}
@@ -70,7 +74,11 @@ def vista_previa_correo(empresa, oportunidades):
             "- " + str(oportunidad.get("numero_procedimiento") or "Sin número"),
             "  " + str(oportunidad.get("nombre_procedimiento") or "Sin título"),
             "  Coincidencia: " + ", ".join(oportunidad.get("terminos") or []),
-            "  Fecha de apertura registrada: " + fecha_legible(oportunidad.get("fecha_apertura")),
+            "  Fuente: " + str(oportunidad.get("fuente") or "ComprasMX"),
+            "  Publicación: " + fecha_legible(oportunidad.get("fecha_publicacion")),
+            "  Junta de aclaraciones: " + fecha_legible(oportunidad.get("fecha_junta_aclaraciones")),
+            "  Presentación y apertura (fecha límite): " + fecha_legible(oportunidad.get("fecha_apertura")),
+            "  Fallo programado: " + fecha_legible(oportunidad.get("fecha_fallo_programado")),
             "  Expediente: " + str(oportunidad.get("url_procedimiento") or "No disponible"),
             "",
         ])
