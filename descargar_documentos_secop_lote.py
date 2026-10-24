@@ -47,7 +47,7 @@ async def main():
   print("ERROR: El archivo no contiene procedimientos válidos y filtrados.")
   return
  if data.get("fecha_consulta")!=hoy:
-  print("AVISO: Archivo de fecha",data.get("fecha_consulta"),"y hoy es",hoy,". Se usarán solo los registros del archivo.")
+  raise SystemExit("ERROR: El lote SECOP es de "+str(data.get("fecha_consulta"))+" y hoy es "+hoy+". Ejecuta primero la extracción actualizada.")
  SALIDA.mkdir(exist_ok=True)
  reporte={"fecha_fuente":data.get("fecha_consulta"),"procedimientos":[],"errores":[]}
  async with async_playwright() as pw:
@@ -102,7 +102,6 @@ async def main():
      item["enlaces_documentos"]=await page.evaluate("""() => [...document.querySelectorAll('a[href]')].filter(a=>a.offsetParent!==null && /^https:\\/\\/www\\.sefincoahuila\\.gob\\.mx\\/sistemas\\/Secop\\/Procedimiento\\/GetFile\\/\\d+$/i.test(a.href)).map(a=>({texto:(a.innerText||'').trim(),url:a.href}))""")
      bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper() or "BASE DE PROCEDIMIENTO" in e["texto"].upper()]
      convocatorias=[e for e in item["enlaces_documentos"] if "CONVOCATORIA" in e["texto"].upper()]
-     convocatorias=[e for e in item["enlaces_documentos"] if "CONVOCATORIA" in e["texto"].upper()]
      for convocatoria in convocatorias:
       resultado=await asyncio.to_thread(verificar_bases_sin_sesion,convocatoria["url"])
       item["convocatorias_verificadas"].append({**convocatoria,**resultado})
@@ -149,6 +148,5 @@ async def main():
    destino.write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
    print("\nReporte:",destino)
    print("TOTAL:",len(reporte["procedimientos"]),"procedimientos,",sum(len(x["archivos"]) for x in reporte["procedimientos"]),"archivos descargados")
-   input("Pulsa ENTER para cerrar Chromium...")
    await browser.close()
 if __name__=="__main__":asyncio.run(main())
