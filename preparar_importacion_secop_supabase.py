@@ -42,6 +42,12 @@ def incorporar_enlaces(registros):
   bases=item.get("bases_verificadas") or []
   verificadas=[b for b in bases if b.get("estado")=="verificado_sin_sesion"]
   registro["documentos_bases_verificados"]=[{"url":b.get("url"),"texto":b.get("texto")} for b in verificadas]
+  convocatorias=[c for c in item.get("convocatorias_verificadas",[]) if c.get("estado")=="verificado_sin_sesion"]
+  registro["documentos_convocatorias_verificados"]=[{"url":c.get("url"),"texto":c.get("texto")} for c in convocatorias]
+  if len(bases)==len(verificadas)==1 and item.get("url_bases_candidata")==verificadas[0].get("url"):
+   registro["url_bases"]=verificadas[0]["url"]
+  if len(item.get("convocatorias_verificadas",[]))==len(convocatorias)==1 and item.get("url_convocatoria_candidata")==convocatorias[0].get("url"):
+   registro["url_convocatoria"]=convocatorias[0]["url"]
   if len(bases)==1 and len(verificadas)==1 and item.get("estado_enlace")=="verificado_sin_sesion":
    registro["revision_enlace"]="bases_descargables_pero_falta_enlace_expediente_individual"
   elif len(bases)>1:
