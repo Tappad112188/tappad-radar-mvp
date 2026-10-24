@@ -8,6 +8,26 @@ from motor_coincidencias import generar_coincidencias
 from priorizador_alertas import priorizar_oportunidad
 from formato_alertas import fecha_legible, frase_oportunidades
 from validador_plazo_oficial import validar_envio_oportunidad
+from urllib.parse import urlparse
+
+
+def secop_apto_para_alerta(licitacion):
+    """SECOP exige enlace HTTPS individual y calendario vigente verificado.
+
+    Ante cualquier dato ausente o incierto, se bloquea por defecto.
+    """
+    if str(licitacion.get('fuente') or '').strip().casefold() != 'secop coahuila':
+        return True
+    url = str(licitacion.get('url_procedimiento') or '').strip()
+    partes = urlparse(url)
+    if partes.scheme != 'https' or not partes.hostname or partes.username or partes.password:
+        return False
+    if partes.hostname.casefold() != 'sefincoahuila.gob.mx' and not partes.hostname.casefold().endswith('.sefincoahuila.gob.mx'):
+        return False
+    if partes.path.rstrip('/').casefold() == '/sistemas/secop/convocatoria':
+        return False  # La portada no es un enlace individual al expediente.
+    return licitacion.get('validacion_calendario') == 'confirmada_sin_modificaciones'
+
 
 
 def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historial, ahora=None):
@@ -22,6 +42,8 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
         licitacion = expedientes[coincidencia["licitacion_id"]]
         # Solo coincidencias con cobertura geográfica confirmada pueden notificarse.
         if coincidencia["categoria"] != "dentro_de_cobertura":
+            continue
+        if not secop_apto_para_alerta(licitacion):
             continue
         prioridad = priorizar_oportunidad(coincidencia, licitacion, ahora=ahora)
         decision = validar_envio_oportunidad({**prioridad, "fecha_apertura": licitacion.get("fecha_apertura"), "estatus": licitacion.get("estatus")}, ahora=ahora)
