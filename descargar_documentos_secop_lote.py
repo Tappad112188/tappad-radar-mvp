@@ -83,6 +83,7 @@ async def main():
      bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper()]
      if len(bases)==1:
       item["url_bases_candidata"]=bases[0]["url"]
+      item["estado_enlace"]="capturado_pendiente_verificacion_externa"
      elif len(bases)>1:
       item["errores"].append("Multiples enlaces de bases: requieren revision")
      else:
