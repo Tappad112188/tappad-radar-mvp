@@ -29,11 +29,30 @@ def construir_correo_html(empresa, oportunidades):
         junta = _texto(fecha_legible(oportunidad.get("fecha_junta_aclaraciones")))
         fallo = _texto(fecha_legible(oportunidad.get("fecha_fallo_programado")))
         url = _enlace_seguro(oportunidad.get("url_procedimiento"))
-        enlace = (
-            '<a href="' + url + '" style="display:inline-block;background:#116b59;color:#ffffff;'
-            'padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:bold">'
-            'Consultar procedimiento y documentos</a>'
-        ) if url else '<span style="color:#6b7280">Enlace oficial no disponible</span>'
+        es_secop = str(oportunidad.get("fuente") or "").strip().casefold() == "secop coahuila"
+        def boton_documento(campo, titulo):
+            valor = str(oportunidad.get(campo) or "").strip()
+            partes = urlparse(valor)
+            if (partes.scheme != "https" or partes.hostname != "www.sefincoahuila.gob.mx"
+                or partes.username or partes.password or partes.query or partes.fragment
+                or not partes.path.lower().startswith("/sistemas/secop/procedimiento/getfile/")
+                or not partes.path.rsplit("/", 1)[-1].isdigit()):
+                return ""
+            destino = _texto(valor)
+            return ('<a href="' + destino + '" style="display:inline-block;margin:4px 8px 4px 0;'
+                    'background:#116b59;color:#ffffff;padding:12px 18px;'
+                    'text-decoration:none;border-radius:6px;font-weight:bold">' + titulo + '</a>')
+        if es_secop:
+            enlace = (boton_documento("url_bases", "Descargar bases")
+                      + boton_documento("url_convocatoria", "Descargar convocatoria"))
+            if not enlace:
+                enlace = '<span style="color:#6b7280">Documentos pendientes de verificación</span>'
+        else:
+            enlace = (
+                '<a href="' + url + '" style="display:inline-block;background:#116b59;color:#ffffff;'
+                'padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:bold">'
+                'Consultar procedimiento y documentos</a>'
+            ) if url else '<span style="color:#6b7280">Enlace oficial no disponible</span>'
         tarjetas.append(
             '<tr><td style="padding:0 24px 18px"><table role="presentation" width="100%" '
             'style="border:1px solid #dbe4e7;border-radius:8px;background:#ffffff">'
@@ -64,7 +83,7 @@ def construir_correo_html(empresa, oportunidades):
         '</td></tr><tr><td style="padding:24px">'
         '<p style="font-size:17px">Hola, <b>' + _texto(empresa) + '</b>:</p>'
         '<p style="font-size:15px;line-height:1.6">' + _texto(frase_oportunidades(len(oportunidades))) + '</p>'
-        '<p style="font-size:14px;color:#526476">Abre el procedimiento en el portal oficial para consultar y descargar sus documentos.</p>'
+        '<p style="font-size:14px;color:#526476">Consulta los documentos oficiales disponibles. Confirma posibles modificaciones en el portal de origen.</p>'
         '</td></tr>' + "".join(tarjetas) +
         '<tr><td style="padding:8px 24px 22px">'\n        '<p style="font-size:14px;line-height:1.6;color:#16354a"><b>¿Te interesa participar?</b> '
         'TAPPAD Consultoría ofrece asesoría especializada para revisar las bases y preparar tu propuesta. '
