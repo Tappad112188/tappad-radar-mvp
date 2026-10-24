@@ -18,7 +18,7 @@ def verificar_bases_sin_sesion(url):
  """GET anonimo limitado a 1024 bytes; no reutiliza cookies de Chromium."""
  p=urlparse(str(url or ""))
  if (p.scheme!="https" or p.hostname!="www.sefincoahuila.gob.mx"
-     or not re.fullmatch(r"/sistemas/Secop/Procedimiento/GetFile/\\d+",p.path,re.I)
+     or not re.fullmatch(r"/sistemas/Secop/Procedimiento/GetFile/\d+",p.path,re.I)
      or p.query or p.fragment):
   return {"estado":"url_no_permitida"}
  solicitud=urllib.request.Request(url,headers={"Range":"bytes=0-1023","User-Agent":"Mozilla/5.0"},method="GET")
