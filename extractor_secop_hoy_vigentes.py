@@ -85,6 +85,7 @@ async def main():
   finally:
    SALIDA.write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
    print("Reporte:",SALIDA)
-   input("Pulsa ENTER para cerrar Chromium...")
    await browser.close()
+ if reporte.get("error") or reporte.get("errores"):
+  raise SystemExit("ERROR: Extraccion SECOP incompleta; revisar reporte antes de continuar.")
 if __name__=="__main__":asyncio.run(main())
