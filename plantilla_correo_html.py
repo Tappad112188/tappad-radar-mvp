@@ -32,7 +32,7 @@ def construir_correo_html(empresa, oportunidades):
         enlace = (
             '<a href="' + url + '" style="display:inline-block;background:#116b59;color:#ffffff;'
             'padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:bold">'
-            'Consultar procedimiento</a>'
+            'Consultar procedimiento y documentos</a>'
         ) if url else '<span style="color:#6b7280">Enlace oficial no disponible</span>'
         tarjetas.append(
             '<tr><td style="padding:0 24px 18px"><table role="presentation" width="100%" '
@@ -64,7 +64,7 @@ def construir_correo_html(empresa, oportunidades):
         '</td></tr><tr><td style="padding:24px">'
         '<p style="font-size:17px">Hola, <b>' + _texto(empresa) + '</b>:</p>'
         '<p style="font-size:15px;line-height:1.6">' + _texto(frase_oportunidades(len(oportunidades))) + '</p>'
-        '<p style="font-size:14px;color:#526476">Consulta las bases y documentos en el enlace oficial de cada procedimiento.</p>'
+        '<p style="font-size:14px;color:#526476">Abre el procedimiento en el portal oficial para consultar y descargar sus documentos.</p>'
         '</td></tr>' + "".join(tarjetas) +
         '<tr><td style="padding:8px 24px 22px">'\n        '<p style="font-size:14px;line-height:1.6;color:#16354a"><b>¿Te interesa participar?</b> '
         'TAPPAD Consultoría ofrece asesoría especializada para revisar las bases y preparar tu propuesta. '
