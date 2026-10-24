@@ -53,6 +53,22 @@ def construir_correo_html(empresa, oportunidades):
                 'padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:bold">'
                 'Consultar procedimiento y documentos</a>'
             ) if url else '<span style="color:#6b7280">Enlace oficial no disponible</span>'
+        documentos = oportunidad.get("documentos_disponibles") or []
+        if isinstance(documentos, str):
+            documentos = []
+        nombres = []
+        if isinstance(documentos, list):
+            for documento in documentos[:30]:
+                nombre_doc = documento.get("nombre") or documento.get("tipo") if isinstance(documento, dict) else documento
+                if isinstance(nombre_doc, str) and nombre_doc.strip():
+                    nombres.append(nombre_doc.strip())
+        if not es_secop:
+            if nombres:
+                items = "".join("<li>" + _texto(n) + "</li>" for n in nombres)
+                enlace = ('<p style="font-size:14px;color:#364b59"><b>Documentos disponibles:</b></p>'
+                          '<ul style="font-size:14px;color:#364b59">' + items + '</ul>' + enlace)
+            enlace += ('<p style="font-size:12px;color:#526476">'
+                       'La descarga de archivos puede requerir resolver un CAPTCHA en ComprasMX.</p>')
         tarjetas.append(
             '<tr><td style="padding:0 24px 18px"><table role="presentation" width="100%" '
             'style="border:1px solid #dbe4e7;border-radius:8px;background:#ffffff">'
