@@ -19,7 +19,7 @@ EXTRAER="""cards => cards.map(card => {
   const cell=item.querySelector('td.dxflNestedControlCell_SoftOrange');
   if(label&&cell)result[label]=(cell.innerText||'').trim();
  }
- result._enlaces=[...card.querySelectorAll('a')].map(a=>({texto:(a.innerText||'').trim(),id:a.id||'',href:a.getAttribute('href')||''}));
+ result._enlaces=[...card.querySelectorAll('a')].map(a=>({texto:(a.innerText||'').trim(),id:a.id||'',href:a.getAttribute('href')||'',url_absoluta:a.href||'',onclick:a.getAttribute('onclick')||'',target:a.getAttribute('target')||''}));
  return result;
 })"""
 def limpio(s):return re.sub(r"\s+"," ",s or "").strip()
@@ -70,7 +70,7 @@ async def main():
     items=await page.locator("td[id^='CardView_DXDataCard']").evaluate_all(EXTRAER)
     for item in items:
      fecha=limpio(item.get("Fecha de Publicación"))
-     r={"codigo":limpio(item.get("Código")),"estatus":limpio(item.get("Estatus")),"descripcion":limpio(item.get("Descripción")),"fecha_publicacion_original":fecha,"fecha_publicacion":fecha_iso(fecha),"documentos_referencia":limpio(item.get("Documentos de Procedimiento")),"enlaces":item.get("_enlaces",[])}
+     r={"codigo":limpio(item.get("Código")),"estatus":limpio(item.get("Estatus")),"descripcion":limpio(item.get("Descripción")),"fecha_publicacion_original":fecha,"fecha_publicacion":fecha_iso(fecha),"documentos_referencia":limpio(item.get("Documentos de Procedimiento")),"enlaces":item.get("_enlaces",[]),"url_procedimiento":None,"estado_enlace":"pendiente_identificar_enlace_individual"}
      registros.append(r)
    validos=[r for r in registros if r["fecha_publicacion"]==hoy.isoformat() and r["estatus"].casefold()=="vigente" and r["codigo"]]
    rechazados=[r for r in registros if r not in validos]
