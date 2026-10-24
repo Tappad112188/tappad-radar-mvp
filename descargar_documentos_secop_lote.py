@@ -2,7 +2,8 @@
 Solo lectura; no modifica bases de datos ni envía correos.
 Uso: py descargar_documentos_secop_lote.py
 """
-import asyncio, json, re
+import asyncio, json, re, urllib.request, urllib.error
+from urllib.parse import urlparse
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -12,6 +13,25 @@ BASE=Path(__file__).resolve().parent
 ENTRADA=BASE/"secop_hoy_vigentes.json"
 SALIDA=BASE/"documentos_secop_lote"
 URL="https://www.sefincoahuila.gob.mx/sistemas/Secop/Convocatoria"
+
+def verificar_bases_sin_sesion(url):
+ """GET anonimo limitado a 1024 bytes; no reutiliza cookies de Chromium."""
+ p=urlparse(str(url or ""))
+ if (p.scheme!="https" or p.hostname!="www.sefincoahuila.gob.mx"
+     or not re.fullmatch(r"/sistemas/Secop/Procedimiento/GetFile/\\d+",p.path,re.I)
+     or p.query or p.fragment):
+  return {"estado":"url_no_permitida"}
+ solicitud=urllib.request.Request(url,headers={"Range":"bytes=0-1023","User-Agent":"Mozilla/5.0"},method="GET")
+ try:
+  with urllib.request.urlopen(solicitud,timeout=25) as respuesta:
+   cabecera=respuesta.headers.get("Content-Disposition","").lower()
+   tipo=respuesta.headers.get("Content-Type","").lower()
+   firma=respuesta.read(1024)
+   archivo=firma.startswith((b"%PDF-",b"PK\\x03\\x04",b"\\xd0\\xcf\\x11\\xe0"))
+   return {"estado":"verificado_sin_sesion" if archivo and respuesta.status in (200,206) else "respuesta_no_confirmada",
+           "http":respuesta.status,"tipo":tipo,"adjunto":"attachment" in cabecera}
+ except Exception as exc:
+  return {"estado":"error_verificacion","detalle":str(exc)[:160]}
 
 def nombre_seguro(s):
  return re.sub(r"[^A-Za-z0-9._-]+","_",s).strip("._")[:110] or "archivo"
@@ -37,7 +57,7 @@ async def main():
   try:
    for r in registros:
     codigo=r["codigo"]
-    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"enlaces_documentos":[],"url_bases_candidata":None,"estado_enlace":"pendiente_verificacion_externa","errores":[]}
+    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"enlaces_documentos":[],"bases_verificadas":[],"url_bases_candidata":None,"estado_enlace":"pendiente_verificacion_externa","errores":[]}
     reporte["procedimientos"].append(item)
     carpeta=SALIDA/nombre_seguro(codigo)
     carpeta.mkdir(exist_ok=True)
@@ -81,13 +101,21 @@ async def main():
      # Extraer solo URLs oficiales GetFile visibles y clasificar las bases.
      item["enlaces_documentos"]=await page.evaluate("""() => [...document.querySelectorAll('a[href]')].filter(a=>a.offsetParent!==null && /^https:\\/\\/www\\.sefincoahuila\\.gob\\.mx\\/sistemas\\/Secop\\/Procedimiento\\/GetFile\\/\\d+$/i.test(a.href)).map(a=>({texto:(a.innerText||'').trim(),url:a.href}))""")
      bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper()]
-     if len(bases)==1:
+     for base in bases:
+      resultado=await asyncio.to_thread(verificar_bases_sin_sesion,base["url"])
+      item["bases_verificadas"].append({**base,**resultado})
+     if len(bases)==1 and item["bases_verificadas"][0]["estado"]=="verificado_sin_sesion":
       item["url_bases_candidata"]=bases[0]["url"]
-      item["estado_enlace"]="capturado_pendiente_verificacion_externa"
+      item["estado_enlace"]="verificado_sin_sesion"
      elif len(bases)>1:
+      item["estado_enlace"]="multiples_bases_requiere_revision"
       item["errores"].append("Multiples enlaces de bases: requieren revision")
-     else:
+     elif not bases:
+      item["estado_enlace"]="sin_bases"
       item["errores"].append("No se encontro enlace oficial de bases")
+     else:
+      item["estado_enlace"]="verificacion_fallida"
+      item["errores"].append("Enlace de bases no confirmado sin sesion")
      controles=await page.evaluate("""() => [...document.querySelectorAll('a,button,input[type=button]')].filter(e=>{const t=(e.innerText||e.value||e.title||'').trim();return /BASES|ANEXOS|resumen de conv/i.test(t) && e.id && e.offsetParent!==null}).map(e=>({id:e.id,texto:(e.innerText||e.value||e.title||'').trim()}))""")
      vistos=set()
      for control in controles:
