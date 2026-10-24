@@ -3,6 +3,8 @@ Prepara JSON para revision. No conecta ni escribe en Supabase.
 Solo incluye datos verificados de las fichas y conserva su estado pendiente.
 """
 import json
+import re
+from urllib.parse import urlparse
 from pathlib import Path
 BASE=Path(__file__).resolve().parent/"documentos_secop_lote"
 ENTRADA=BASE/"fichas_comerciales_secop.json"
@@ -30,15 +32,32 @@ def adaptar(f):
   "fecha_fallo_programado":fecha(calendario.get("fallo_programado")),
   "url_procedimiento":f.get("url_procedimiento"),
  }
+def codigo_normalizado(valor):
+ return str(valor or "").strip().casefold()
+
+def url_oficial(url):
+ p=urlparse(str(url or ""))
+ return (p.scheme=="https" and p.hostname=="www.sefincoahuila.gob.mx"
+  and bool(re.fullmatch(r"/sistemas/Secop/Procedimiento/GetFile/\d+",p.path,re.I))
+  and not p.query and not p.fragment)
+
 def incorporar_enlaces(registros):
  """Asocia enlaces anonimos verificados; no confirma el calendario."""
  if not REPORTE_ENLACES.exists():
   return "Sin reporte_descargas.json: enlaces sin asociar"
  datos=json.loads(REPORTE_ENLACES.read_text(encoding="utf-8-sig"))
- por_codigo={str(x.get("codigo")):x for x in datos.get("procedimientos",[])}
+ por_codigo={codigo_normalizado(x.get("codigo")):x for x in datos.get("procedimientos",[]) if x.get("codigo")}
+ encontrados=0
+ evidencias=0
  for registro in registros:
-  item=por_codigo.get(str(registro["cod_expediente"]))
+  item=por_codigo.get(codigo_normalizado(registro["cod_expediente"]))
   if not item:continue
+  encontrados+=1
+  # Conservar URLs oficiales encontradas sin confundirlas con documentos verificados.
+  candidatos=[{"url":e.get("url"),"texto":e.get("texto"),"estado":"pendiente_verificacion"}
+   for e in item.get("enlaces_documentos",[]) if isinstance(e,dict) and url_oficial(e.get("url"))]
+  registro["enlaces_documentales_detectados"]=candidatos
+  evidencias+=len(candidatos)
   bases=item.get("bases_verificadas") or []
   verificadas=[b for b in bases if b.get("estado")=="verificado_sin_sesion"]
   registro["documentos_bases_verificados"]=[{"url":b.get("url"),"texto":b.get("texto")} for b in verificadas]
@@ -52,7 +71,9 @@ def incorporar_enlaces(registros):
    registro["revision_enlace"]="bases_descargables_pero_falta_enlace_expediente_individual"
   elif len(bases)>1:
    registro["revision_enlace"]="multiples_bases_no_seleccionar_automaticamente"
- return "Enlaces de bases solo como evidencia interna; falta enlace individual de expediente SECOP"
+ return (f"Procedimientos asociados al reporte: {encontrados}/{len(registros)}; "
+  f"URLs oficiales detectadas (no necesariamente verificadas): {evidencias}. "
+  "Enlaces de bases solo como evidencia interna; falta enlace individual de expediente SECOP")
 
 def main():
  if not ENTRADA.exists():raise SystemExit("No se encontro fichas_comerciales_secop.json")
