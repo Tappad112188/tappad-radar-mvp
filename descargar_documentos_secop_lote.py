@@ -57,7 +57,7 @@ async def main():
   try:
    for r in registros:
     codigo=r["codigo"]
-    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"enlaces_documentos":[],"bases_verificadas":[],"url_bases_candidata":None,"estado_enlace":"pendiente_verificacion_externa","errores":[]}
+    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"enlaces_documentos":[],"bases_verificadas":[],"convocatorias_verificadas":[],"url_bases_candidata":None,"url_convocatoria_candidata":None,"estado_enlace":"pendiente_verificacion_externa","errores":[]}
     reporte["procedimientos"].append(item)
     carpeta=SALIDA/nombre_seguro(codigo)
     carpeta.mkdir(exist_ok=True)
@@ -100,7 +100,8 @@ async def main():
      # En SECOP los documentos aparecen en la misma pagina tras abrir la referencia.
      # Extraer solo URLs oficiales GetFile visibles y clasificar las bases.
      item["enlaces_documentos"]=await page.evaluate("""() => [...document.querySelectorAll('a[href]')].filter(a=>a.offsetParent!==null && /^https:\\/\\/www\\.sefincoahuila\\.gob\\.mx\\/sistemas\\/Secop\\/Procedimiento\\/GetFile\\/\\d+$/i.test(a.href)).map(a=>({texto:(a.innerText||'').trim(),url:a.href}))""")
-     bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper()]
+     bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper() or "BASE DE PROCEDIMIENTO" in e["texto"].upper()]
+     convocatorias=[e for e in item["enlaces_documentos"] if "CONVOCATORIA" in e["texto"].upper()]
      for base in bases:
       resultado=await asyncio.to_thread(verificar_bases_sin_sesion,base["url"])
       item["bases_verificadas"].append({**base,**resultado})
