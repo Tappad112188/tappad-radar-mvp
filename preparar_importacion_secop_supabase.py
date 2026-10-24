@@ -53,11 +53,20 @@ def incorporar_enlaces(registros):
   item=por_codigo.get(codigo_normalizado(registro["cod_expediente"]))
   if not item:continue
   encontrados+=1
-  # Conservar URLs oficiales encontradas sin confundirlas con documentos verificados.
+  # Clasificar evidencia visible del reporte previo sin asumir verificación HTTP.
   candidatos=[{"url":e.get("url"),"texto":e.get("texto"),"estado":"pendiente_verificacion"}
    for e in item.get("enlaces_documentos",[]) if isinstance(e,dict) and url_oficial(e.get("url"))]
   registro["enlaces_documentales_detectados"]=candidatos
   evidencias+=len(candidatos)
+  def clase(e):
+   nombre=str(e.get("texto") or "").upper()
+   if "BASES" in nombre or "BASE DE PROCEDIMIENTO" in nombre:return "bases"
+   if "CONVOCATORIA" in nombre:return "convocatoria"
+   if "INVITACION" in nombre:return "invitacion"
+   return "otro"
+  registro["documentos_disponibles"]=[
+   {"tipo":clase(e),"texto":e["texto"],"url":e["url"],"estado":"pendiente_verificacion"}
+   for e in candidatos]
   bases=item.get("bases_verificadas") or []
   verificadas=[b for b in bases if b.get("estado")=="verificado_sin_sesion"]
   registro["documentos_bases_verificados"]=[{"url":b.get("url"),"texto":b.get("texto")} for b in verificadas]
