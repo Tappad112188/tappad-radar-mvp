@@ -37,7 +37,7 @@ async def main():
   try:
    for r in registros:
     codigo=r["codigo"]
-    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"errores":[]}
+    item={"codigo":codigo,"referencia":r.get("documentos_referencia"),"archivos":[],"enlaces_documentos":[],"url_bases_candidata":None,"estado_enlace":"pendiente_verificacion_externa","errores":[]}
     reporte["procedimientos"].append(item)
     carpeta=SALIDA/nombre_seguro(codigo)
     carpeta.mkdir(exist_ok=True)
@@ -77,6 +77,16 @@ async def main():
      await enlace.click(timeout=20000)
      await page.get_by_text("Base de Procedimiento",exact=False).first.wait_for(state="visible",timeout=20000)
      await page.wait_for_timeout(900)
+     # En SECOP los documentos aparecen en la misma pagina tras abrir la referencia.
+     # Extraer solo URLs oficiales GetFile visibles y clasificar las bases.
+     item["enlaces_documentos"]=await page.evaluate("""() => [...document.querySelectorAll('a[href]')].filter(a=>a.offsetParent!==null && /^https:\\/\\/www\\.sefincoahuila\\.gob\\.mx\\/sistemas\\/Secop\\/Procedimiento\\/GetFile\\/\\d+$/i.test(a.href)).map(a=>({texto:(a.innerText||'').trim(),url:a.href}))""")
+     bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper()]
+     if len(bases)==1:
+      item["url_bases_candidata"]=bases[0]["url"]
+     elif len(bases)>1:
+      item["errores"].append("Multiples enlaces de bases: requieren revision")
+     else:
+      item["errores"].append("No se encontro enlace oficial de bases")
      controles=await page.evaluate("""() => [...document.querySelectorAll('a,button,input[type=button]')].filter(e=>{const t=(e.innerText||e.value||e.title||'').trim();return /BASES|ANEXOS|resumen de conv/i.test(t) && e.id && e.offsetParent!==null}).map(e=>({id:e.id,texto:(e.innerText||e.value||e.title||'').trim()}))""")
      vistos=set()
      for control in controles:
