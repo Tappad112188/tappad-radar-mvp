@@ -46,9 +46,18 @@ def preparar(registro):
         raise ValueError("Convocatoria no coincide con evidencia")
     item["documentos_bases_verificados"] = bases
     item["documentos_convocatorias_verificados"] = convocatorias
-    item["documentos_disponibles"] = [
-        {"tipo": tipo, "texto": d.get("texto") or tipo, "url": d["url"]}
-        for tipo, docs in (("bases", bases), ("convocatoria", convocatorias)) for d in docs
+    detectados = registro.get("documentos_disponibles") or []
+    for doc in detectados:
+        if (not isinstance(doc, dict) or doc.get("tipo") not in
+                {"bases", "convocatoria", "invitacion", "otro"}
+                or not enlace_oficial(doc.get("url"))
+                or doc.get("estado") != "pendiente_verificacion"):
+            raise ValueError("Documento detectado invalido")
+    item["documentos_disponibles"] = detectados + [
+        {"tipo": tipo, "texto": d.get("texto") or tipo, "url": d["url"],
+         "estado": "verificado_sin_sesion"}
+        for tipo, docs in (("bases", bases), ("convocatoria", convocatorias))
+        for d in docs if d["url"] not in {x["url"] for x in detectados}
     ]
     # Nunca promover automáticamente una fecha extraída a calendario confirmado.
     item["validacion_calendario"] = "pendiente"
@@ -66,6 +75,7 @@ def main():
     print("SECOP registros revisados estructuralmente:", len(registros))
     print("Enlaces bases:", sum(bool(r.get("url_bases")) for r in registros))
     print("Enlaces convocatorias:", sum(bool(r.get("url_convocatoria")) for r in registros))
+    print("Documentos detectados:", sum(len(r.get("documentos_disponibles", [])) for r in registros))
     if not args.importar:
         print("SIMULACIÓN: no se escribió en Supabase.")
         return
