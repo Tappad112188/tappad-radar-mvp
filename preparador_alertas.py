@@ -24,7 +24,9 @@ def secop_apto_para_alerta(licitacion):
         return False
     if partes.hostname.casefold() != 'sefincoahuila.gob.mx' and not partes.hostname.casefold().endswith('.sefincoahuila.gob.mx'):
         return False
-    if partes.path.casefold().startswith('/sistemas/secop/procedimiento/getfile/'):\n        return False  # Enlace directo a archivo, no a expediente individual.\n    if partes.path.rstrip('/').casefold() == '/sistemas/secop/convocatoria':
+    if partes.path.casefold().startswith('/sistemas/secop/procedimiento/getfile/'):
+        return False  # Enlace directo a archivo, no a expediente individual.
+    if partes.path.rstrip('/').casefold() == '/sistemas/secop/convocatoria':
         return False  # La portada no es un enlace individual al expediente.
     return licitacion.get('validacion_calendario') == 'confirmada_sin_modificaciones'
 
