@@ -43,11 +43,10 @@ def incorporar_enlaces(registros):
   verificadas=[b for b in bases if b.get("estado")=="verificado_sin_sesion"]
   registro["documentos_bases_verificados"]=[{"url":b.get("url"),"texto":b.get("texto")} for b in verificadas]
   if len(bases)==1 and len(verificadas)==1 and item.get("estado_enlace")=="verificado_sin_sesion":
-   registro["url_procedimiento"]=verificadas[0]["url"]
-   registro["tipo_enlace"]="descarga_directa_bases"
+   registro["revision_enlace"]="bases_descargables_pero_falta_enlace_expediente_individual"
   elif len(bases)>1:
    registro["revision_enlace"]="multiples_bases_no_seleccionar_automaticamente"
- return "Enlaces asociados; calendario pendiente de revision"
+ return "Enlaces de bases solo como evidencia interna; falta enlace individual de expediente SECOP"
 
 def main():
  if not ENTRADA.exists():raise SystemExit("No se encontro fichas_comerciales_secop.json")
