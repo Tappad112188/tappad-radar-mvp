@@ -102,6 +102,14 @@ async def main():
      item["enlaces_documentos"]=await page.evaluate("""() => [...document.querySelectorAll('a[href]')].filter(a=>a.offsetParent!==null && /^https:\\/\\/www\\.sefincoahuila\\.gob\\.mx\\/sistemas\\/Secop\\/Procedimiento\\/GetFile\\/\\d+$/i.test(a.href)).map(a=>({texto:(a.innerText||'').trim(),url:a.href}))""")
      bases=[e for e in item["enlaces_documentos"] if "BASES" in e["texto"].upper() or "BASE DE PROCEDIMIENTO" in e["texto"].upper()]
      convocatorias=[e for e in item["enlaces_documentos"] if "CONVOCATORIA" in e["texto"].upper()]
+     convocatorias=[e for e in item["enlaces_documentos"] if "CONVOCATORIA" in e["texto"].upper()]
+     for convocatoria in convocatorias:
+      resultado=await asyncio.to_thread(verificar_bases_sin_sesion,convocatoria["url"])
+      item["convocatorias_verificadas"].append({**convocatoria,**resultado})
+     if len(convocatorias)==1 and item["convocatorias_verificadas"][0]["estado"]=="verificado_sin_sesion":
+      item["url_convocatoria_candidata"]=convocatorias[0]["url"]
+     elif len(convocatorias)>1:
+      item["errores"].append("Multiples convocatorias: requieren revision")
      for base in bases:
       resultado=await asyncio.to_thread(verificar_bases_sin_sesion,base["url"])
       item["bases_verificadas"].append({**base,**resultado})
