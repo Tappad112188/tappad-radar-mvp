@@ -64,9 +64,11 @@ def construir_correo_html(empresa, oportunidades):
         '</td></tr><tr><td style="padding:24px">'
         '<p style="font-size:17px">Hola, <b>' + _texto(empresa) + '</b>:</p>'
         '<p style="font-size:15px;line-height:1.6">' + _texto(frase_oportunidades(len(oportunidades))) + '</p>'
-        '<p style="font-size:14px;color:#526476">Consulta el expediente oficial antes de participar.</p>'
+        '<p style="font-size:14px;color:#526476">Consulta las bases y documentos en el enlace oficial de cada procedimiento.</p>'
         '</td></tr>' + "".join(tarjetas) +
-        '<tr><td style="padding:10px 24px 26px;color:#526476;font-size:12px;line-height:1.6">'
+        '<tr><td style="padding:8px 24px 22px">'\n        '<p style="font-size:14px;line-height:1.6;color:#16354a"><b>¿Te interesa participar?</b> '
+        'TAPPAD Consultoría ofrece asesoría especializada para revisar las bases y preparar tu propuesta. '
+        'La asesoría es un servicio adicional e independiente de TAPPAD Radar.</p>'\n        '</td></tr>'\n        '<tr><td style="padding:10px 24px 26px;color:#526476;font-size:12px;line-height:1.6">'
         'La clasificación es orientativa. Verifica la vigencia y el plazo oficial de presentación '
         'de proposiciones antes de tomar decisiones.'
         '<hr style="border:0;border-top:1px solid #dbe4e7;margin:18px 0">'
