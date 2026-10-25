@@ -54,6 +54,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python motor_entrega_tappad_v1.py
+      - name: Probar coordinacion SMTP y Supabase sin red
+        run: python probar_coordinacion_notificaciones_v1.py
       - name: Guardar vistas previas
         uses: actions/upload-artifact@v4
         with:
