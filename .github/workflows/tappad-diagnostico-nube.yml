@@ -29,6 +29,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python diagnosticar_vigencia_v4.py
+      - name: Auditar destinatarios y duplicados sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python auditar_envios_produccion_v1.py
       - name: Generar HTML con logo sin enviar
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
