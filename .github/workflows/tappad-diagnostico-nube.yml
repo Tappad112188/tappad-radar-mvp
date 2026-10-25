@@ -44,6 +44,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python planificar_envios_seco_v1.py
+      - name: Preparar lote seguro sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python preparar_lote_notificaciones_v1.py
       - name: Guardar vistas previas
         uses: actions/upload-artifact@v4
         with:
@@ -53,4 +58,5 @@ jobs:
             vista_previa_alertas_tappad_v7.txt
             borradores_gmail_tappad_v3/
             plan_envios_seco_tappad.json
+            manifiesto_notificaciones_tappad.json
           retention-days: 3
