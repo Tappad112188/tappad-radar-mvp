@@ -39,6 +39,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python generar_borradores_gmail_v3.py
+      - name: Simular plan de envios y verificar vigencia
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python planificar_envios_seco_v1.py
       - name: Guardar vistas previas
         uses: actions/upload-artifact@v4
         with:
@@ -47,4 +52,5 @@ jobs:
             diagnostico_vigencia_tappad_v4.txt
             vista_previa_alertas_tappad_v7.txt
             borradores_gmail_tappad_v3/
+            plan_envios_seco_tappad.json
           retention-days: 3
