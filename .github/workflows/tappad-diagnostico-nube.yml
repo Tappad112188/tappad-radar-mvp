@@ -1,9 +1,15 @@
 name: TAPPAD Radar - Diagnostico en nube
 on:
   workflow_dispatch:
-  # Activar cron solo despues de validar el motor de envio y los secretos.
-  # schedule:
-  #   - cron: '0 0,14,19 * * *'
+  # Saltillo: UTC-6 todo el ano. 08:00, 13:00, 18:00 locales.
+  # El cron ejecuta SOLO diagnostico y simulacion, nunca envio SMTP.
+  schedule:
+    - cron: '0 14 * * *'
+    - cron: '0 19 * * *'
+    - cron: '0 0 * * *'
+concurrency:
+  group: tappad-diagnostico-seguro
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
