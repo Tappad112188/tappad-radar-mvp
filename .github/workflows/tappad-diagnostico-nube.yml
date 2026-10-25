@@ -67,11 +67,12 @@ jobs:
       - name: Guardar vistas previas
         uses: actions/upload-artifact@v4
         with:
-          name: tappad-vistas-previas
+          name: tappad-vistas-previas-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             diagnostico_vigencia_tappad_v4.txt
             vista_previa_alertas_tappad_v7.txt
             borradores_gmail_tappad_v3/
             plan_envios_seco_tappad.json
             manifiesto_notificaciones_tappad.json
-          retention-days: 3
+          retention-days: 14
+          if-no-files-found: error
