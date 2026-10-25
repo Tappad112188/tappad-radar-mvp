@@ -80,12 +80,13 @@ def main():
     if not LOGO.is_file(): raise SystemExit("Falta logo PNG")
     logo=LOGO.read_bytes()
     for cid,destino,ids,html in tareas:
-        # Reserva atomica mediante indice unico (cliente_id,licitacion_id).
-        # No usar upsert: nunca sobreescribir un registro previo.
-        reservas=[{"cliente_id":cid,"licitacion_id":lid,"estado":"procesando","intentos":1} for lid in ids]
-        creadas=api("POST","notificaciones_enviadas",None,reservas,"return=representation,resolution=ignore-duplicates")
-        if len(creadas)!=len(reservas):
-            raise SystemExit("Reserva incompleta. NO se envia. Revisar registros procesando manualmente.")
+        # Reserva atomica PostgreSQL: lote completo o ninguna reserva.
+        try:
+            reservado=api("POST","rpc/tappad_reservar_lote",None,{"p_cliente":cid,"p_licitaciones":ids})
+        except Exception as exc:
+            raise SystemExit("Reserva atomica rechazada. NO se envia: "+str(exc)) from exc
+        if reservado is not True:
+            raise SystemExit("Reserva no confirmada. NO se envia.")
         mensaje=EmailMessage()
         mensaje["From"]=os.environ["SMTP_USER"]
         mensaje["To"]=destino
