@@ -1,0 +1,45 @@
+name: TAPPAD Radar - Diagnostico en nube
+on:
+  workflow_dispatch:
+  # Activar cron solo despues de validar el motor de envio y los secretos.
+  # schedule:
+  #   - cron: '0 0,14,19 * * *'
+permissions:
+  contents: read
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar variables requeridas sin exponerlas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" || { echo 'Falta secreto SUPABASE_URL'; exit 1; }
+          test -n "$SUPABASE_ADMIN_KEY" || { echo 'Falta secreto SUPABASE_ADMIN_KEY'; exit 1; }
+      - name: Diagnosticar coincidencias sin envios ni escrituras
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python diagnosticar_vigencia_v4.py
+      - name: Generar HTML con logo sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python generar_borradores_gmail_v3.py
+      - name: Guardar vistas previas
+        uses: actions/upload-artifact@v4
+        with:
+          name: tappad-vistas-previas
+          path: |
+            diagnostico_vigencia_tappad_v4.txt
+            vista_previa_alertas_tappad_v7.txt
+            borradores_gmail_tappad_v3/
+          retention-days: 3
