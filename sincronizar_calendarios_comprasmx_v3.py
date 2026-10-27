@@ -29,6 +29,7 @@ def normalizar_fecha(valor):
 def main():
     p=argparse.ArgumentParser(description="Sincroniza solo las cuatro fechas de licitaciones ComprasMX existentes")
     p.add_argument("--aplicar",action="store_true",help="Aplicar cambios; sin esta opcion solo diagnostica")
+    p.add_argument("--max-cambios",type=int,default=49,help="Limite de procedimientos modificables por ejecucion")
     a=p.parse_args()
     base=os.environ.get("SUPABASE_URL","").rstrip("/")
     key=os.environ.get("SUPABASE_ADMIN_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -82,6 +83,8 @@ def main():
     if not a.aplicar:
         print("MODO DIAGNOSTICO: cero escrituras. Para aplicar despues: --aplicar")
         return
+    if a.max_cambios < 0 or len(cambios)>a.max_cambios:
+        raise SystemExit("SINCRONIZACION BLOQUEADA: "+str(len(cambios))+" cambios superan el limite "+str(a.max_cambios))
     aplicados=0
     for uuid,numero,dif in cambios:
         qs=urllib.parse.urlencode({"uuid_procedimiento":"eq."+uuid,"fuente":"eq.ComprasMX"})
