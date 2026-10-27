@@ -38,7 +38,7 @@ async def main():
   page=await browser.new_page(accept_downloads=False)
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
-   if not response or response.status!=200:raise RuntimeError("SECOP no respondió HTTP 200")
+   if not response or response.status!=200:raise RuntimeError("SECOP no respondió HTTP 200; status="+str(response.status if response else "sin_respuesta")+"; url="+str(page.url))
    await page.locator("#CardView_col2 img[alt='[Filtrar]']").click(timeout=15000)
    await page.locator("#CardView_HFFDE_I").wait_for(state="visible",timeout=20000)
    await page.locator("#CardView_HFFDE_I").fill(hoy_texto)
