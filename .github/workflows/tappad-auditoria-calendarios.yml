@@ -1,0 +1,27 @@
+name: TAPPAD Radar - Auditoria calendarios ComprasMX
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auditar-calendarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar conexion sin mostrar secretos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY" || { echo "Faltan secretos Supabase"; exit 1; }
+      - name: Comparar calendarios oficiales de ComprasMX con Supabase sin escrituras
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python sincronizar_calendarios_comprasmx_v3.py
