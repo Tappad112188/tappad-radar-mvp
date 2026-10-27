@@ -1,0 +1,31 @@
+name: TAPPAD Radar - Sincronizacion controlada ComprasMX
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tappad-calendarios-comprasmx
+  cancel-in-progress: false
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Sincronizar fechas con limite auditado
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY"
+          python sincronizar_calendarios_comprasmx_v3.py --aplicar --max-cambios 49
+      - name: Verificar diferencias restantes
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python sincronizar_calendarios_comprasmx_v3.py
