@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 const el=id=>document.getElementById(id);
-const show=id=>{for(const name of ["setup","auth","panel"])el(name).hidden=name!==id};
+const show=id=>{for(const name of ["setup","auth","reset","panel"])el(name).hidden=name!==id};
 const status=s=>{el("status").textContent=s||""};
 const item=(container,text)=>{const d=document.createElement("div");d.className="item";d.textContent=text;container.append(d)};
 let config;
@@ -29,7 +29,11 @@ if(config){
     else for(const p of pays)item(el("payments"),"$"+Number(p.monto_mxn).toFixed(2)+" MXN · "+p.estado+" · "+(p.fecha_pago||"Sin fecha"));
    }else item(el("payments"),"No hay pagos registrados.");
   }
-  async function refresh(){const {data:{user},error}=await db.auth.getUser();if(error||!user){show("auth");return}await load(user)}
+  const recovery=()=>new URLSearchParams(location.hash.slice(1)).get("type")==="recovery";
+  db.auth.onAuthStateChange((event)=>{if(event==="PASSWORD_RECOVERY")show("reset")});
+  el("forgot").addEventListener("click",async()=>{const email=el("email").value.trim();if(!email){status("Escribe tu correo electrónico para solicitar el restablecimiento.");return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});status(error?"No fue posible solicitar el correo de restablecimiento.":"Si la cuenta existe, recibirás instrucciones por correo.")});
+  el("reset-form").addEventListener("submit",async e=>{e.preventDefault();const password=el("new-password").value;const {error}=await db.auth.updateUser({password});el("new-password").value="";if(error){status("No fue posible establecer la contraseña.");return}history.replaceState(null,"",location.pathname);status("Contraseña actualizada.");await refresh()});
+  async function refresh(){const {data:{user},error}=await db.auth.getUser();if(error||!user){show("auth");return}if(recovery()){show("reset");return}await load(user)}
   el("login").addEventListener("submit",async e=>{e.preventDefault();status("");const email=el("email").value.trim(),password=el("password").value;const {error}=await db.auth.signInWithPassword({email,password});el("password").value="";if(error){status("No se pudo iniciar sesión. Revisa tus credenciales.");return}await refresh()});
   el("logout").addEventListener("click",async()=>{await db.auth.signOut();show("auth");status("")});
   await refresh();
