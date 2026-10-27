@@ -46,8 +46,14 @@ async def main():
    await page.locator("#CardView_DXHFP_TPCFCm1_O").click(timeout=15000)
    await page.locator("#CardView_col2 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
    await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
-   vigente=page.locator("#CardView_HFListBox_LBI3T0")
-   await vigente.wait_for(state="visible",timeout=25000)
+   # La posición LBI3T0 puede variar: localizar la opción por su texto visible.
+   opciones=page.locator("[id^='CardView_HFListBox_LBI']")
+   await opciones.first.wait_for(state="visible",timeout=25000)
+   etiquetas=await opciones.all_inner_texts()
+   print("Opciones de estatus detectadas:",repr(etiquetas),flush=True)
+   vigente=opciones.filter(has_text=re.compile(r"^\\s*Vigente\\s*$",re.I))
+   if await vigente.count()!=1:
+    raise RuntimeError("No se identificó una única opción Vigente. Opciones: "+repr(etiquetas))
    await vigente.click(timeout=15000)
    await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
    await page.wait_for_timeout(1600)
