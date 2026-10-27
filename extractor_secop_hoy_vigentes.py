@@ -45,10 +45,10 @@ async def main():
    await opciones.first.wait_for(state="visible",timeout=20000)
    etiquetas=await opciones.all_inner_texts()
    print("Estatus disponibles:",repr(etiquetas),flush=True)
-   vigente=opciones.filter(has_text=re.compile(r"^\\s*Vigente\\s*$",re.I))
-   if await vigente.count()!=1:
+   indices=[i for i,etiqueta in enumerate(etiquetas) if etiqueta.strip().casefold()=="vigente"]
+   if len(indices)!=1:
     raise RuntimeError("No se identificó una única opción Vigente: "+repr(etiquetas))
-   await vigente.click(timeout=15000)
+   await opciones.nth(indices[0]).click(timeout=15000)
    await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
    print("Filtro Vigente aplicado. Ahora filtrando fecha:",hoy_texto,flush=True)
    await page.locator("#CardView_col2 img[alt='[Filtrar]']").click(timeout=15000)
