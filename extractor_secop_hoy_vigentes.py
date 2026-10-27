@@ -2,7 +2,7 @@
 Ejecutar en Windows: py extractor_secop_hoy_vigentes.py
 No modifica Supabase, Airtable ni envía correos.
 """
-import asyncio, json, re
+import asyncio, json, re, os
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -34,7 +34,7 @@ async def main():
  hoy_texto=hoy.strftime("%d/%m/%Y")
  reporte={"fuente":URL,"fecha_consulta":hoy.isoformat(),"filtros_aplicados":False,"registros":[],"errores":[]}
  async with async_playwright() as pw:
-  browser=await pw.chromium.launch(headless=False)
+  browser=await pw.chromium.launch(headless=os.environ.get('TAPPAD_HEADLESS', '0') == '1')
   page=await browser.new_page(accept_downloads=False)
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
