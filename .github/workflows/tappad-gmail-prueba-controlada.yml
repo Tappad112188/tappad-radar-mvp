@@ -1,0 +1,36 @@
+name: TAPPAD Radar - Gmail prueba controlada
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  enviar-prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar configuracion y destinatarios sin exponer secretos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY" || { echo "Falta configuracion Supabase"; exit 1; }
+          test "$SMTP_USER" = "tappadcons@gmail.com" || { echo "Remitente no autorizado"; exit 1; }
+          test -n "$SMTP_APP_PASSWORD" || { echo "Falta SMTP_APP_PASSWORD"; exit 1; }
+      - name: Generar borradores a partir de oportunidades vigentes
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python generar_borradores_gmail_v3.py
+      - name: Enviar exclusivamente a los dos buzones de prueba
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+        run: python probar_gmail_html_v3.py --enviar-prueba
