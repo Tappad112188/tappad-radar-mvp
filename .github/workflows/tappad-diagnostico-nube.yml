@@ -1,12 +1,13 @@
 name: TAPPAD Radar - Diagnostico en nube
 on:
   workflow_dispatch:
-  # Saltillo: UTC-6 todo el ano. 08:00, 13:00, 18:00 locales.
-  # El cron ejecuta SOLO diagnostico y simulacion, nunca envio SMTP.
-  schedule:
-    - cron: '0 14 * * *'
-    - cron: '0 19 * * *'
-    - cron: '0 0 * * *'
+  # Ejecutar el diagnostico solo despues de completar la importacion.
+  # Los horarios 08:00, 13:00 y 18:00 Saltillo estan en actualizar_licitaciones.yml.
+  workflow_run:
+    workflows:
+      - TAPPAD Radar - prueba controlada de importacion ComprasMX
+    types:
+      - completed
 concurrency:
   group: tappad-diagnostico-seguro
   cancel-in-progress: false
@@ -14,6 +15,7 @@ permissions:
   contents: read
 jobs:
   diagnostico:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
