@@ -39,35 +39,24 @@ async def main():
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
    if not response or response.status!=200:raise RuntimeError("SECOP no respondió HTTP 200; status="+str(response.status if response else "sin_respuesta")+"; url="+str(page.url)+"; location="+str(response.headers.get("location","") if response else "")+"; cadena="+str([(r.status,r.url) for r in (response.request.redirected_from and [response.request.redirected_from] or [])]) )
+   # Filtrar estatus antes que fecha: un día sin publicaciones puede vaciar las opciones.
+   await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
+   opciones=page.locator("[id^='CardView_HFListBox_LBI']:visible")
+   await opciones.first.wait_for(state="visible",timeout=20000)
+   etiquetas=await opciones.all_inner_texts()
+   print("Estatus disponibles:",repr(etiquetas),flush=True)
+   vigente=opciones.filter(has_text=re.compile(r"^\\s*Vigente\\s*$",re.I))
+   if await vigente.count()!=1:
+    raise RuntimeError("No se identificó una única opción Vigente: "+repr(etiquetas))
+   await vigente.click(timeout=15000)
+   await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
+   print("Filtro Vigente aplicado. Ahora filtrando fecha:",hoy_texto,flush=True)
    await page.locator("#CardView_col2 img[alt='[Filtrar]']").click(timeout=15000)
    await page.locator("#CardView_HFFDE_I").wait_for(state="visible",timeout=20000)
    await page.locator("#CardView_HFFDE_I").fill(hoy_texto)
    await page.locator("#CardView_HFTDE_I").fill(hoy_texto)
    await page.locator("#CardView_DXHFP_TPCFCm1_O").click(timeout=15000)
    await page.locator("#CardView_col2 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
-   await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
-   # La posición LBI3T0 puede variar: localizar la opción por su texto visible.
-   opciones=page.locator("[id^='CardView_HFListBox_LBI']")
-   # Diagnóstico del menú: DevExpress incluye filas ocultas incluso cuando está cerrado.
-   await page.wait_for_timeout(1200)
-   estado=await page.evaluate("""() => ({
-    filtros:[...document.querySelectorAll('#CardView_col3 img')].map(e=>({alt:e.alt,id:e.id,html:e.outerHTML.slice(0,350)})),
-    listas:[...document.querySelectorAll('[id^="CardView_HFListBox_LBI"]')].map(e=>({
-     id:e.id,text:(e.innerText||e.textContent||'').trim().slice(0,120),
-     visible:!!e.getClientRects().length,
-     display:getComputedStyle(e).display
-    })).slice(0,30),
-    paneles:[...document.querySelectorAll('[id*="HFListBox"],[id*="DXHFP"]')].filter(e=>/^(DIV|TABLE)$/.test(e.tagName)).slice(0,15).map(e=>({id:e.id,display:getComputedStyle(e).display}))
-   })""")
-   print("DIAGNOSTICO FILTRO ESTATUS:",json.dumps(estado,ensure_ascii=False),flush=True)
-   visibles=opciones.filter(visible=True)
-   etiquetas=await visibles.all_inner_texts()
-   vigente=visibles.filter(has_text=re.compile(r"^\\s*Vigente\\s*$",re.I))
-   if await vigente.count()!=1:
-    await page.screenshot(path=str(SALIDA.with_name("secop_filtro_estatus_diagnostico.png")),full_page=True)
-    raise RuntimeError("No hay una opción Vigente visible y única; revisar secop_filtro_estatus_diagnostico.png")
-   await vigente.click(timeout=15000)
-   await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
    await page.wait_for_timeout(1600)
    reporte["filtros_aplicados"]=True
    summary=page.locator("#CardView_DXPagerBottom .dxp-summary")
