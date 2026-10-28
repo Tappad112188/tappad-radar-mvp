@@ -57,7 +57,12 @@ def main():
     if not SECOP.exists():raise SystemExit("Falta fichas_comerciales_secop.json; primero ejecutar el proceso SECOP")
     secop=json.loads(SECOP.read_text(encoding="utf-8-sig"))
     locales=[ficha_secop(f) for f in secop.get("fichas",[])]
-    remotas,error=consulta_comprasmx()
+    muestra=ROOT/"comprasmx_muestra_prueba.json"
+    if muestra.exists():
+        remotas=json.loads(muestra.read_text(encoding="utf-8-sig"))
+        error="ComprasMX: muestra de 5 registros reales consultados el 28/10/2026; no es sincronización en vivo"
+    else:
+        remotas,error=consulta_comprasmx()
     compras=[ficha_comprasmx(f) for f in remotas]
     # Prueba controlada: las 5 publicaciones más recientes de ComprasMX.
     compras=compras[:5]
