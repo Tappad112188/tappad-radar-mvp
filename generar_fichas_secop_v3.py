@@ -52,8 +52,8 @@ def documentos_del_procedimiento(carpeta, codigo):
    listado=subprocess.run(["tar","-tf",str(rar)],capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=90,check=True).stdout.splitlines()
   except (OSError,subprocess.SubprocessError) as e:
    print("ADVERTENCIA RAR:",rar.name,str(e)[:160]);continue
-  bases=[x for x in listado if re.search(r"^BASES\\s+",Path(x.replace("\\\\","/")).name,re.I) and Path(x).suffix.lower()==".pdf"]
-  validas=[x for x in bases if codigo.casefold() in re.sub(r"\\s+"," ",Path(x).name).casefold()]
+  bases=[x for x in listado if re.search(r"^BASES\s+",Path(x.replace("\\\\","/")).name,re.I) and Path(x).suffix.lower()==".pdf"]
+  validas=[x for x in bases if codigo.casefold() in re.sub(r"\s+"," ",Path(x).name).casefold()]
   if len(validas)!=1:
    print("ADVERTENCIA: bases no coincidentes o ambiguas en",rar.name,"|",bases)
    continue
