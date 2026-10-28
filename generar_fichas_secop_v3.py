@@ -40,6 +40,38 @@ def docx_texto(p):
   return [("documento Word", "\n".join("".join(x.text or "" for x in para.iter(ns+"t")) for para in root.iter(ns+"p")))]
 def pdf_texto(p):
  with pymupdf.open(p) as d:return [(f"página {i+1}",pg.get_text()) for i,pg in enumerate(d)]
+
+def documentos_del_procedimiento(carpeta, codigo):
+ """Selecciona únicamente bases cuyo nombre interno coincide con el código SECOP.
+ No extrae rutas arbitrarias ni mezcla expedientes; conserva los RAR originales.
+ """
+ import subprocess, tempfile
+ encontrados=[]
+ for rar in sorted(carpeta.glob("*.rar")):
+  try:
+   listado=subprocess.run(["tar","-tf",str(rar)],capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=90,check=True).stdout.splitlines()
+  except (OSError,subprocess.SubprocessError) as e:
+   print("ADVERTENCIA RAR:",rar.name,str(e)[:160]);continue
+  bases=[x for x in listado if re.search(r"^BASES\\s+",Path(x.replace("\\\\","/")).name,re.I) and Path(x).suffix.lower()==".pdf"]
+  validas=[x for x in bases if codigo.casefold() in re.sub(r"\\s+"," ",Path(x).name).casefold()]
+  if len(validas)!=1:
+   print("ADVERTENCIA: bases no coincidentes o ambiguas en",rar.name,"|",bases)
+   continue
+  # Extraer solo el miembro seleccionado en un directorio temporal, sin sobrescribir.
+  with tempfile.TemporaryDirectory(prefix="tappad_bases_") as temporal:
+   nombre=validas[0]
+   destino=Path(temporal)/Path(nombre).name
+   try:
+    with destino.open("wb") as f:
+     p=subprocess.run(["tar","-xOf",str(rar),nombre],stdout=f,stderr=subprocess.PIPE,timeout=120,check=True)
+    if destino.stat().st_size>30_000_000 or destino.read_bytes()[:5]!=b"%PDF-":
+     raise ValueError("PDF inválido o mayor a 30 MB")
+    secciones=pdf_texto(destino)
+    encontrados.append((rar.name,nombre,secciones,hashlib.sha256(destino.read_bytes()).hexdigest()))
+   except (OSError,subprocess.SubprocessError,ValueError) as e:
+    print("ADVERTENCIA: no se pudo leer",nombre,str(e)[:160])
+ return encontrados
+
 def extraer_fecha(s):
  m=FECHA.search(s)
  if not m:return None,None
@@ -113,6 +145,11 @@ def main():
     secciones.extend([(p.name+" · "+loc,txt) for loc,txt in sec])
     docs.append({"nombre":p.name,"sha256":sha,"secciones":len(sec)})
    except Exception as e:docs.append({"nombre":p.name,"error":str(e)})
+  # Los RAR se inspeccionan por código interno; solo las bases coincidentes aportan fechas.
+  # No utilizar archivos de otro procedimiento aunque SECOP los muestre juntos.
+  for rar,miembro,sec,sha in documentos_del_procedimiento(carpeta,codigo):
+   secciones.extend([(rar+" / "+miembro+" · "+loc,txt) for loc,txt in sec])
+   docs.append({"nombre":miembro,"archivo_origen":rar,"sha256":sha,"secciones":len(sec),"coincidencia_codigo":"confirmada_por_nombre_interno"})
   eventos={k:elegir(k,candidatos(secciones,k,pat)) for k,pat in ETAPAS}
   apertura=eventos["presentacion_apertura"]
   eventos["limite_presentacion_propuestas"]={**apertura,"criterio":"Misma fecha y hora de presentación y apertura; verificar eventuales modificaciones"}
