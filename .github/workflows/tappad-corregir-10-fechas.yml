@@ -1,0 +1,30 @@
+name: TAPPAD - Completar fechas diez expedientes
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - .github/workflows/tappad-corregir-10-fechas.yml
+permissions:
+  contents: read
+jobs:
+  completar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Sincronizar solo diez procedimientos y fechas vacias
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          python sincronizar_calendarios_comprasmx_v3.py --aplicar --max-cambios 10 --solo-vacios --solo-numeros "IA-79-115-920032984-N-3-2026,LA-49-830-049000975-N-2-2027,LA-67-011-908096965-N-3-2026,IO-70-013-811015995-N-6-2026,IA-87-Y04-928003999-N-170-2026,LA-85-W83-926014991-I-129-2026,IA-87-Y04-928003999-N-171-2026,IO-70-013-811015995-N-5-2026,LA-06-G1H-006G1H001-N-65-2026,IA-70-037-911002976-N-16-2026"
+      - name: Verificar datos con origen oficial
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python prueba_10_expedientes_comprasmx.py
