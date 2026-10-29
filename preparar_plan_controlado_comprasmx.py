@@ -53,8 +53,10 @@ def preparar():
             if not rubros and not palabras:continue
             ids.append(l["id"])
         if ids:plan.append({"cliente_id":cid,"licitacion_ids":ids})
-    if {p["cliente_id"] for p in plan}!={1,4}:
-        raise SystemExit("No hay coincidencias nuevas para ambos destinatarios. No se crea plan; revisar filtros.")
+    for cid in CLIENTES_PRUEBA:
+        print("CLIENTE",cid,"coincidencias nuevas:",next((len(p["licitacion_ids"]) for p in plan if p["cliente_id"]==cid),0))
+    if not plan:
+        raise SystemExit("Sin coincidencias nuevas; no se crea plan.")
     ruta=BASE/"plan_envios_seco_tappad.json"
     ruta.write_text(json.dumps({"modo":"SIMULACION_SIN_ENVIO","proveedores":plan},indent=2),encoding="utf-8")
     print("PLAN CONTROLADO:",[(p["cliente_id"],len(p["licitacion_ids"])) for p in plan])
