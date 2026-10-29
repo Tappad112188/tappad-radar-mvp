@@ -1,0 +1,30 @@
+name: TAPPAD - Validacion real calendario ComprasMX
+on:
+  push:
+    branches:
+      - desarrollo-registro-proveedores
+    paths:
+      - .github/workflows/tappad-validar-calendario-real.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxis
+        run: python -m py_compile sincronizar_calendarios_comprasmx_v3.py tappad_importador_automatico.py
+      - name: Comparar CSV oficial contra Supabase sin modificar registros
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY"
+          python sincronizar_calendarios_comprasmx_v3.py
