@@ -15,10 +15,10 @@ CARPETA=BASE/"borradores_gmail_tappad_v3"
 SALIDA=BASE/"manifiesto_notificaciones_tappad.json"
 
 def main():
-    plan=json.loads(PLAN.read_text(encoding="utf-8"))
+    if not PLAN.is_file():\n        raise SystemExit("Falta plan_envios_seco_tappad.json: generar primero con preparar_plan_controlado_comprasmx.py")\n    plan=json.loads(PLAN.read_text(encoding="utf-8"))
     if plan.get("modo")!="SIMULACION_SIN_ENVIO":
         raise SystemExit("El plan no es una simulacion autorizada")
-    proveedores=plan["proveedores"]
+    proveedores=plan["proveedores"]\n    if not proveedores: raise SystemExit("Plan sin coincidencias nuevas; no se enviara ningun correo")
     if len({p["cliente_id"] for p in proveedores})!=len(proveedores):
         raise SystemExit("Proveedores repetidos en plan")
     clientes=consulta("clientes","id,empresa,correo,activo",{"activo":"eq.true"})
