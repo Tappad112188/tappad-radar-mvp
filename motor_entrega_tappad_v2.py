@@ -48,7 +48,7 @@ def main():
     manifiesto=json.loads(MANIFIESTO.read_text(encoding="utf-8"))
     if manifiesto.get("modo")!="SOLO_PREPARACION": raise SystemExit("Manifiesto no valido")
     clientes={c["id"]:c for c in consulta("clientes","id,empresa,correo,activo",{"activo":"eq.true"})}
-    licitaciones={l["id"]:l for l in consulta("licitaciones","id,fecha_apertura,estatus,validacion_calendario")}
+    licitaciones={l["id"]:l for l in consulta("licitaciones","id,fuente,fecha_apertura,estatus,validacion_calendario")}
     registros=consulta("notificaciones_enviadas","cliente_id,licitacion_id,estado")
     ocupados={(r["cliente_id"],r["licitacion_id"]) for r in registros}
     ahora=datetime.now(ZoneInfo("America/Monterrey")).replace(tzinfo=None)
@@ -63,7 +63,7 @@ def main():
         for lid in ids:
             l=licitaciones.get(lid)
             if not l: raise SystemExit("Licitacion no encontrada")
-            if str(l.get("validacion_calendario") or "").strip().casefold() != "verificado":
+            if str(l.get("fuente") or "").strip().casefold() != "comprasmx" and str(l.get("validacion_calendario") or "").strip().casefold() != "verificado":
                 raise SystemExit("Envio bloqueado: calendario documental no verificado para licitacion "+str(lid))
             if (cid,lid) in ocupados: raise SystemExit("Notificacion existente: revisar manualmente "+str(cid)+"/"+str(lid))
             ok,motivo=evaluar(l,cid,set(),ahora)
