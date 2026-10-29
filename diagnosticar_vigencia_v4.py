@@ -36,7 +36,7 @@ GENERICAS={"mantenimiento","servicio","servicios","suministro","adquisicion","eq
 RUBROS={
  1:("limpieza","detergente","desinfectante","jabon","escoba"),
  2:("papeleria","oficina","toner","papel","cartucho"),
- 3:("computo","computadora","tecnologico","laboratorio","servidor","informatica"),
+ 3:("computo","computadora","tecnologico","servidor","informatica"),
  4:("mobiliario","escritorio","silla","archivero"),
  5:("medicamento","farmaceutico","farmaco"),
  6:("material medico","hospitalario","quirurgico"),
@@ -66,6 +66,7 @@ def estado_equivalente(a, b):
 
 def objeto_principal(l):
     t=norm(l.get("nombre_procedimiento"))
+    if any(x in t for x in ("equipo e instrumental medico","instrumental medico","equipo medico","electromedico")): return 7
     if any(x in t for x in ("acciones en el bachillerato","construccion","obra publica","reposicion del pozo","pavimentacion")): return 13
     if any(x in t for x in ("servicio de limpieza","limpieza y jardineria")): return 8
     return None
