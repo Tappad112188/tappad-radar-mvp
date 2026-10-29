@@ -1,6 +1,7 @@
-"""Prueba local: SECOP Coahuila, fecha de hoy y estatus Vigente.
+"""Extractor automatizable: SECOP Coahuila, fecha local de hoy y estatus Vigente.
 Solo lectura; no toca Supabase ni envía correos.
 """
+import argparse
 import asyncio
 import json
 import re
@@ -26,11 +27,15 @@ EXTRAER = """cards => cards.map(card => {
 })"""
 
 async def main():
+ parser=argparse.ArgumentParser()
+ parser.add_argument("--headless",action="store_true",help="Ejecutar sin ventana para GitHub Actions")
+ parser.add_argument("--salida",default=str(SALIDA))
+ args=parser.parse_args()
  fecha = datetime.now(ZONA).date()
  fecha_web = fecha.strftime("%d/%m/%Y")
  print("Fecha local Coahuila:", fecha_web)
  async with async_playwright() as pw:
-  browser=await pw.chromium.launch(headless=False)
+  browser=await pw.chromium.launch(headless=args.headless)
   page=await browser.new_page(accept_downloads=False)
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
@@ -64,11 +69,14 @@ async def main():
    hoy=[r for r in registros if r["fecha_publicacion_original"]==fecha_web and r["estatus"].casefold()=="vigente"]
    discrepancias=[r["codigo"] for r in registros if r not in hoy]
    reporte={"fecha_consulta":fecha.isoformat(),"filtro_fecha_solicitado":fecha_web,"estatus_solicitado":"Vigente","paginas":paginas,"total_reportado_por_secop":total,"total_devuelto_por_servidor":len(registros),"total_validado_fecha_y_estatus":len(hoy),"filtros_servidor_confirmados":len(discrepancias)==0 and len(registros)==total,"registros_fuera_de_filtro":discrepancias,"registros":hoy}
-   SALIDA.write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
+   if not reporte["filtros_servidor_confirmados"]:
+    raise RuntimeError("Filtros SECOP inconsistentes; se cancela la importacion")
+   Path(args.salida).write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
    print("Procedimientos vigentes publicados hoy:",len(hoy))
    print("Filtro servidor consistente:",reporte["filtros_servidor_confirmados"])
    print("Archivo:",SALIDA)
-   input("Pulsa ENTER para cerrar Chromium...")
+   if not args.headless:
+    input("Pulsa ENTER para cerrar Chromium...")
   finally:
    await browser.close()
 
