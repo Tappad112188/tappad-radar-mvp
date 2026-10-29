@@ -39,7 +39,8 @@ async def main():
   page=await browser.new_page(accept_downloads=False)
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
-   if not response or response.status!=200:raise RuntimeError("SECOP no respondió HTTP 200")
+   if not response or response.status!=200:
+    raise RuntimeError(f"SECOP HTTP {response.status if response else 'sin respuesta'}; URL final: {page.url}; título: {(await page.title())[:120]}")
    # Los campos son filtros de rango de fecha de DevExpress; comprobar si el servidor los aplica.
    for selector in ("#CardView_HFFDE_I","#CardView_HFTDE_I"):
     campo=page.locator(selector)
