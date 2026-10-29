@@ -12,6 +12,7 @@ import tempfile
 import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 CSV_URL = (
@@ -71,6 +72,7 @@ def main():
     parser.add_argument("--dias", type=int, default=2)
     parser.add_argument("--limite", type=int, default=1000)
     parser.add_argument("--importar", action="store_true")
+    parser.add_argument("--solo-hoy", action="store_true")
     args = parser.parse_args()
     if args.dias < 0 or not 1 <= args.limite <= 1000:
         parser.error("--dias debe ser >= 0 y --limite debe estar entre 1 y 1000")
@@ -108,8 +110,13 @@ def main():
         if datetime.now() - max_fecha > timedelta(days=7):
             raise RuntimeError(f"CSV desactualizado: última publicación {max_fecha}")
         desde = max_fecha - timedelta(days=args.dias)
-        seleccion = [item for item in items.values()
-                     if (fecha(item["fecha_publicacion"]) or datetime.min) >= desde]
+        if args.solo_hoy:
+            dia = datetime.now(ZoneInfo("America/Monterrey")).date()
+            seleccion = [item for item in items.values() if fecha(item["fecha_publicacion"]) and fecha(item["fecha_publicacion"]).date() == dia]
+            print("Fecha de publicacion seleccionada:", dia)
+        else:
+            seleccion = [item for item in items.values()
+                         if (fecha(item["fecha_publicacion"]) or datetime.min) >= desde]
         seleccion.sort(key=lambda item: item["fecha_publicacion"], reverse=True)
         seleccion = seleccion[:args.limite]
         print(f"Filas: {total:,} | UUID únicos: {len(items):,} | Sin UUID: {sin_uuid:,}")
