@@ -30,7 +30,10 @@ def main():
     p=argparse.ArgumentParser(description="Sincroniza solo las cuatro fechas de licitaciones ComprasMX existentes")
     p.add_argument("--aplicar",action="store_true",help="Aplicar cambios; sin esta opcion solo diagnostica")
     p.add_argument("--max-cambios",type=int,default=49,help="Limite de procedimientos modificables por ejecucion")
+    p.add_argument("--solo-numeros",default="",help="Numeros de procedimiento separados por comas")
+    p.add_argument("--solo-vacios",action="store_true",help="Solo completar fechas vacias; no reemplazar valores")
     a=p.parse_args()
+    seleccion=set(x.strip() for x in a.solo_numeros.split(",") if x.strip())
     base=os.environ.get("SUPABASE_URL","").rstrip("/")
     key=os.environ.get("SUPABASE_ADMIN_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not base or not key: p.error("Faltan SUPABASE_URL o SUPABASE_ADMIN_KEY")
@@ -66,13 +69,14 @@ def main():
                         if valor: registro[campo]=valor
     cambios=[]; conteo=Counter(); sin_fuente=0
     for uuid,actual in existentes.items():
+        if seleccion and actual.get("numero_procedimiento") not in seleccion: continue
         nuevo=encontrados.get(uuid)
         if not nuevo:
             sin_fuente+=1; continue
         diferencia={}
         for campo,valor in nuevo.items():
             previo=normalizar_fecha(str(actual.get(campo) or "").replace("T"," "))
-            if valor!=previo:
+            if valor!=previo and (not a.solo_vacios or previo is None):
                 diferencia[campo]=valor; conteo[campo]+=1
         if diferencia: cambios.append((uuid,actual.get("numero_procedimiento"),diferencia))
     print("UUID encontrados en CSV:",len(encontrados),"| Sin coincidencia:",sin_fuente)
@@ -83,6 +87,7 @@ def main():
     if not a.aplicar:
         print("MODO DIAGNOSTICO: cero escrituras. Para aplicar despues: --aplicar")
         return
+    if seleccion and len({numero for _,numero,_ in cambios}-seleccion)>0: raise SystemExit("BLOQUEADO: procedimiento fuera de seleccion")
     if a.max_cambios < 0 or len(cambios)>a.max_cambios:
         raise SystemExit("SINCRONIZACION BLOQUEADA: "+str(len(cambios))+" cambios superan el limite "+str(a.max_cambios))
     aplicados=0
