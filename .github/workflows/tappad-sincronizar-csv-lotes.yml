@@ -1,0 +1,37 @@
+name: TAPPAD - Sincronizar fechas CSV por lotes
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - .github/workflows/tappad-sincronizar-csv-lotes.yml
+permissions:
+  contents: read
+concurrency:
+  group: tappad-calendarios-comprasmx
+  cancel-in-progress: false
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Completar fechas faltantes en lotes de 49, exclusivamente desde CSV
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY"
+          for lote in 1 2 3 4 5 6 7 8 9 10; do
+            echo "LOTE $lote"
+            python sincronizar_calendarios_comprasmx_v3.py --aplicar --max-cambios 49 --solo-vacios --por-lotes
+          done
+      - name: Verificar diferencias remanentes sin escrituras
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python sincronizar_calendarios_comprasmx_v3.py --solo-vacios
