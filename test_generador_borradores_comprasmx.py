@@ -1,10 +1,10 @@
-"""Regresion de borradores ComprasMX con siete campos oficiales."""
+"""Pruebas del generador de borradores ComprasMX."""
 import unittest
 from generar_borradores_gmail_v3 import convertir_bloque
 
 class BorradoresComprasMX(unittest.TestCase):
     def test_siete_campos_y_fechas_ausentes(self):
-        bloque="""TAPPAD Radar | Vista previa para Empresa Prueba
+        bloque = """TAPPAD Radar | Vista previa para Empresa Prueba
 Procedimiento: IA-123
 Fuente: ComprasMX
 Objeto: Compra de material
@@ -24,7 +24,17 @@ Fallo programado: No especificada
                          "Fecha de apertura de proposiciones:", "Fecha de fallo:",
                          "Enlace a documentos del procedimiento:"):
             self.assertIn(etiqueta, html)
-        self.assertIn("cid:tappad-logo", html)\n\n    def test_descripcion_larga_no_se_recorta(self):\n        descripcion = "Adquisición de equipos " + "tecnológicos especializados " * 25 + "FIN_DESCRIPCION_OFICIAL"\n        bloque = ("TAPPAD Radar | Vista previa para Empresa Prueba\\n"\n                  "Procedimiento: IA-456\\nFuente: ComprasMX\\n"\n                  "Descripcion resumida: " + descripcion + "\\n"\n                  "Enlace del procedimiento: https://ejemplo.gob.mx/procedimiento\\n")\n        _, oportunidades, html = convertir_bloque(bloque)\n        self.assertEqual(oportunidades[0]["descripcion"], descripcion)\n        self.assertIn("FIN_DESCRIPCION_OFICIAL", html)
+        self.assertIn("cid:tappad-logo", html)
+
+    def test_descripcion_larga_no_se_recorta(self):
+        descripcion = "Adquisición de equipos " + "tecnológicos especializados " * 25 + "FIN_DESCRIPCION_OFICIAL"
+        bloque = ("TAPPAD Radar | Vista previa para Empresa Prueba\n"
+                  "Procedimiento: IA-456\nFuente: ComprasMX\n"
+                  "Descripcion resumida: " + descripcion + "\n"
+                  "Enlace del procedimiento: https://ejemplo.gob.mx/procedimiento\n")
+        _, oportunidades, html = convertir_bloque(bloque)
+        self.assertEqual(oportunidades[0]["descripcion"], descripcion)
+        self.assertIn("FIN_DESCRIPCION_OFICIAL", html)
 
 if __name__ == "__main__":
     unittest.main()
