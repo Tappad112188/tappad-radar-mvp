@@ -1,0 +1,30 @@
+name: TAPPAD - Prueba diez expedientes ComprasMX
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - prueba_10_expedientes_comprasmx.py
+      - .github/workflows/tappad-prueba-10-expedientes.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compilar script
+        run: python -m py_compile prueba_10_expedientes_comprasmx.py
+      - name: Comparar diez expedientes reales con CSV oficial
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY"
+          python prueba_10_expedientes_comprasmx.py
