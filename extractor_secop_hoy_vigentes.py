@@ -38,7 +38,15 @@ async def main():
   page=await browser.new_page(accept_downloads=False)
   try:
    response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
-   if not response or response.status!=200:raise RuntimeError("SECOP no respondió HTTP 200; status="+str(response.status if response else "sin_respuesta")+"; url="+str(page.url)+"; location="+str(response.headers.get("location","") if response else "")+"; cadena="+str([(r.status,r.url) for r in (response.request.redirected_from and [response.request.redirected_from] or [])]) )
+   if not response or response.status!=200:
+    cadena=[]
+    req=response.request if response else None
+    while req and len(cadena)<8:
+     resp=await req.response()
+     cadena.append({"url":req.url,"status":resp.status if resp else None,"location":(resp.headers.get("location","") if resp else "")[:350]})
+     req=req.redirected_from
+    reporte["diagnostico_http"]={"url_final":page.url,"cadena_redirecciones":cadena,"status":response.status if response else None}
+    raise RuntimeError("SECOP no respondió HTTP 200; status="+str(response.status if response else "sin_respuesta")+"; redirecciones="+json.dumps(cadena,ensure_ascii=False))
    # Filtrar estatus antes que fecha: un día sin publicaciones puede vaciar las opciones.
    await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
    opciones=page.locator("[id^='CardView_HFListBox_LBI']:visible")
