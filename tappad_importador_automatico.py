@@ -128,6 +128,8 @@ def main():
         print(f"Filas: {total:,} | UUID únicos: {len(items):,} | Sin UUID: {sin_uuid:,}")
         print(f"Última publicación: {max_fecha} | Desde: {desde} | Seleccionados: {len(seleccion)}")
         print("Estatus:", dict(Counter(item["estatus"] or "(sin estatus)" for item in seleccion)))
+        vigentes = [item for item in seleccion if (item.get("estatus") or "").strip().upper() == "VIGENTE"]
+        print("Candidatos vigentes para futura evaluacion de alertas:", len(vigentes))
         for item in seleccion[:3]:
             print("Ejemplo:", item["numero_procedimiento"])
         if not args.importar:
