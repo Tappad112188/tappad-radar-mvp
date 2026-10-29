@@ -31,26 +31,3 @@ jobs:
       - name: Simular preparación de alertas ficticias
         run: python simulacion_programada.py
 
-  sincronizar-csv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Completar fechas vacias de ComprasMX desde CSV oficial en lotes de 49
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
-        run: |
-          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ADMIN_KEY"
-          for lote in 1 2 3 4 5; do
-            echo "LOTE $lote"
-            python sincronizar_calendarios_comprasmx_v3.py --aplicar --max-cambios 49 --solo-vacios --por-lotes
-          done
-      - name: Validar remanentes sin escrituras
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
-        run: python sincronizar_calendarios_comprasmx_v3.py --solo-vacios
