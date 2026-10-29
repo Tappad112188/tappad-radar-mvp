@@ -47,6 +47,7 @@ def simular(dias):
     print("ComprasMX vigentes en Supabase:", len(candidatos))
     print("Proveedores activos:", len(clientes))
     print("Notificaciones historicas:", len(ocupados))
+    print("Clasificacion medica protegida: procedimientos de instrumental medico requieren giro 7.")
     total = 0
     for c in clientes:
         cid = c["id"]
