@@ -14,6 +14,11 @@ LICITACIONES = (1394,1395,1396,1397,1398,1399,1400,1402,1404,1405)
 def main():
     clientes = consulta("clientes", "id,empresa,palabras_clave,activo", {"id":"in.("+",".join(map(str,CLIENTES))+")"})
     licitaciones = consulta("licitaciones", "id,numero_procedimiento,nombre_procedimiento,descripcion,fuente,entidad_federativa,estatus,fecha_apertura,validacion_calendario", {"id":"in.("+",".join(map(str,LICITACIONES))+")"})
+    print("COBERTURA CALENDARIO DE LAS DIEZ LICITACIONES:")
+    for campo in ("fecha_publicacion","fecha_junta_aclaraciones","fecha_apertura","fecha_fallo_programado"):
+        print(" ",campo,":",sum(bool(l.get(campo)) for l in licitaciones),"/",len(licitaciones))
+    print(" Documentos vinculados:",sum(bool(l.get("documentos_disponibles")) for l in licitaciones),"/",len(licitaciones))
+    print(" Calendarios verificados:",sum(norm(l.get("validacion_calendario"))=="verificado" for l in licitaciones),"/",len(licitaciones))
     giros = consulta("clientes_giros","cliente_id,giro_id")
     ubicaciones = consulta("clientes_ubicaciones","cliente_id,estado,municipio")
     notificaciones = consulta("notificaciones_enviadas","cliente_id,licitacion_id,estado")
