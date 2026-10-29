@@ -1,5 +1,5 @@
 """Vista previa real de 10 expedientes ComprasMX desde Supabase, sin enviar correos."""
-import json, os, urllib.parse, urllib.request
+import base64, json, os, urllib.parse, urllib.request
 from pathlib import Path
 from plantilla_correo_html import construir_correo_html
 from prueba_10_expedientes_comprasmx import IDS
@@ -43,6 +43,11 @@ def main():
             raise AssertionError("Procedimiento faltante: " + op["numero_procedimiento"])
         if op.get("url_procedimiento") and op["url_procedimiento"] not in html:
             raise AssertionError("Enlace faltante: " + op["numero_procedimiento"])
+    logo = Path("assets/logo_tappad.png")
+    if not logo.is_file():
+        raise RuntimeError("No se encontro assets/logo_tappad.png para vista previa")
+    imagen = "data:image/png;base64," + base64.b64encode(logo.read_bytes()).decode("ascii")
+    html = html.replace("cid:tappad-logo", imagen)
     Path("vista_previa_comprasmx_real.html").write_text(html, encoding="utf-8")
     print(json.dumps({"expedientes":len(oportunidades),"campos_por_expediente":7,
         "fechas_vacias":fechas_vacias,"avisos_mostrados":html.count(AVISO),
