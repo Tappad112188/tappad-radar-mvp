@@ -21,15 +21,15 @@ def construir_correo_html(empresa, oportunidades):
     tarjetas = []
     for oportunidad in oportunidades:
         numero = _texto(oportunidad.get("numero_procedimiento") or "Sin número")
-        nombre = _texto(oportunidad.get("nombre_procedimiento") or "Sin título")
+        nombre = _texto(oportunidad.get("descripcion") or oportunidad.get("nombre_procedimiento") or "Sin descripción")
         terminos = _texto(", ".join(oportunidad.get("terminos") or []))
-        apertura = _texto(fecha_legible(oportunidad.get("fecha_apertura")))
+        apertura = _texto(fecha_legible(oportunidad.get("fecha_apertura")) if oportunidad.get("fecha_apertura") else "Fecha no disponible, verificar enlace")
         fuente = _texto(oportunidad.get("fuente") or "ComprasMX")
-        publicacion = _texto(fecha_legible(oportunidad.get("fecha_publicacion")))
-        junta = _texto(fecha_legible(oportunidad.get("fecha_junta_aclaraciones")))
-        fallo = _texto(fecha_legible(oportunidad.get("fecha_fallo_programado")))
+        publicacion = _texto(fecha_legible(oportunidad.get("fecha_publicacion")) if oportunidad.get("fecha_publicacion") else "Fecha no disponible, verificar enlace")
+        junta = _texto(fecha_legible(oportunidad.get("fecha_junta_aclaraciones")) if oportunidad.get("fecha_junta_aclaraciones") else "Fecha no disponible, verificar enlace")
+        fallo = _texto(fecha_legible(oportunidad.get("fecha_fallo_programado")) if oportunidad.get("fecha_fallo_programado") else "Fecha no disponible, verificar enlace")
         url = _enlace_seguro(oportunidad.get("url_procedimiento"))
-        es_secop = str(oportunidad.get("fuente") or "").strip().casefold() == "secop coahuila"
+        es_secop = str(oportunidad.get("fuente") or "").strip().casefold() == "secop coahuila"\n        if not es_secop:\n            for clave, valor in (("publicacion", oportunidad.get("fecha_publicacion")), ("junta", oportunidad.get("fecha_junta_aclaraciones")), ("apertura", oportunidad.get("fecha_apertura")), ("fallo", oportunidad.get("fecha_fallo_programado"))):\n                if valor and fecha_legible(valor) in ("No disponible", "Fecha por verificar"):\n                    if clave == "publicacion": publicacion = _texto("Fecha no disponible, verificar enlace")\n                    elif clave == "junta": junta = _texto("Fecha no disponible, verificar enlace")\n                    elif clave == "apertura": apertura = _texto("Fecha no disponible, verificar enlace")\n                    else: fallo = _texto("Fecha no disponible, verificar enlace")
         def boton_documento(campo, titulo):
             valor = str(oportunidad.get(campo) or "").strip()
             partes = urlparse(valor)
@@ -73,14 +73,13 @@ def construir_correo_html(empresa, oportunidades):
             '<tr><td style="padding:0 24px 18px"><table role="presentation" width="100%" '
             'style="border:1px solid #dbe4e7;border-radius:8px;background:#ffffff">'
             '<tr><td style="padding:20px">'
-            '<div style="font-size:12px;color:#526476;font-weight:bold">PROCEDIMIENTO ' + numero + '</div>'
-            '<h2 style="font-size:17px;line-height:1.4;color:#16354a;margin:10px 0">' + nombre + '</h2>'
-            '<p style="font-size:14px;color:#364b59"><b>Coincidencia:</b> ' + terminos + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Fuente:</b> ' + fuente + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Publicación:</b> ' + publicacion + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Junta de aclaraciones:</b> ' + junta + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Presentación y apertura (fecha límite):</b> ' + apertura + '</p>'
-            '<p style="font-size:14px;color:#364b59"><b>Fallo programado:</b> ' + fallo + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Descripción del procedimiento:</b> ' + nombre + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Número de procedimiento:</b> ' + numero + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fecha de publicación:</b> ' + publicacion + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fecha de Junta de aclaraciones:</b> ' + junta + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fecha de apertura de proposiciones:</b> ' + apertura + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Fecha de fallo:</b> ' + fallo + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Enlace a documentos del procedimiento:</b></p>'
             + enlace + '</td></tr></table></td></tr>'
         )
     return (
