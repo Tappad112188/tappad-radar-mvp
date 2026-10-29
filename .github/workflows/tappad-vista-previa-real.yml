@@ -1,0 +1,29 @@
+name: TAPPAD - Vista previa real ComprasMX
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - .github/workflows/tappad-vista-previa-real.yml
+permissions:
+  contents: read
+jobs:
+  vista-previa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar siete campos y fechas ausentes con diez expedientes reales
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python vista_previa_real_comprasmx.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vista-previa-real-comprasmx
+          path: vista_previa_comprasmx_real.html
+          retention-days: 7
