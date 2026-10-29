@@ -37,7 +37,7 @@ def main():
         archivo=CARPETA/("correo_proveedor_"+str(indice)+".html")
         if not archivo.is_file(): raise SystemExit("HTML faltante: "+archivo.name)
         html=archivo.read_bytes()
-        if b"cid:logo_tappad" not in html: raise SystemExit("HTML sin logo integrado")
+        if b"cid:tappad-logo" not in html: raise SystemExit("HTML sin logo integrado")
         if cliente["id"] in usados: raise SystemExit("Proveedor repetido")
         usados.add(cliente["id"])
         lote.append({"cliente_id":cliente["id"],"licitacion_ids":matches[0]["licitacion_ids"],"html":archivo.name,"sha256_html":hashlib.sha256(html).hexdigest(),"destinatario_configurado":bool(str(cliente.get("correo") or "").strip())})
