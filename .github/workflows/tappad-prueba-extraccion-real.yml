@@ -1,0 +1,24 @@
+name: TAPPAD - Prueba extracción real ComprasMX
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - probar_extraccion_real_comprasmx.py
+      - .github/workflows/tappad-prueba-extraccion-real.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m py_compile probar_extraccion_real_comprasmx.py tappad_importador_automatico.py
+      - name: Contrastar siete campos con CSV oficial
+        run: python probar_extraccion_real_comprasmx.py
