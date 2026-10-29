@@ -32,7 +32,7 @@ async def main():
     async def aplicar_filtros():
         response = await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
         if not response or response.status != 200:
-            raise RuntimeError("SECOP no respondió HTTP 200")
+            raise RuntimeError(f"SECOP HTTP {response.status if response else 'sin respuesta'}; URL final: {page.url}; título: {(await page.title())[:120]}")
         for selector in ("#CardView_HFFDE_I", "#CardView_HFTDE_I"):
             await page.locator(selector).fill(datetime.fromisoformat(hoy).strftime("%d/%m/%Y"))
             await page.locator(selector).press("Tab")
@@ -94,7 +94,7 @@ async def main():
                                 body = await respuesta.body()
                                 if len(body) > MAX_BYTES:
                                     continue
-                                if body[:4] != b"PK\\x03\\x04":
+                                if body[:4] != b"PK\x03\x04":
                                     continue
                                 destino = CARPETA / (re.sub(r"[^a-zA-Z0-9_-]", "_", codigo) + ".zip")
                                 destino.write_bytes(body)
