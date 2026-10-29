@@ -4,6 +4,7 @@ on:
     branches: [desarrollo-registro-proveedores]
     paths:
       - .github/workflows/tappad-vista-previa-real.yml
+      - vista_previa_real_comprasmx.py
 permissions:
   contents: read
 jobs:
