@@ -95,7 +95,7 @@ def main():
         mensaje["Subject"]="TAPPAD Radar | Nuevas oportunidades"
         mensaje.set_content("Consulta las oportunidades de TAPPAD Radar en la version HTML de este mensaje.")
         mensaje.add_alternative(html,subtype="html")
-        mensaje.get_payload()[-1].add_related(logo,maintype="image",subtype="png",cid="<logo_tappad>",filename="logo_tappad.png",disposition="inline")
+        mensaje.get_payload()[-1].add_related(logo,maintype="image",subtype="png",cid="<tappad-logo>",filename="logo_tappad.png",disposition="inline")
         try:
             with smtplib.SMTP("smtp.gmail.com",587,timeout=35) as smtp:
                 smtp.ehlo();smtp.starttls();smtp.ehlo()
