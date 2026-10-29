@@ -21,7 +21,8 @@ def construir_correo_html(empresa, oportunidades):
     tarjetas = []
     for oportunidad in oportunidades:
         numero = _texto(oportunidad.get("numero_procedimiento") or "Sin número")
-        nombre = _texto(oportunidad.get("descripcion") or oportunidad.get("nombre_procedimiento") or "Sin descripción")
+        nombre = _texto(oportunidad.get("nombre_procedimiento") or "Sin título")
+        descripcion = _texto(oportunidad.get("descripcion") or oportunidad.get("nombre_procedimiento") or "Descripción no disponible; consultar el procedimiento oficial.")
         terminos = _texto(", ".join(oportunidad.get("terminos") or []))
         apertura = _texto(fecha_legible(oportunidad.get("fecha_apertura")) if oportunidad.get("fecha_apertura") else "Fecha no disponible, verificar enlace")
         fuente = _texto(oportunidad.get("fuente") or "ComprasMX")
@@ -80,7 +81,8 @@ def construir_correo_html(empresa, oportunidades):
             '<tr><td style="padding:0 24px 18px"><table role="presentation" width="100%" '
             'style="border:1px solid #dbe4e7;border-radius:8px;background:#ffffff">'
             '<tr><td style="padding:20px">'
-            '<p style="font-size:14px;color:#364b59"><b>Descripción del procedimiento:</b> ' + nombre + '</p>'
+            '<p style="font-size:14px;color:#364b59"><b>Procedimiento:</b> ' + nombre + '</p>'
+            '<p style="font-size:14px;color:#364b59;line-height:1.6"><b>Descripción completa:</b> ' + descripcion + '</p>'
             '<p style="font-size:14px;color:#364b59"><b>Número de procedimiento:</b> ' + numero + '</p>'
             '<p style="font-size:14px;color:#364b59"><b>Fecha de publicación:</b> ' + publicacion + '</p>'
             '<p style="font-size:14px;color:#364b59"><b>Fecha de Junta de aclaraciones:</b> ' + junta + '</p>'
