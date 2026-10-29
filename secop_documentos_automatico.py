@@ -29,28 +29,44 @@ async def main():
         raise SystemExit("Reporte SECOP no validado para hoy")
     CARPETA.mkdir(exist_ok=True)
     resultados = []
+    async def aplicar_filtros():
+                response = await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
+                if not response or response.status != 200:
+                    raise RuntimeError("SECOP no respondió HTTP 200")
+                for selector in ("#CardView_HFFDE_I", "#CardView_HFTDE_I"):
+                    await page.locator(selector).fill(datetime.fromisoformat(hoy).strftime("%d/%m/%Y"))
+                    await page.locator(selector).press("Tab")
+                    await page.wait_for_timeout(1000)
+                await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
+                await page.locator("#CardView_HFListBox_LBI3T0").click(timeout=15000)
+                await page.wait_for_timeout(1800)
+    async def localizar(codigo):
+        resumen = await page.locator("#CardView_DXPagerBottom .dxp-summary").inner_text()
+        match = re.search(r"de\s+(\d+)\s+\(", resumen)
+        paginas = int(match.group(1)) if match else 1
+        for numero in range(1, paginas + 1):
+            tarjeta = page.locator("td[id^='CardView_DXDataCard']").filter(has_text=codigo)
+            if await tarjeta.count() == 1:
+                return tarjeta
+            if numero < paginas:
+                selector = "#CardView_DXPagerBottom a.dxp-num[onclick*=\"'PN" + str(numero) + "'\"]"
+                await page.locator(selector).click(timeout=15000)
+                await page.wait_for_timeout(900)
+        return None
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
         try:
-            response = await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
-            if not response or response.status != 200:
-                raise RuntimeError("SECOP no respondió HTTP 200")
-            for selector in ("#CardView_HFFDE_I", "#CardView_HFTDE_I"):
-                await page.locator(selector).fill(datetime.fromisoformat(hoy).strftime("%d/%m/%Y"))
-                await page.locator(selector).press("Tab")
-                await page.wait_for_timeout(1000)
-            await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
-            await page.locator("#CardView_HFListBox_LBI3T0").click(timeout=15000)
-            await page.wait_for_timeout(1800)
+            await aplicar_filtros()
             for registro in data.get("registros", []):
                 codigo = registro["codigo"]
                 resultado = {"codigo": codigo, "documentos": [], "calendario": {}, "estado": "pendiente_revision", "errores": []}
                 try:
                     # Rebuscar la tarjeta por su código, sin depender de IDs de otro expediente.
-                    tarjeta = page.locator("td[id^='CardView_DXDataCard']").filter(has_text=codigo)
-                    if await tarjeta.count() != 1:
+                    await aplicar_filtros()
+                    tarjeta = await localizar(codigo)
+                    if tarjeta is None:
                         resultado["errores"].append("Tarjeta no visible o ambigua; paginación pendiente")
                         resultados.append(resultado)
                         continue
@@ -103,11 +119,6 @@ async def main():
                                 break
                             except Exception as exc:
                                 resultado["errores"].append(str(exc)[:200])
-                    # Cerrar la vista documental para no confundir los expedientes.
-                    await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
-                    # No seguir si se pierde el filtro; los restantes quedarán pendientes.
-                    if len(data["registros"]) > 1:
-                        resultado["errores"].append("Navegación reiniciada; siguiente expediente requiere reestablecer filtros")
                 except Exception as exc:
                     resultado["errores"].append(str(exc)[:250])
                 resultados.append(resultado)
