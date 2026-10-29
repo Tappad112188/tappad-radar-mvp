@@ -30,16 +30,16 @@ async def main():
     CARPETA.mkdir(exist_ok=True)
     resultados = []
     async def aplicar_filtros():
-                response = await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
-                if not response or response.status != 200:
-                    raise RuntimeError("SECOP no respondió HTTP 200")
-                for selector in ("#CardView_HFFDE_I", "#CardView_HFTDE_I"):
-                    await page.locator(selector).fill(datetime.fromisoformat(hoy).strftime("%d/%m/%Y"))
-                    await page.locator(selector).press("Tab")
-                    await page.wait_for_timeout(1000)
-                await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
-                await page.locator("#CardView_HFListBox_LBI3T0").click(timeout=15000)
-                await page.wait_for_timeout(1800)
+        response = await page.goto(URL, wait_until="domcontentloaded", timeout=45000)
+        if not response or response.status != 200:
+            raise RuntimeError("SECOP no respondió HTTP 200")
+        for selector in ("#CardView_HFFDE_I", "#CardView_HFTDE_I"):
+            await page.locator(selector).fill(datetime.fromisoformat(hoy).strftime("%d/%m/%Y"))
+            await page.locator(selector).press("Tab")
+            await page.wait_for_timeout(1000)
+        await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
+        await page.locator("#CardView_HFListBox_LBI3T0").click(timeout=15000)
+        await page.wait_for_timeout(1800)
     async def localizar(codigo):
         resumen = await page.locator("#CardView_DXPagerBottom .dxp-summary").inner_text()
         match = re.search(r"de\s+(\d+)\s+\(", resumen)
