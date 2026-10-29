@@ -74,12 +74,15 @@ def render_ficha(f,giros,palabras):
 def main():
  p=argparse.ArgumentParser()
  p.add_argument("--enviar",action="store_true")
+ p.add_argument("--historico-prueba",action="store_true")
  args=p.parse_args()
  if not SECOP.exists():raise SystemExit("Faltan fichas SECOP actuales")
  data=json.loads(SECOP.read_text(encoding="utf-8-sig"))
  hoy=datetime.now().date().isoformat()
- if data.get("fecha_consulta")!=hoy:
-  raise SystemExit("Fichas SECOP no son del día de hoy: primero ejecutar extracción local")
+ if data.get("fecha_consulta")!=hoy and not args.historico_prueba:
+  raise SystemExit("Fichas SECOP no son del día de hoy. Usa --historico-prueba para simulación histórica")
+ historico=data.get("fecha_consulta")!=hoy
+ if historico:print("SIMULACIÓN HISTÓRICA SECOP:",data.get("fecha_consulta"),"No son publicaciones de hoy")
  remotas,error=consulta_comprasmx()
  if error:raise SystemExit("ComprasMX no actualizado: "+error)
  fichas=[ficha_secop(f) for f in data.get("fichas",[])]+[ficha_comprasmx(f) for f in remotas[:100]]
@@ -98,14 +101,16 @@ def main():
   salida.append({"cliente_id":cliente["id"],"empresa":cliente["empresa"],"giros":sorted(cliente["giros"]),"coincidencias":len(elegidas),"destinos_prueba":destinos,"procedimientos":[{"fuente":f["fuente"],"numero":f["numero"],"giros_coincidentes":g} for f,g,_ in elegidas]})
   if not elegidas or not destinos:continue
   cuerpo="<html><body style='font-family:Arial;color:#18324a'><h2>TAPPAD Radar — prueba de coincidencias</h2><p>Perfil: "+html.escape(cliente["empresa"])+"</p>"
+  if historico:cuerpo+="<p><strong>SIMULACIÓN HISTÓRICA:</strong> expedientes SECOP de "+html.escape(str(data.get("fecha_consulta")))+". No representan publicaciones nuevas de hoy.</p>"
   cuerpo+="".join(render_ficha(f,g,c) for f,g,c in elegidas)
   cuerpo+="<p>TAPPAD Consultoría puede asesorarte para participar en estos procedimientos.</p><small>PRUEBA INTERNA. Verifica siempre las bases y los calendarios oficiales.</small></body></html>"
   ruta=SALIDA/("alerta_prueba_cliente_"+str(cliente["id"])+".html")
   ruta.write_text(cuerpo,encoding="utf-8")
   mensajes.append((cliente,destinos,cuerpo))
  reporte=SALIDA/"cruce_giros_prueba_integral.json"
- reporte.write_text(json.dumps({"fecha_prueba":hoy,"comprasmx_consultadas":len(remotas[:100]),"secop_consultadas":len(data.get("fichas",[])),"perfiles":salida,"correos_preparados":len(mensajes),"correos_enviados":0},ensure_ascii=False,indent=2),encoding="utf-8")
+ reporte.write_text(json.dumps({"fecha_prueba":hoy,"fecha_fichas_secop":data.get("fecha_consulta"),"modo_historico":historico,"comprasmx_consultadas":len(remotas[:100]),"secop_consultadas":len(data.get("fichas",[])),"perfiles":salida,"correos_preparados":len(mensajes),"correos_enviados":0},ensure_ascii=False,indent=2),encoding="utf-8")
  print("Cruce realizado. Perfiles:",len(salida),"| correos preparados:",len(mensajes),"| reporte:",reporte)
+ if args.enviar and historico:raise SystemExit("Envío bloqueado: datos SECOP históricos; solo simulación")
  if not args.enviar:
   print("SIMULACIÓN: sin correos. Revisar HTML individuales y JSON. Para enviar usar --enviar.")
   return
