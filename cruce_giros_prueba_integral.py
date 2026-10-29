@@ -1,132 +1,209 @@
-"""Cruce controlado de giros y alertas de prueba de TAPPAD Radar.
-Requiere fichas SECOP locales actuales y consulta Supabase; no usa muestras antiguas.
-Por defecto solo genera HTML y JSON. --enviar envía únicamente a dos cuentas permitidas.
+"""TAPPAD Radar: revisión integral controlada ComprasMX + SECOP.
+Lee Supabase y fichas locales. Nunca envía correo ni modifica la base de datos.
+Uso: py cruce_giros_prueba_integral.py --historico-prueba
 """
 import argparse
 import html
 import json
 import os
 import re
-import smtplib
 import unicodedata
-from datetime import datetime
-from email.message import EmailMessage
+from collections import defaultdict
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from preparar_prueba_integral_tappad import ROOT, SECOP, consulta_comprasmx, ficha_comprasmx, ficha_secop
 
-PERMITIDOS = {"tappadcons@gmail.com", "gerardotapia112188@gmail.com"}
 SALIDA = ROOT / "documentos_secop_lote"
+PERMITIDOS = {"tappadcons@gmail.com", "gerardotapia112188@gmail.com"}
+NO_IDENTIFICADA = "No fue posible identificar esta fecha; revisar directamente las bases oficiales del procedimiento."
+
+# Expresiones deliberadamente específicas: se evitan términos genéricos como
+# "servicios", "equipo", "mantenimiento" o "seguridad" aislados.
 PATRONES = {
- 1:r"material(?:es)? de limpieza|detergente|desinfectante|jabon",
- 2:r"papeleria|articulos de oficina|utiles de escritorio",
- 3:r"computo|computadora|software|informatica|tecnolog|equipo tecnologico|seguridad informatica",
- 4:r"mobiliario|muebles de oficina",
- 5:r"medicamento|farmaceutic",
- 6:r"material medico|material hospitalario|insumo medico|material de laboratorio",
- 7:r"equipo medico|equipo de laboratorio|equipamiento de laboratorio",
- 8:r"servicio de limpieza|limpieza integral|jardineria|aseo",
- 9:r"vigilancia|seguridad privada|guardias de seguridad",
- 10:r"mantenimiento de inmuebles|mantenimiento de edificios|rehabilitacion de inmuebles",
- 11:r"mantenimiento vehicular|mantenimiento de vehiculos|reparacion de vehiculos",
- 12:r"aire acondicionado|climatizacion|hvac",
- 13:r"obra publica|construccion|rehabilitacion de (?:obra|cancha|plaza)|colector sanitario|pozo profundo|agua potable|alcantarillado",
- 14:r"material electrico|iluminacion|luminarias",
- 15:r"ferreteria|herramientas|malla ciclonica",
- 16:r"uniformes|vestuario",
- 17:r"alimentos|abarrotes|despensa",
- 18:r"capacitacion|cursos|formacion",
- 19:r"consultoria|asesoria|servicios profesionales",
- 20:r"transporte|logistica|vehiculos|automoviles",
+ 1: [r"material(?:es)? de limpieza", r"detergentes?", r"desinfectantes?", r"jabon(?:es)?"],
+ 2: [r"papeleria", r"utiles de escritorio", r"articulos de oficina"],
+ 3: [r"equipos? de computo", r"computadoras?", r"software", r"seguridad informatica", r"infraestructura tecnologica", r"servicios? (?:de )?tecnologias? de la informacion"],
+ 4: [r"mobiliario", r"muebles de oficina"],
+ 5: [r"medicamentos?", r"farmaceutic"],
+ 6: [r"material(?:es)? medic", r"material(?:es)? hospitalari", r"insumos? medic", r"material(?:es)? de laboratorio"],
+ 7: [r"equipos? medic", r"equipos? de laboratorio", r"equipamiento de laboratorio"],
+ 8: [r"servicios? de limpieza", r"limpieza integral", r"jardineria", r"servicios? de aseo"],
+ 9: [r"servicios? de vigilancia", r"seguridad privada", r"guardias? de seguridad"],
+ 10: [r"mantenimiento de inmuebles", r"mantenimiento de edificios", r"rehabilitacion de inmuebles"],
+ 11: [r"mantenimiento (?:de )?vehicul", r"reparacion de vehicul", r"servicio mecanico automotriz"],
+ 12: [r"aire acondicionado", r"climatizacion", r"\bhvac\b"],
+ 13: [r"obra publica", r"construccion", r"rehabilitacion de (?:obra|cancha|plaza|vialidad)", r"colector sanitario", r"pozos? profundos?", r"agua potable", r"alcantarillado", r"infraestructura hidraulica"],
+ 14: [r"material electrico", r"iluminacion", r"luminarias"],
+ 15: [r"ferreteria", r"herramientas", r"malla ciclonica"],
+ 16: [r"uniformes?", r"vestuario"],
+ 17: [r"alimentos?", r"abarrotes", r"despensas?"],
+ 18: [r"capacitacion", r"cursos? de formacion", r"servicios? de formacion"],
+ 19: [r"consultoria", r"asesoria", r"servicios? profesionales"],
+ 20: [r"servicios? de transporte", r"servicios? de logistica", r"adquisicion de vehiculos", r"adquisicion de automoviles"],
 }
-def normalizar(t):
- return "".join(c for c in unicodedata.normalize("NFD",str(t or "").lower()) if unicodedata.category(c)!="Mn")
-def api(tabla, params):
- base=os.getenv("SUPABASE_URL","").rstrip("/")
- key=os.getenv("SUPABASE_ADMIN_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
- if not base or not key: raise RuntimeError("Faltan credenciales Supabase")
- req=Request(base+"/rest/v1/"+tabla+"?"+urlencode(params),headers={"apikey":key,"Authorization":"Bearer "+key})
- with urlopen(req,timeout=40) as r:return json.load(r)
+# Si una palabra clave no figura en el objeto no genera coincidencia por sí sola.
+# Solo refuerza el motivo de una coincidencia ya sustentada por un giro.
+def normalizar(valor):
+ t = unicodedata.normalize("NFD", str(valor or "").casefold())
+ return re.sub(r"\s+", " ", "".join(c for c in t if unicodedata.category(c) != "Mn")).strip()
+
+def api(tabla, parametros):
+ base = os.getenv("SUPABASE_URL", "").rstrip("/")
+ clave = os.getenv("SUPABASE_ADMIN_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+ if not base or not clave:
+  raise RuntimeError("Faltan SUPABASE_URL y SUPABASE_ADMIN_KEY/SUPABASE_SERVICE_ROLE_KEY")
+ url = base + "/rest/v1/" + tabla + "?" + urlencode(parametros)
+ peticion = Request(url, headers={"apikey": clave, "Authorization": "Bearer " + clave})
+ with urlopen(peticion, timeout=40) as respuesta:
+  return json.load(respuesta)
+
 def perfiles():
- clientes=api("clientes",{"select":"id,empresa,correo,palabras_clave,activo,correos_prueba","limit":1000})
- enlaces=api("clientes_giros",{"select":"cliente_id,giro_id","limit":5000})
- por_cliente={}
- for x in enlaces:por_cliente.setdefault(x["cliente_id"],set()).add(int(x["giro_id"]))
- return [dict(c,giros=por_cliente.get(c["id"],set())) for c in clientes if c["empresa"].startswith("[PRUEBA]") or c["correo"] in PERMITIDOS]
-def coincidencias(f,cliente):
- texto=normalizar(f.get("objeto"))
- giros=[g for g in cliente["giros"] if g in PATRONES and re.search(PATRONES[g],texto)]
- claves=[normalizar(p.strip()) for p in (cliente.get("palabras_clave") or "").split(",") if len(p.strip())>=5]
- palabras=[p for p in claves if p in texto]
- # El perfil debe tener una coincidencia verificable; las palabras clave no reemplazan el giro.
- return giros, palabras
-def render_ficha(f,giros,palabras):
- esc=lambda v:html.escape(str(v or "No identificada"))
- fechas=[("Publicación",f["publicacion"]),("Junta de aclaraciones",f["junta"]),("Presentación y apertura",f["apertura"]),("Fallo programado",f["fallo"])]
- filas="".join("<tr><th>"+esc(k)+"</th><td>"+esc(v)+"</td></tr>" for k,v in fechas)
- faltantes=[k for k,v in fechas if not v or v=="No identificada"]
- aviso=("<p><strong>Atención:</strong> no fue posible identificar "+esc(", ".join(faltantes))+". Es necesario revisar las bases oficiales del procedimiento.</p>") if faltantes else ""
- enlace=f.get("url")
- link='<p><a href="'+esc(enlace)+'">Consultar procedimiento oficial</a></p>' if enlace and str(enlace).startswith("https://") else ""
- return "<section style='border:1px solid #ddd;padding:16px;margin:14px 0'><h3>"+esc(f["numero"])+"</h3><p>"+esc(f["fuente"])+" — "+esc(f["objeto"])+"</p><table>"+filas+"</table>"+aviso+link+"</section>"
+ clientes = api("clientes", {"select":"id,empresa,correo,palabras_clave,activo,correos_prueba", "limit":1000})
+ relaciones = api("clientes_giros", {"select":"cliente_id,giro_id", "limit":5000})
+ catalogo = api("giros_comerciales", {"select":"id,nombre,activo", "limit":1000})
+ nombres = {int(g["id"]):g["nombre"] for g in catalogo if g.get("activo") is not False}
+ por_cliente = defaultdict(set)
+ for r in relaciones:
+  gid = int(r["giro_id"])
+  if gid in nombres: por_cliente[r["cliente_id"]].add(gid)
+ salida = []
+ for c in clientes:
+  if not (str(c.get("empresa") or "").startswith("[PRUEBA]") or str(c.get("correo") or "").casefold() in PERMITIDOS):
+   continue
+  c["giros"] = sorted(por_cliente[c["id"]])
+  c["nombres_giros"] = {g:nombres[g] for g in c["giros"]}
+  salida.append(c)
+ return salida
+
+def motivo(ficha, cliente):
+ objeto = normalizar(ficha.get("objeto"))
+ giros = []
+ evidencias = []
+ for giro in cliente["giros"]:
+  patrones = PATRONES.get(giro, [])
+  encontrados = [m.group(0) for patron in patrones for m in [re.search(patron, objeto)] if m]
+  if encontrados:
+   giros.append(giro)
+   evidencias.append({"giro_id":giro,"giro":cliente["nombres_giros"][giro],"frases_objeto":sorted(set(encontrados))})
+ claves = [normalizar(x) for x in str(cliente.get("palabras_clave") or "").split(",")]
+ claves = sorted(set(x for x in claves if len(x)>=5 and x in objeto))
+ return giros, evidencias, claves
+
+def fecha_real(valor):
+ if not valor or normalizar(valor) in ("no identificada", "none", "null"):
+  return None
+ try:
+  return datetime.fromisoformat(str(valor).replace("Z","+00:00")).date()
+ except ValueError:
+  return None
+
+def estado_plazo(ficha, hoy):
+ apertura = fecha_real(ficha.get("apertura"))
+ if apertura and apertura < hoy: return "PLAZO_VENCIDO"
+ if apertura and apertura >= hoy: return "PLAZO_NO_VENCIDO_SEGUN_FECHA_REGISTRADA_NO_VERIFICADO"
+ return "PLAZO_NO_IDENTIFICADO"
+
+def ficha_html(ficha, coincidencia):
+ esc = lambda v: html.escape(str(v if v not in (None,"","No identificada") else NO_IDENTIFICADA))
+ fechas = [("Publicación",ficha.get("publicacion")),("Junta de aclaraciones",ficha.get("junta")),("Límite de presentación y apertura",ficha.get("apertura")),("Fallo programado",ficha.get("fallo"))]
+ tabla = "".join("<tr><th>"+html.escape(nombre)+"</th><td>"+esc(valor)+"</td></tr>" for nombre,valor in fechas)
+ url = ficha.get("url")
+ enlace = '<a href="'+html.escape(url,quote=True)+'">Ver procedimiento</a>' if isinstance(url,str) and url.startswith("https://") else "Enlace individual no disponible"
+ return ("<article><h3>"+esc(ficha.get("numero"))+"</h3><p><strong>"+esc(ficha.get("fuente"))+"</strong> — "+esc(ficha.get("objeto"))+"</p>"
+         "<p>Giros: "+esc(", ".join(e["giro"] for e in coincidencia["evidencias"]))+"</p>"
+         "<p>Estado del plazo: "+esc(coincidencia["estado_plazo"])+"</p><table>"+tabla+"</table><p>"+enlace+"</p></article>")
+
 def main():
- p=argparse.ArgumentParser()
- p.add_argument("--enviar",action="store_true")
- p.add_argument("--historico-prueba",action="store_true")
- args=p.parse_args()
- if not SECOP.exists():raise SystemExit("Faltan fichas SECOP actuales")
- data=json.loads(SECOP.read_text(encoding="utf-8-sig"))
- hoy=datetime.now().date().isoformat()
- if data.get("fecha_consulta")!=hoy and not args.historico_prueba:
-  raise SystemExit("Fichas SECOP no son del día de hoy. Usa --historico-prueba para simulación histórica")
- historico=data.get("fecha_consulta")!=hoy
- if historico:print("SIMULACIÓN HISTÓRICA SECOP:",data.get("fecha_consulta"),"No son publicaciones de hoy")
- remotas,error=consulta_comprasmx()
- if error:raise SystemExit("ComprasMX no actualizado: "+error)
- fichas=[ficha_secop(f) for f in data.get("fichas",[])]+[ficha_comprasmx(f) for f in remotas[:100]]
- if not fichas:raise SystemExit("No hay oportunidades para analizar")
- salida=[]
- mensajes=[]
- for cliente in perfiles():
-  elegidas=[]
-  for f in fichas:
-   giros,claves=coincidencias(f,cliente)
-   if giros:elegidas.append((f,giros,claves))
-  destino=cliente.get("correo","").lower().strip()
-  if destino not in PERMITIDOS:
-   destinos=[x.lower().strip() for x in cliente.get("correos_prueba",[]) if x.lower().strip() in PERMITIDOS]
-  else:destinos=[destino]
-  salida.append({"cliente_id":cliente["id"],"empresa":cliente["empresa"],"giros":sorted(cliente["giros"]),"coincidencias":len(elegidas),"destinos_prueba":destinos,"procedimientos":[{"fuente":f["fuente"],"numero":f["numero"],"giros_coincidentes":g} for f,g,_ in elegidas]})
-  if not elegidas or not destinos:continue
-  cuerpo="<html><body style='font-family:Arial;color:#18324a'><h2>TAPPAD Radar — prueba de coincidencias</h2><p>Perfil: "+html.escape(cliente["empresa"])+"</p>"
-  if historico:cuerpo+="<p><strong>SIMULACIÓN HISTÓRICA:</strong> expedientes SECOP de "+html.escape(str(data.get("fecha_consulta")))+". No representan publicaciones nuevas de hoy.</p>"
-  cuerpo+="".join(render_ficha(f,g,c) for f,g,c in elegidas)
-  cuerpo+="<p>TAPPAD Consultoría puede asesorarte para participar en estos procedimientos.</p><small>PRUEBA INTERNA. Verifica siempre las bases y los calendarios oficiales.</small></body></html>"
-  ruta=SALIDA/("alerta_prueba_cliente_"+str(cliente["id"])+".html")
-  ruta.write_text(cuerpo,encoding="utf-8")
-  mensajes.append((cliente,destinos,cuerpo))
- reporte=SALIDA/"cruce_giros_prueba_integral.json"
- reporte.write_text(json.dumps({"fecha_prueba":hoy,"fecha_fichas_secop":data.get("fecha_consulta"),"modo_historico":historico,"comprasmx_consultadas":len(remotas[:100]),"secop_consultadas":len(data.get("fichas",[])),"perfiles":salida,"correos_preparados":len(mensajes),"correos_enviados":0},ensure_ascii=False,indent=2),encoding="utf-8")
- print("Cruce realizado. Perfiles:",len(salida),"| correos preparados:",len(mensajes),"| reporte:",reporte)
- if args.enviar and historico:raise SystemExit("Envío bloqueado: datos SECOP históricos; solo simulación")
- if not args.enviar:
-  print("SIMULACIÓN: sin correos. Revisar HTML individuales y JSON. Para enviar usar --enviar.")
-  return
- usuario=os.getenv("SMTP_USER","").lower().strip()
- clave=os.getenv("SMTP_APP_PASSWORD")
- if usuario not in PERMITIDOS or not clave:raise SystemExit("SMTP de prueba no configurado")
- with smtplib.SMTP("smtp.gmail.com",587,timeout=35) as smtp:
-  smtp.ehlo();smtp.starttls();smtp.ehlo();smtp.login(usuario,clave)
-  for cliente,destinos,cuerpo in mensajes:
-   msg=EmailMessage()
-   msg["Subject"]="PRUEBA TAPPAD Radar | "+cliente["empresa"]
-   msg["From"]=usuario
-   msg["To"]=", ".join(destinos)
-   msg.set_content("Prueba de coincidencias de giros TAPPAD Radar. Consultar HTML.")
-   msg.add_alternative(cuerpo,subtype="html")
-   smtp.send_message(msg)
-   print("Gmail aceptó alerta de prueba:",cliente["id"],"a",", ".join(destinos))
- print("No se notificaron destinatarios fuera de las dos cuentas autorizadas.")
-if __name__=="__main__":main()
+ parser = argparse.ArgumentParser()
+ parser.add_argument("--historico-prueba", action="store_true", help="Permite revisar fichas SECOP anteriores, siempre sin enviar correos")
+ parser.add_argument("--enviar", action="store_true", help="No disponible: bloqueo preventivo de envíos")
+ args = parser.parse_args()
+ if args.enviar:
+  raise SystemExit("ENVÍO BLOQUEADO: esta versión es solo de revisión. No se enviaron correos.")
+ if not SECOP.exists():
+  raise SystemExit("Faltan fichas comerciales SECOP locales.")
+ secop = json.loads(SECOP.read_text(encoding="utf-8-sig"))
+ hoy = date.today()
+ fecha_secop = secop.get("fecha_consulta")
+ historico = fecha_secop != hoy.isoformat()
+ if historico and not args.historico_prueba:
+  raise SystemExit("Las fichas SECOP son anteriores. Para revisión sin envío usa --historico-prueba.")
+ remotas, error = consulta_comprasmx()
+ if error: raise SystemExit("No se pudo consultar ComprasMX en Supabase: "+error)
+ compras = remotas[:100]
+ # Se conserva el estado de la fuente. No se interpreta una consulta a Supabase
+ # como descarga fresca del CSV ni como validación de vigencia.
+ fichas = []
+ for origen, originales, convertir in (("SECOP Coahuila",secop.get("fichas",[]),ficha_secop),("ComprasMX",compras,ficha_comprasmx)):
+  for registro in originales:
+   ficha = convertir(registro)
+   ficha["origen_datos"] = "FICHAS_LOCALES_HISTORICAS" if origen=="SECOP Coahuila" and historico else ("FICHAS_LOCALES" if origen=="SECOP Coahuila" else "SUPABASE_SIN_VERIFICACION_CSV_ACTUAL")
+   ficha["estatus_fuente"] = registro.get("estatus") or registro.get("estatus_portal") or "NO_INFORMADO"
+   fichas.append(ficha)
+ unicas = {}
+ for f in fichas:
+  clave = (normalizar(f["fuente"]),normalizar(f.get("numero")))
+  if clave[1]: unicas[clave] = f
+ fichas = list(unicas.values())
+ clientes = perfiles()
+ resultados = []
+ agrupados = defaultdict(dict)
+ for cliente in clientes:
+  destinos = []
+  correo = str(cliente.get("correo") or "").strip().casefold()
+  if correo in PERMITIDOS: destinos = [correo]
+  else: destinos = [str(x).strip().casefold() for x in (cliente.get("correos_prueba") or []) if str(x).strip().casefold() in PERMITIDOS]
+  destinos = sorted(set(destinos))
+  matches = []
+  for ficha in fichas:
+   giros, evidencias, claves = motivo(ficha, cliente)
+   if not giros: continue
+   coincidencia = {
+    "fuente":ficha["fuente"],"numero":ficha["numero"],"objeto":ficha.get("objeto"),
+    "giros_coincidentes":giros,"evidencias":evidencias,"palabras_clave_en_objeto":claves,
+    "calendario":{"publicacion":ficha.get("publicacion"),"junta_aclaraciones":ficha.get("junta"),"limite_presentacion_apertura":ficha.get("apertura"),"fallo_programado":ficha.get("fallo")},
+    "estado_plazo":estado_plazo(ficha,hoy),"estatus_fuente":ficha["estatus_fuente"],"origen_datos":ficha["origen_datos"],
+    "url_procedimiento":ficha.get("url"),
+    "requiere_validacion_oficial":True
+   }
+   matches.append(coincidencia)
+   for destino in destinos:
+    clave = (normalizar(ficha["fuente"]),normalizar(ficha.get("numero")))
+    entrada = agrupados[destino].setdefault(clave,{"ficha":ficha,"perfiles":[]})
+    entrada["perfiles"].append({"cliente_id":cliente["id"],"empresa":cliente["empresa"],"coincidencia":coincidencia})
+  resultados.append({"cliente_id":cliente["id"],"empresa":cliente["empresa"],"giros":cliente["giros"],"nombres_giros":cliente["nombres_giros"],"coincidencias":len(matches),"destinos_prueba":destinos,"procedimientos":matches})
+ SALIDA.mkdir(parents=True,exist_ok=True)
+ resumen_destinos = []
+ for destino, procedimientos in sorted(agrupados.items()):
+  elementos = list(procedimientos.values())
+  contenido = ['<!doctype html><html lang="es"><meta charset="utf-8"><title>Vista previa TAPPAD Radar</title><body style="font-family:Arial;max-width:850px;margin:auto;color:#18324a"><h1>TAPPAD Radar — vista previa</h1><p><strong>SIMULACIÓN INTERNA. NO ES UNA ALERTA DE OPORTUNIDADES VIGENTES.</strong> Verifica fechas y bases oficiales. No se enviaron correos.</p>']
+  for elemento in elementos:
+   perfiles_texto = ", ".join(p["empresa"] for p in elemento["perfiles"])
+   contenido.append("<p>Perfiles asociados: "+html.escape(perfiles_texto)+"</p>")
+   contenido.append(ficha_html(elemento["ficha"],elemento["perfiles"][0]["coincidencia"]))
+  contenido.append("</body></html>")
+  nombre = "vista_previa_destino_"+("tappadcons" if destino=="tappadcons@gmail.com" else "gerardotapia")+".html"
+  ruta = SALIDA/nombre
+  ruta.write_text("\n".join(contenido),encoding="utf-8")
+  resumen_destinos.append({"correo_prueba":destino,"procedimientos_unicos":len(elementos),"perfiles_asociados":sorted(set(p["empresa"] for e in elementos for p in e["perfiles"])),"archivo_html":str(ruta)})
+ reporte = {
+  "fecha_prueba":hoy.isoformat(),"fecha_fichas_secop":fecha_secop,"modo_historico":historico,
+  "origen_comprasmx":"Supabase: consulta de registros, NO descarga CSV fresca ni verificación de vigencia",
+  "comprasmx_consultadas":len(compras),"secop_consultadas":len(secop.get("fichas",[])),
+  "perfiles":resultados,"destinatarios_consolidados":resumen_destinos,
+  "correos_preparados_para_envio":0,"correos_enviados":0,
+  "observaciones":["La coincidencia por giro es una preclasificación; verificar objeto, bases y requisitos.","Los plazos no se consideran oficialmente vigentes por este reporte.","La vista previa se consolida por destinatario y procedimiento para evitar duplicados."]
+ }
+ ruta = SALIDA/"cruce_giros_prueba_integral.json"
+ ruta.write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
+ print("Revisión completada | ComprasMX:",len(compras),"| SECOP:",len(secop.get("fichas",[])),"| perfiles:",len(resultados))
+ print("Destinatarios de vista previa:",len(resumen_destinos),"| correos enviados: 0")
+ print("Reporte:",ruta)
+ for d in resumen_destinos: print("Vista previa:",d["archivo_html"],"| procedimientos únicos:",d["procedimientos_unicos"])
+ print("No se modificó Supabase ni se enviaron correos.")
+
+if __name__ == "__main__":
+ main()
