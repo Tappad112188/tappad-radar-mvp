@@ -10,7 +10,7 @@ Fuente: ComprasMX
 Objeto: Compra de material
 Descripcion resumida: Material de oficina
 Enlace del procedimiento: https://comprasmx.buengobierno.gob.mx/test
-Publicacion: 29/10/2026
+Publicacion: 2026-10-29T09:00:00
 Junta de aclaraciones: No especificada
 Presentacion y apertura de propuestas: No especificada
 Fallo programado: No especificada
@@ -24,7 +24,7 @@ Fallo programado: No especificada
                          "Fecha de apertura de proposiciones:", "Fecha de fallo:",
                          "Enlace a documentos del procedimiento:"):
             self.assertIn(etiqueta, html)
-        self.assertIn("cid:tappad-logo", html)
+        self.assertIn("cid:tappad-logo", html)\n\n    def test_descripcion_larga_no_se_recorta(self):\n        descripcion = "Adquisición de equipos " + "tecnológicos especializados " * 25 + "FIN_DESCRIPCION_OFICIAL"\n        bloque = ("TAPPAD Radar | Vista previa para Empresa Prueba\\n"\n                  "Procedimiento: IA-456\\nFuente: ComprasMX\\n"\n                  "Descripcion resumida: " + descripcion + "\\n"\n                  "Enlace del procedimiento: https://ejemplo.gob.mx/procedimiento\\n")\n        _, oportunidades, html = convertir_bloque(bloque)\n        self.assertEqual(oportunidades[0]["descripcion"], descripcion)\n        self.assertIn("FIN_DESCRIPCION_OFICIAL", html)
 
 if __name__ == "__main__":
     unittest.main()
