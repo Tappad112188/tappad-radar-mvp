@@ -131,13 +131,13 @@ def main():
             for l,r,p in hallazgos:
                 titulo=" ".join(str(l.get("nombre_procedimiento") or "No indicado").split()).rstrip(" ,.;")
                 descripcion=" ".join(str(l.get("descripcion") or "").split())
-                resumen=(descripcion[:320].rsplit(" ",1)[0].rstrip(" ,.;") + "…") if len(descripcion)>320 else (descripcion or "No disponible")
+                resumen=descripcion or "No disponible"
                 lineas += ["Procedimiento: "+str(l.get("numero_procedimiento") or "SIN NUMERO"),
                            "Fuente: "+str(l.get("fuente") or "No indicada"),
                            "Objeto: "+titulo,
                            "Descripcion resumida: "+resumen,
                            "Enlace del procedimiento: "+str(l.get("url_procedimiento") or "No registrado"),
-                           *[etiqueta+": "+valor for etiqueta,valor in fechas_correo(l)],
+                           *[etiqueta+": "+str(l.get(campo) or "No especificada") for etiqueta,campo in (("Publicacion","fecha_publicacion"),("Junta de aclaraciones","fecha_junta_aclaraciones"),("Presentacion y apertura de propuestas","fecha_apertura"),("Fallo programado","fecha_fallo_programado"))],
 
                            "Documentos de referencia: "+str("; ".join(d.get("tipo","documento")+": "+d.get("url","") for d in (l.get("documentos_disponibles") or []) if isinstance(d,dict) and d.get("url")) or "No registrados"),
                            "Estado: Vista previa; no se enviaron correos",""]
