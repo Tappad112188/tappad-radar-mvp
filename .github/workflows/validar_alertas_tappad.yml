@@ -1,7 +1,15 @@
-name: TAPPAD Radar - validacion segura de alertas
+name: TAPPAD Radar - validacion segura de ambas fuentes
 
 on:
   workflow_dispatch:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/validar_alertas_tappad.yml'
+      - 'extractor_secop_hoy_vigentes.py'
+      - 'simular_alertas_comprasmx_recientes.py'
+      - 'diagnosticar_vigencia_v4.py'
+      - 'test_clasificacion_comercial_v1.py'
 
 permissions:
   contents: read
@@ -13,18 +21,36 @@ concurrency:
 jobs:
   validar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      TAPPAD_HEADLESS: '1'
     steps:
-      - name: Obtener rama seleccionada
+      - name: Obtener rama de desarrollo
         uses: actions/checkout@v4
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Instalar Playwright
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
       - name: Pruebas de clasificacion
         run: python -m unittest -v test_clasificacion_comercial_v1.py
-      - name: Simulacion de coincidencias recientes - solo lectura
+      - name: Consultar ComprasMX - sin importacion
+        run: python tappad_importador_automatico.py --ventana-dias 2 --limite 1000
+      - name: Consultar SECOP Coahuila - sin importacion
+        run: python extractor_secop_hoy_vigentes.py
+      - name: Simular coincidencias de ComprasMX - solo lectura
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python simular_alertas_comprasmx_recientes.py --ventana-dias 2
+      - name: Guardar diagnostico SECOP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secop-diagnostico-seguro
+          path: secop_hoy_vigentes.json
+          if-no-files-found: ignore
+          retention-days: 7
