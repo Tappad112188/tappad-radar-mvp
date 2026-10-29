@@ -106,15 +106,34 @@ def estado_plazo(ficha, hoy):
  if apertura and apertura >= hoy: return "PLAZO_NO_VENCIDO_SEGUN_FECHA_REGISTRADA_NO_VERIFICADO"
  return "PLAZO_NO_IDENTIFICADO"
 
-def ficha_html(ficha, coincidencia):
- esc = lambda v: html.escape(str(v if v not in (None,"","No identificada") else NO_IDENTIFICADA))
- fechas = [("Publicación",ficha.get("publicacion")),("Junta de aclaraciones",ficha.get("junta")),("Límite de presentación y apertura",ficha.get("apertura")),("Fallo programado",ficha.get("fallo"))]
- tabla = "".join("<tr><th>"+html.escape(nombre)+"</th><td>"+esc(valor)+"</td></tr>" for nombre,valor in fechas)
+def ficha_html(ficha, coincidencia, perfiles):
+ esc = lambda v: html.escape(str(v if v not in (None, "", "No identificada") else NO_IDENTIFICADA))
+ fechas = [("Publicación", ficha.get("publicacion")), ("Junta de aclaraciones", ficha.get("junta")), ("Límite de presentación y apertura", ficha.get("apertura")), ("Fallo programado", ficha.get("fallo"))]
+ tabla = "".join('<tr><th style="padding:10px 12px;text-align:left;border-bottom:1px solid #e4eaf0;color:#43566b;font-weight:600;width:45%">'+html.escape(nombre)+'</th><td style="padding:10px 12px;border-bottom:1px solid #e4eaf0">'+esc(valor)+'</td></tr>' for nombre,valor in fechas)
+ estados = {
+  "PLAZO_VENCIDO": "La fecha registrada para presentar propuestas ya pasó.",
+  "PLAZO_NO_VENCIDO_SEGUN_FECHA_REGISTRADA_NO_VERIFICADO": "La fecha registrada de presentación aún no ha pasado. Vigencia no verificada.",
+  "PLAZO_NO_IDENTIFICADO": "No se identificó la fecha límite de presentación. Consultar las bases oficiales."
+ }
+ estado = estados.get(coincidencia["estado_plazo"], "Situación pendiente de verificar en la fuente oficial.")
  url = ficha.get("url")
- enlace = '<a href="'+html.escape(url,quote=True)+'">Ver procedimiento</a>' if isinstance(url,str) and url.startswith("https://") else "Enlace individual no disponible"
- return ("<article><h3>"+esc(ficha.get("numero"))+"</h3><p><strong>"+esc(ficha.get("fuente"))+"</strong> — "+esc(ficha.get("objeto"))+"</p>"
-         "<p>Giros: "+esc(", ".join(e["giro"] for e in coincidencia["evidencias"]))+"</p>"
-         "<p>Estado del plazo: "+esc(coincidencia["estado_plazo"])+"</p><table>"+tabla+"</table><p>"+enlace+"</p></article>")
+ enlace = ('<a style="color:#0758a8;font-weight:600" href="'+html.escape(url,quote=True)+'">Consultar procedimiento oficial</a>'
+           if isinstance(url,str) and url.startswith("https://") else
+           '<span style="color:#657589">Enlace individual no disponible; consultar el portal oficial por número de procedimiento.</span>')
+ perfiles_texto = ", ".join(p["empresa"] for p in perfiles)
+ giros = sorted(set(e["giro"] for p in perfiles for e in p["coincidencia"]["evidencias"]))
+ return (
+  '<article style="background:#ffffff;border:1px solid #dce5ed;border-radius:12px;margin:20px 0;padding:22px;overflow-wrap:anywhere">'
+  '<div style="font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#426581;font-weight:700">'+esc(ficha.get("fuente"))+'</div>'
+  '<h2 style="font-size:21px;color:#153451;margin:9px 0 14px">'+esc(ficha.get("numero"))+'</h2>'
+  '<p style="font-size:15px;line-height:1.65;margin:0 0 16px">'+esc(ficha.get("objeto"))+'</p>'
+  '<p style="font-size:13px;color:#53687c;line-height:1.6"><strong>Perfiles relacionados:</strong> '+esc(perfiles_texto)+'</p>'
+  '<p style="font-size:13px;color:#53687c;line-height:1.6"><strong>Giros identificados:</strong> '+esc(", ".join(giros))+'</p>'
+  '<p style="background:#f1f5f9;padding:12px;border-radius:8px;color:#29465d;font-size:13px;line-height:1.5"><strong>Situación del plazo:</strong> '+esc(estado)+'</p>'
+  '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:15px 0">'+tabla+'</table>'
+  '<p style="font-size:13px">'+enlace+'</p>'
+  '</article>'
+)
 
 def main():
  parser = argparse.ArgumentParser()
@@ -179,12 +198,10 @@ def main():
  resumen_destinos = []
  for destino, procedimientos in sorted(agrupados.items()):
   elementos = list(procedimientos.values())
-  contenido = ['<!doctype html><html lang="es"><meta charset="utf-8"><title>Vista previa TAPPAD Radar</title><body style="font-family:Arial;max-width:850px;margin:auto;color:#18324a"><h1>TAPPAD Radar — vista previa</h1><p><strong>SIMULACIÓN INTERNA. NO ES UNA ALERTA DE OPORTUNIDADES VIGENTES.</strong> Verifica fechas y bases oficiales. No se enviaron correos.</p>']
+  contenido = ['''<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TAPPAD Radar | Vista previa</title></head><body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#20374c"><main style="max-width:800px;margin:0 auto;padding:24px 16px"><header style="background:#123653;border-radius:12px;padding:26px;color:#ffffff"><div style="font-size:13px;letter-spacing:.14em;color:#b9d8ec">TAPPAD CONSULTORÍA</div><h1 style="font-size:29px;margin:10px 0">TAPPAD Radar</h1><p style="margin:0;color:#dbe8f2">Oportunidades de contratación pública · Vista previa</p></header><section style="background:#fff4e5;border:1px solid #ead4ac;border-radius:10px;margin:18px 0;padding:17px;color:#614919;font-size:14px;line-height:1.6"><strong>SIMULACIÓN INTERNA — NO ES UNA ALERTA DE LICITACIONES VIGENTES.</strong> Los registros incluyen expedientes históricos y datos de ComprasMX sin validación actual del CSV. Verifica los plazos, bases y requisitos oficiales. No se han enviado correos.</section>''']
   for elemento in elementos:
-   perfiles_texto = ", ".join(p["empresa"] for p in elemento["perfiles"])
-   contenido.append("<p>Perfiles asociados: "+html.escape(perfiles_texto)+"</p>")
-   contenido.append(ficha_html(elemento["ficha"],elemento["perfiles"][0]["coincidencia"]))
-  contenido.append("</body></html>")
+   contenido.append(ficha_html(elemento["ficha"],elemento["perfiles"][0]["coincidencia"],elemento["perfiles"]))
+  contenido.append('''<footer style="background:#e8eff6;border-radius:12px;padding:22px;margin-top:22px;color:#25445d"><h2 style="margin:0 0 8px;font-size:18px">¿Te interesa participar en una licitación?</h2><p style="line-height:1.6;margin:0 0 10px">TAPPAD Consultoría ofrece acompañamiento para revisar requisitos, preparar propuestas y participar en procedimientos de contratación pública.</p><p style="font-size:12px;margin:0">Vista previa interna de TAPPAD Radar. Información sujeta a verificación en fuentes oficiales.</p></footer></main></body></html>''')
   nombre = "vista_previa_destino_"+("tappadcons" if destino=="tappadcons@gmail.com" else "gerardotapia")+".html"
   ruta = SALIDA/nombre
   ruta.write_text("\n".join(contenido),encoding="utf-8")
