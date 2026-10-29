@@ -1,0 +1,30 @@
+name: TAPPAD - Diagnostico aislado 10 proveedores
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar secretos sin mostrarlos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_ADMIN_KEY"
+      - name: Validar sintaxis
+        run: python -m py_compile diagnostico_10_proveedores_aislado.py diagnosticar_vigencia_v4.py compuerta_alertas_v3.py
+      - name: Diagnosticar solo lectura, sin correo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python diagnostico_10_proveedores_aislado.py
