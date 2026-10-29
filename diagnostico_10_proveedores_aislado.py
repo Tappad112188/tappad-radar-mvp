@@ -26,9 +26,9 @@ def main():
     print("MODO PRUEBA AISLADA: 10 CLIENTES, 10 COMPRASMX; SIN CORREOS NI ESCRITURAS")
     print("Clientes recuperados:",len(clientes),"Licitaciones recuperadas:",len(licitaciones))
     for c in sorted(clientes,key=lambda c:c["id"]):
-        claves=[norm(x.strip()) for x in re.split(r"[,;\\n]",c.get("palabras_clave") or "") if len(x.strip())>=4]
+        claves=[norm(x.strip()) for x in re.split(r"[,;\n]",c.get("palabras_clave") or "") if len(x.strip())>=4]
         fuertes=[x for x in claves if x not in GENERICAS]
-        print("\\nCLIENTE",c["id"],c["empresa"],"| activo=",c["activo"])
+        print("\nCLIENTE",c["id"],c["empresa"],"| activo=",c["activo"])
         for l in licitaciones:
             motivo=None
             if (c["id"],l["id"]) in enviados: motivo="ya_enviado"
@@ -54,7 +54,7 @@ def main():
             verificado=norm(l.get("validacion_calendario"))=="verificado"
             if not verificado: conteo["calendario_pendiente"]+=1
             print("  MATCH",l["numero_procedimiento"],"| giros",rubros,"| calendario",l.get("validacion_calendario"),"| apta_envio",verificado)
-    print("\\nRESUMEN",dict(conteo))
+    print("\nRESUMEN",dict(conteo))
     print("NO se han enviado correos, activado clientes ni escrito datos.")
 
 if __name__=="__main__": main()
