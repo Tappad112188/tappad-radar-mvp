@@ -47,7 +47,7 @@ def main():
                 msg["Subject"]="[PRUEBA] TAPPAD Radar - "+archivo.stem.replace("_"," ")
                 msg.set_content("Prueba TAPPAD Radar. Abre este mensaje en un cliente compatible con HTML.")
                 msg.add_alternative(html,subtype="html")
-                msg.get_payload()[-1].add_related(logo_bytes,maintype="image",subtype="png",cid="<logo_tappad>",filename="logo_tappad.png",disposition="inline")
+                msg.get_payload()[-1].add_related(logo_bytes,maintype="image",subtype="png",cid="<tappad-logo>",filename="logo_tappad.png",disposition="inline")
                 smtp.send_message(msg)
                 enviados+=1
                 print("Enviado a",destino,"desde",archivo.name)
