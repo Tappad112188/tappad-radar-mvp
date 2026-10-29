@@ -72,6 +72,10 @@ def main():
         if archivo.name!=lote["html"]: raise SystemExit("Ruta HTML no valida")
         contenido=archivo.read_bytes()
         if hashlib.sha256(contenido).hexdigest()!=lote["sha256_html"]: raise SystemExit("HTML modificado")
+        if any(str(licitaciones[lid].get("fuente") or "").strip().casefold()=="secop coahuila" and (str(licitaciones[lid].get("validacion_calendario") or "").strip().casefold()!="verificado" or not licitaciones[lid].get("fecha_apertura")) for lid in ids):
+            html=contenido.decode("utf-8")
+            if "revisar" not in html.casefold() or ("bases" not in html.casefold() and "documento" not in html.casefold()):
+                raise SystemExit("Aviso obligatorio de revision documental ausente en HTML SECOP: "+str(cid))
         tareas.append((cid,destino,ids,contenido.decode("utf-8")))
     print("PREFLIGHT:",len(tareas),"correos;",sum(len(t[2]) for t in tareas),"oportunidades")
     if not args.enviar_real:
