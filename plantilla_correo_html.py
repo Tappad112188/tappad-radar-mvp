@@ -29,7 +29,14 @@ def construir_correo_html(empresa, oportunidades):
         junta = _texto(fecha_legible(oportunidad.get("fecha_junta_aclaraciones")) if oportunidad.get("fecha_junta_aclaraciones") else "Fecha no disponible, verificar enlace")
         fallo = _texto(fecha_legible(oportunidad.get("fecha_fallo_programado")) if oportunidad.get("fecha_fallo_programado") else "Fecha no disponible, verificar enlace")
         url = _enlace_seguro(oportunidad.get("url_procedimiento"))
-        es_secop = str(oportunidad.get("fuente") or "").strip().casefold() == "secop coahuila"\n        if not es_secop:\n            for clave, valor in (("publicacion", oportunidad.get("fecha_publicacion")), ("junta", oportunidad.get("fecha_junta_aclaraciones")), ("apertura", oportunidad.get("fecha_apertura")), ("fallo", oportunidad.get("fecha_fallo_programado"))):\n                if valor and fecha_legible(valor) in ("No disponible", "Fecha por verificar"):\n                    if clave == "publicacion": publicacion = _texto("Fecha no disponible, verificar enlace")\n                    elif clave == "junta": junta = _texto("Fecha no disponible, verificar enlace")\n                    elif clave == "apertura": apertura = _texto("Fecha no disponible, verificar enlace")\n                    else: fallo = _texto("Fecha no disponible, verificar enlace")
+        es_secop = str(oportunidad.get("fuente") or "").strip().casefold() == "secop coahuila"
+        if not es_secop:
+            for clave, valor in (("publicacion", oportunidad.get("fecha_publicacion")), ("junta", oportunidad.get("fecha_junta_aclaraciones")), ("apertura", oportunidad.get("fecha_apertura")), ("fallo", oportunidad.get("fecha_fallo_programado"))):
+                if valor and fecha_legible(valor) in ("No disponible", "Fecha por verificar"):
+                    if clave == "publicacion": publicacion = _texto("Fecha no disponible, verificar enlace")
+                    elif clave == "junta": junta = _texto("Fecha no disponible, verificar enlace")
+                    elif clave == "apertura": apertura = _texto("Fecha no disponible, verificar enlace")
+                    else: fallo = _texto("Fecha no disponible, verificar enlace")
         def boton_documento(campo, titulo):
             valor = str(oportunidad.get(campo) or "").strip()
             partes = urlparse(valor)
