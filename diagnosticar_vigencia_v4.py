@@ -40,7 +40,7 @@ RUBROS={
  4:("mobiliario","escritorio","silla","archivero"),
  5:("medicamento","farmaceutico","farmaco"),
  6:("material medico","hospitalario","quirurgico"),
- 7:("equipo medico","ultrasonido","rayos x","electromedico"),
+ 7:("equipo medico","equipo e instrumental medico","instrumental medico","ultrasonido","rayos x","electromedico"),
  8:("limpieza","jardineria","aseo"),
  9:("vigilancia","seguridad","guardia"),
  10:("inmueble","edificio","instalacion","infraestructura"),
