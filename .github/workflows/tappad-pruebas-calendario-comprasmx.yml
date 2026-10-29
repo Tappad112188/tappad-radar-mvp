@@ -1,0 +1,25 @@
+name: TAPPAD - Pruebas calendario ComprasMX
+on:
+  push:
+    branches:
+      - desarrollo-registro-proveedores
+    paths:
+      - tappad_importador_automatico.py
+      - test_importador_calendario_comprasmx.py
+      - .github/workflows/tappad-pruebas-calendario-comprasmx.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxis
+        run: python -m py_compile tappad_importador_automatico.py sincronizar_calendarios_comprasmx_v3.py test_importador_calendario_comprasmx.py
+      - name: Probar cuatro fechas y campos opcionales sin red
+        run: python -m unittest -v test_importador_calendario_comprasmx
