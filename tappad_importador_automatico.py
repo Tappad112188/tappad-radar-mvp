@@ -118,6 +118,8 @@ def main():
             seleccion = [item for item in items.values()
                          if (fecha(item["fecha_publicacion"]) or datetime.min) >= desde]
         seleccion.sort(key=lambda item: item["fecha_publicacion"], reverse=True)
+        if args.solo_hoy and len(seleccion)>args.limite:
+            raise RuntimeError("Limite insuficiente para todas las publicaciones de hoy; aumentar --limite o procesar por lotes")
         seleccion = seleccion[:args.limite]
         print(f"Filas: {total:,} | UUID únicos: {len(items):,} | Sin UUID: {sin_uuid:,}")
         print(f"Última publicación: {max_fecha} | Desde: {desde} | Seleccionados: {len(seleccion)}")
