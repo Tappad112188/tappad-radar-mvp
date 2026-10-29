@@ -54,7 +54,7 @@ def main():
  logo=logo_local()
  cid=make_msgid(domain="tappad.local") if logo else None
  imagen=('<img src="cid:'+cid[1:-1]+'" alt="TAPPAD Consultoría" width="160" style="display:block;max-width:160px;height:auto;margin-bottom:12px">' if cid else "")
- cuerpo="<html><body style='font-family:Arial,sans-serif;color:#182b40;background:#f5f7fa;max-width:760px;margin:auto'><header style='background:#163e69;color:white;padding:24px'>' + imagen + '<h1>TAPPAD Radar</h1><p>Oportunidades SECOP Coahuila | Monitoreo tres veces al día</p></header>"
+ cuerpo="<html><body style='font-family:Arial,sans-serif;color:#182b40;background:#f5f7fa;max-width:760px;margin:auto'><header style='background:#163e69;color:white;padding:24px'>'"+imagen+"<h1>TAPPAD Radar</h1><p>Oportunidades SECOP Coahuila | Monitoreo tres veces al día</p></header>"
  cuerpo+="".join(ficha(r) for r in rows)
  cuerpo+="<footer style='padding:22px'><h3>¿Necesitas apoyo para participar?</h3><p>TAPPAD Consultoría te apoya en la revisión de bases, preparación documental y presentación de propuestas. Responde a este correo para solicitar asesoría.</p><p>Esta es una prueba interna. Verifica documentos y fechas oficiales antes de participar. No es notificacion definitiva.</p></footer></body></html>"
  SALIDA.parent.mkdir(exist_ok=True)
