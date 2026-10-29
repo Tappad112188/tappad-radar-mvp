@@ -42,7 +42,7 @@ async def main():
   return
  data=json.loads(ENTRADA.read_text(encoding="utf-8-sig"))
  hoy=datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
- registros=[r for r in data.get("registros",[]) if r.get("fecha_publicacion")==data.get("fecha_consulta") and r.get("estatus","").casefold()=="vigente"]
+ registros=[r for r in data.get("registros",[]) if r.get("fecha_publicacion")==data.get("fecha_consulta") and r.get("estatus","").strip().casefold()=="vigente"]
  if not data.get("filtros_aplicados") or data.get("errores") or not registros:
   print("ERROR: El archivo no contiene procedimientos válidos y filtrados.")
   return
@@ -82,6 +82,15 @@ async def main():
      print("\nProcedimiento:",codigo)
      resp=await page.goto(URL,wait_until="domcontentloaded",timeout=60000)
      if not resp or resp.status!=200: raise RuntimeError("SECOP no respondió HTTP 200")
+     # SECOP: aplicar primero estatus Vigente, luego fecha, igual que el extractor.
+     await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=20000)
+     opciones=page.locator("[id^='CardView_HFListBox_LBI']:visible")
+     await opciones.first.wait_for(state="visible",timeout=20000)
+     etiquetas=await opciones.all_inner_texts()
+     indices=[i for i,t in enumerate(etiquetas) if t.strip().casefold()=="vigente"]
+     if len(indices)!=1: raise RuntimeError("Filtro Vigente ambiguo en descarga: "+repr(etiquetas))
+     await opciones.nth(indices[0]).click(timeout=20000)
+     await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
      await page.locator("#CardView_col2 img[alt='[Filtrar]']").click(timeout=20000)
      await page.locator("#CardView_HFFDE_I").wait_for(state="visible",timeout=20000)
      fecha=datetime.strptime(r["fecha_publicacion"],"%Y-%m-%d").strftime("%d/%m/%Y")
@@ -134,7 +143,7 @@ async def main():
        await page.locator('[id="'+control["id"]+'"]').click(timeout=15000)
        await page.wait_for_timeout(2200)
       except Exception as e:item["errores"].append("Control "+control["texto"][:60]+": "+str(e)[:200])
-     if not controles:item["errores"].append("No se encontraron controles de bases/anexos/resumen")
+     if not controles:item["errores"].append("No se encontraron controles de bases/anexos/resumen; revisar documentos adicionales de la ficha")
      if descargas:await asyncio.gather(*descargas,return_exceptions=True)
      if not item["archivos"]:item["errores"].append("No se capturaron descargas")
     except Exception as e:
