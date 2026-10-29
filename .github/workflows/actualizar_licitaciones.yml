@@ -1,4 +1,4 @@
-name: TAPPAD Radar - prueba controlada de importacion ComprasMX
+name: TAPPAD Radar - importacion ComprasMX y SECOP Coahuila
 
 on:
   workflow_dispatch:
@@ -11,13 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: tappad-importacion-comprasmx
+  group: tappad-importacion-ambas-fuentes
   cancel-in-progress: false
 
 jobs:
-  importar-cinco:
+  importar-ambas-fuentes:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Obtener archivos del repositorio
         uses: actions/checkout@v4
@@ -27,11 +27,31 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Instalar dependencia de Supabase
-        run: python -m pip install 'supabase>=2,<3'
+      - name: Instalar dependencias
+        run: |
+          python -m pip install 'supabase>=2,<3' 'playwright>=1.50,<2'
+          python -m playwright install --with-deps chromium
 
-      - name: Importar hasta cinco expedientes recientes
+      - name: Importar expedientes recientes ComprasMX
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
+
+      - name: Extraer SECOP Coahuila vigente del dia (sin interfaz)
+        run: python prueba_secop_vigentes_hoy.py --headless
+
+      - name: Importar SECOP Coahuila en Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python importar_secop_automatico.py --importar
+
+      - name: Guardar diagnostico SECOP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secop-diagnostico-${{ github.run_id }}
+          path: secop_vigentes_hoy.json
+          if-no-files-found: ignore
+          retention-days: 7
