@@ -63,8 +63,8 @@ def main():
         for lid in ids:
             l=licitaciones.get(lid)
             if not l: raise SystemExit("Licitacion no encontrada")
-            if str(l.get("fuente") or "").strip().casefold() != "comprasmx" and str(l.get("validacion_calendario") or "").strip().casefold() != "verificado":
-                raise SystemExit("Envio bloqueado: calendario documental no verificado para licitacion "+str(lid))
+            if str(l.get("fuente") or "").strip().casefold() not in ("comprasmx","secop coahuila"):
+                raise SystemExit("Fuente no admitida para licitacion "+str(lid))
             if (cid,lid) in ocupados: raise SystemExit("Notificacion existente: revisar manualmente "+str(cid)+"/"+str(lid))
             ok,motivo=evaluar(l,cid,set(),ahora)
             if not ok: raise SystemExit("Licitacion bloqueada: "+motivo)
