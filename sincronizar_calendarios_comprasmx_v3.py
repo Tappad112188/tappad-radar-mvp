@@ -32,6 +32,7 @@ def main():
     p.add_argument("--max-cambios",type=int,default=49,help="Limite de procedimientos modificables por ejecucion")
     p.add_argument("--solo-numeros",default="",help="Numeros de procedimiento separados por comas")
     p.add_argument("--solo-vacios",action="store_true",help="Solo completar fechas vacias; no reemplazar valores")
+    p.add_argument("--por-lotes",action="store_true",help="Aplicar como maximo max-cambios por ejecucion")
     a=p.parse_args()
     seleccion=set(x.strip() for x in a.solo_numeros.split(",") if x.strip())
     base=os.environ.get("SUPABASE_URL","").rstrip("/")
@@ -88,8 +89,9 @@ def main():
         print("MODO DIAGNOSTICO: cero escrituras. Para aplicar despues: --aplicar")
         return
     if seleccion and len({numero for _,numero,_ in cambios}-seleccion)>0: raise SystemExit("BLOQUEADO: procedimiento fuera de seleccion")
-    if a.max_cambios < 0 or len(cambios)>a.max_cambios:
+    if a.max_cambios < 0 or (len(cambios)>a.max_cambios and not a.por_lotes):
         raise SystemExit("SINCRONIZACION BLOQUEADA: "+str(len(cambios))+" cambios superan el limite "+str(a.max_cambios))
+    if a.por_lotes: cambios=cambios[:a.max_cambios]
     aplicados=0
     for uuid,numero,dif in cambios:
         qs=urllib.parse.urlencode({"uuid_procedimiento":"eq."+uuid,"fuente":"eq.ComprasMX"})
