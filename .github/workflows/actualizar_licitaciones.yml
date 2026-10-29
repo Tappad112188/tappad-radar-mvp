@@ -1,4 +1,4 @@
-name: TAPPAD Radar - importacion ComprasMX y SECOP Coahuila
+name: TAPPAD Radar - importacion ComprasMX
 
 on:
   workflow_dispatch:
@@ -11,13 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: tappad-importacion-ambas-fuentes
+  group: tappad-importacion-comprasmx
   cancel-in-progress: false
 
 jobs:
-  importar-ambas-fuentes:
+  importar-comprasmx:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Obtener archivos del repositorio
         uses: actions/checkout@v4
@@ -27,10 +27,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Instalar dependencias
-        run: |
-          python -m pip install 'supabase>=2,<3' 'playwright>=1.50,<2' 'pymupdf>=1.24,<2'
-          python -m playwright install --with-deps chromium
+      - name: Instalar Supabase
+        run: python -m pip install 'supabase>=2,<3'
 
       - name: Importar expedientes recientes ComprasMX
         env:
@@ -38,26 +36,3 @@ jobs:
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
 
-      - name: Extraer SECOP Coahuila vigente del dia (sin interfaz)
-        run: python prueba_secop_vigentes_hoy.py --headless
-
-      - name: Descargar bases y extraer calendario SECOP
-        run: python secop_documentos_automatico.py
-
-      - name: Importar SECOP Coahuila en Supabase
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
-        run: python importar_secop_automatico.py --importar
-
-      - name: Guardar diagnostico SECOP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: secop-diagnostico-${{ github.run_id }}
-          path: |
-            secop_vigentes_hoy.json
-            secop_calendarios_automaticos.json
-            documentos_secop_automaticos/*_calendario_v2.json
-          if-no-files-found: ignore
-          retention-days: 7
