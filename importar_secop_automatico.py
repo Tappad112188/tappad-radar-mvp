@@ -25,6 +25,13 @@ def main():
         raise SystemExit("Filtro SECOP no validado; importación cancelada")
     if reporte.get("total_validado_fecha_y_estatus") != len(reporte.get("registros", [])):
         raise SystemExit("Conteo SECOP inconsistente")
+    archivo_calendarios = ROOT / "secop_calendarios_automaticos.json"
+    if not archivo_calendarios.exists():
+        raise SystemExit("Falta reporte documental SECOP")
+    documental = json.loads(archivo_calendarios.read_text(encoding="utf-8"))
+    if documental.get("fecha_consulta") != hoy:
+        raise SystemExit("Reporte documental SECOP no corresponde a hoy")
+    calendarios = {r["codigo"]: r for r in documental.get("resultados", [])}
     registros = []
     vistos = set()
     for r in reporte["registros"]:
@@ -37,6 +44,8 @@ def main():
         if uid in vistos:
             raise SystemExit("Código SECOP repetido en extracción: " + codigo)
         vistos.add(uid)
+        detalle = calendarios.get(codigo, {})
+        fechas = detalle.get("calendario", {})
         registros.append({
             "uuid_procedimiento": uid,
             "numero_procedimiento": codigo,
@@ -46,6 +55,7 @@ def main():
             "estatus": "Vigente",
             "entidad_federativa": "Coahuila",
             "fecha_publicacion": hoy,
+            **{k: v for k, v in fechas.items() if k in ("fecha_junta_aclaraciones", "fecha_apertura", "fecha_fallo_programado")},
             "url_convocatoria": "https://www.sefincoahuila.gob.mx/sistemas/Secop/Convocatoria"
         })
     print("SECOP: candidatos vigentes publicados hoy:", len(registros))
@@ -63,16 +73,20 @@ def main():
     db = create_client(url, key)
     nuevos = existentes = 0
     for r in registros:
-        consulta = db.table("licitaciones").select("id").eq("uuid_procedimiento", r["uuid_procedimiento"]).limit(1).execute()
+        consulta = db.table("licitaciones").select("id,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo_programado").eq("uuid_procedimiento", r["uuid_procedimiento"]).limit(1).execute()
         if consulta.data:
             existentes += 1
+            anterior = consulta.data[0]
+            completar = {k: r[k] for k in ("fecha_junta_aclaraciones", "fecha_apertura", "fecha_fallo_programado") if r.get(k) and not anterior.get(k)}
+            if completar:
+                db.table("licitaciones").update(completar).eq("id", anterior["id"]).execute()
             continue
         db.table("licitaciones").upsert(
             r, on_conflict="uuid_procedimiento", ignore_duplicates=True, returning="minimal"
         ).execute()
         nuevos += 1
     print("SECOP importado | nuevos candidatos:", nuevos, "| ya existentes:", existentes)
-    print("Fechas de junta, apertura y fallo no se infieren de la convocatoria; quedan pendientes de lectura documental.")
+    print("Fechas no identificadas se conservan vacías para indicar revisión de bases en las alertas.")
 
 if __name__ == "__main__":
     main()
