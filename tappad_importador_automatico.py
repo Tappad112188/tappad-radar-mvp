@@ -73,8 +73,9 @@ def main():
     parser.add_argument("--limite", type=int, default=1000)
     parser.add_argument("--importar", action="store_true")
     parser.add_argument("--solo-hoy", action="store_true")
+    parser.add_argument("--ventana-dias", type=int, default=None, help="Publicaciones de hoy y N dias anteriores en Coahuila")
     args = parser.parse_args()
-    if args.dias < 0 or not 1 <= args.limite <= 1000:
+    if args.dias < 0 or (args.ventana_dias is not None and not 0 <= args.ventana_dias <= 7) or not 1 <= args.limite <= 1000:
         parser.error("--dias debe ser >= 0 y --limite debe estar entre 1 y 1000")
 
     with tempfile.TemporaryDirectory() as folder:
@@ -110,15 +111,18 @@ def main():
         if datetime.now() - max_fecha > timedelta(days=7):
             raise RuntimeError(f"CSV desactualizado: última publicación {max_fecha}")
         desde = max_fecha - timedelta(days=args.dias)
-        if args.solo_hoy:
+        if args.solo_hoy and args.ventana_dias is not None:
+            parser.error("Usar --solo-hoy o --ventana-dias, no ambos")
+        if args.solo_hoy or args.ventana_dias is not None:
             dia = datetime.now(ZoneInfo("America/Monterrey")).date()
-            seleccion = [item for item in items.values() if fecha(item["fecha_publicacion"]) and fecha(item["fecha_publicacion"]).date() == dia]
-            print("Fecha de publicacion seleccionada:", dia)
+            inicio = dia - timedelta(days=args.ventana_dias or 0)
+            seleccion = [item for item in items.values() if fecha(item["fecha_publicacion"]) and inicio <= fecha(item["fecha_publicacion"]).date() <= dia]
+            print("Ventana de publicacion Coahuila:", inicio, "a", dia)
         else:
             seleccion = [item for item in items.values()
                          if (fecha(item["fecha_publicacion"]) or datetime.min) >= desde]
         seleccion.sort(key=lambda item: item["fecha_publicacion"], reverse=True)
-        if args.solo_hoy and len(seleccion)>args.limite:
+        if (args.solo_hoy or args.ventana_dias is not None) and len(seleccion)>args.limite:
             raise RuntimeError("Limite insuficiente para todas las publicaciones de hoy; aumentar --limite o procesar por lotes")
         seleccion = seleccion[:args.limite]
         print(f"Filas: {total:,} | UUID únicos: {len(items):,} | Sin UUID: {sin_uuid:,}")
