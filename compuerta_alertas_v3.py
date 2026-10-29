@@ -22,7 +22,10 @@ def evaluar(licitacion, cliente_id, enviados, ahora=None):
     if (cliente_id,licitacion.get("id")) in enviados:
         return False,"ya_notificada"
     apertura=fecha_local(licitacion.get("fecha_apertura"))
-    if apertura is None: return False,"sin_fecha_apertura_valida"
+    if apertura is None:
+        if not str(licitacion.get("fecha_apertura") or "").strip() and str(licitacion.get("fuente") or "").strip().casefold() == "comprasmx":
+            return True,"comprasmx_sin_fecha_apertura_publicada"
+        return False,"sin_fecha_apertura_valida"
     if apertura<=ahora: return False,"plazo_presentacion_vencido"
     # La verificacion documental no es requisito de coincidencia.
     return True,"vigente_para_previsualizacion"
