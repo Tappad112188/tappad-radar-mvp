@@ -1,0 +1,30 @@
+name: TAPPAD Radar - validacion segura de alertas
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tappad-validacion-segura
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Obtener rama seleccionada
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pruebas de clasificacion
+        run: python -m unittest -v test_clasificacion_comercial_v1.py
+      - name: Simulacion de coincidencias recientes - solo lectura
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python simular_alertas_comprasmx_recientes.py --ventana-dias 2
