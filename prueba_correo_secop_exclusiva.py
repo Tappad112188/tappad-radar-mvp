@@ -32,8 +32,9 @@ def fecha(v,solo_dia=False):
  except ValueError:return esc(v)
 def logo_local():
  for nombre in ("logo_tappad.png","logo_tappad.jpg","logo_tappad.jpeg"):
-  archivo=ROOT/nombre
-  if archivo.is_file():return archivo
+  for carpeta in (ROOT/"assets",ROOT):
+   archivo=carpeta/nombre
+   if archivo.is_file():return archivo
  return None
 def ficha(r):
  if r.get("fuente")!="SECOP Coahuila" or r.get("estatus")!="Vigente":raise SystemExit("Fuente o estatus inesperado")
@@ -58,7 +59,7 @@ def main():
  cuerpo+="<footer style='padding:22px'><h3>¿Necesitas apoyo para participar?</h3><p>TAPPAD Consultoría te apoya en la revisión de bases, preparación documental y presentación de propuestas. Responde a este correo para solicitar asesoría.</p><p>Esta es una prueba interna. Verifica documentos y fechas oficiales antes de participar. No es notificacion definitiva.</p></footer></body></html>"
  SALIDA.parent.mkdir(exist_ok=True)
  SALIDA.write_text(cuerpo,encoding="utf-8")
- print("Logo:",str(logo) if logo else "NO ENCONTRADO; guarda logo_tappad.png junto al script")
+ print("Logo:",str(logo) if logo else "NO ENCONTRADO; no se encontró assets/logo_tappad.png")
  print("SECOP: 2 expedientes | URLs de bases presentes | HTML:",SALIDA)
  print("Destinatarios de prueba:",", ".join(DESTINATARIOS))
  if not args.enviar:
