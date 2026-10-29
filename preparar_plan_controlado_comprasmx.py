@@ -10,7 +10,7 @@ BASE=Path(__file__).resolve().parent
 CLIENTES_PRUEBA={1:"gerardotapia112188@gmail.com",4:"tappadcons@gmail.com"}
 
 def preparar():
-    clientes=consulta("clientes","id,empresa,correo,activo",{"activo":"eq.true"})
+    clientes=consulta("clientes","id,empresa,correo,activo,palabras_clave",{"activo":"eq.true"})
     giros=consulta("clientes_giros","cliente_id,giro_id")
     ubicaciones=consulta("clientes_ubicaciones","cliente_id,estado,municipio")
     licitaciones=consulta("licitaciones","id,numero_procedimiento,nombre_procedimiento,descripcion,fuente,entidad_federativa,estatus,fecha_apertura")
@@ -30,7 +30,7 @@ def preparar():
         if str(c.get("correo") or "").strip().casefold()!=CLIENTES_PRUEBA[cid]:
             raise SystemExit("Correo de prueba no coincide con lista permitida: "+str(cid))
         import re
-        claves=[norm(x.strip()) for x in re.split(r"[,;\\n]",c.get("palabras_clave") or "") if len(x.strip())>=4] if "palabras_clave" in c else []
+        claves=[norm(x.strip()) for x in re.split(r"[,;\\n]",c.get("palabras_clave") or "") if len(x.strip())>=4] 
         ids=[]
         for l in licitaciones:
             if str(l.get("fuente") or "").strip().casefold()!="comprasmx":continue
