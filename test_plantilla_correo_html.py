@@ -44,6 +44,15 @@ class PruebaCorreoHTML(unittest.TestCase):
         self.assertEqual(len(imagenes),1)
         self.assertEqual(imagenes[0]["Content-ID"],"<tappad-logo>")
         self.assertGreater(len(imagenes[0].get_payload(decode=True)),100)
+    def test_motores_envio_usan_cid_de_plantilla(self):
+        from pathlib import Path
+        base = Path(__file__).resolve().parent
+        for archivo in ("motor_entrega_tappad_v2.py", "probar_gmail_html_v3.py"):
+            with self.subTest(archivo=archivo):
+                codigo = (base / archivo).read_text(encoding="utf-8")
+                self.assertIn('cid="<tappad-logo>"', codigo)
+                self.assertNotIn('cid="<logo_tappad>"', codigo)
+
     def test_destinatario_no_autorizado(self):
         with self.assertRaises(ValueError):
             enviar_prueba_gmail(2,"tercero@example.org","Prueba","Texto",
