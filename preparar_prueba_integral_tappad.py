@@ -57,15 +57,12 @@ def main():
     if not SECOP.exists():raise SystemExit("Falta fichas_comerciales_secop.json; primero ejecutar el proceso SECOP")
     secop=json.loads(SECOP.read_text(encoding="utf-8-sig"))
     locales=[ficha_secop(f) for f in secop.get("fichas",[])]
-    muestra=ROOT/"comprasmx_muestra_prueba.json"
-    if muestra.exists():
-        remotas=json.loads(muestra.read_text(encoding="utf-8-sig"))
-        error="ComprasMX: muestra de 5 registros reales consultados el 28/10/2026; no es sincronización en vivo"
-    else:
-        remotas,error=consulta_comprasmx()
+    remotas,error=consulta_comprasmx()
+    if error:
+        raise SystemExit("No se puede ejecutar la prueba con datos históricos: "+error)
     compras=[ficha_comprasmx(f) for f in remotas]
-    # Prueba controlada: las 5 publicaciones más recientes de ComprasMX.
-    compras=compras[:5]
+    # Prueba controlada: las 100 publicaciones más recientes consultadas en Supabase.
+    compras=compras[:100]
     unicas={}
     for f in locales+compras:
         llave=(f["fuente"].casefold(),str(f["numero"] or "").casefold())
