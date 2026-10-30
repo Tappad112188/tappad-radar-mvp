@@ -15,6 +15,7 @@ on:
       - 'servicio_notificaciones_controlado.py'
       - 'test_servicio_notificaciones_controlado.py'
       - 'test_integral_notificaciones_seguro.py'
+      - 'preflight_supabase_notificaciones_lectura.py'
 
 permissions:
   contents: read
@@ -44,6 +45,11 @@ jobs:
         run: python -m unittest -v test_servicio_notificaciones_controlado.py
       - name: Prueba integral de notificaciones simulada - sin red ni SMTP
         run: python -m unittest -v test_integral_notificaciones_seguro.py
+      - name: Diagnostico de notificaciones Supabase - solo lectura
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python preflight_supabase_notificaciones_lectura.py
       - name: Consultar ComprasMX - sin importacion
         run: python tappad_importador_automatico.py --ventana-dias 2 --limite 1000
       - name: Simular coincidencias de ComprasMX - solo lectura
