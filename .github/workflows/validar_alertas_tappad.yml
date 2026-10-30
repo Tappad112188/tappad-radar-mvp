@@ -12,6 +12,8 @@ on:
       - 'test_compuerta_envio_real.py'
       - 'control_notificaciones.py'
       - 'preparador_alertas.py'
+      - 'servicio_notificaciones_controlado.py'
+      - 'test_servicio_notificaciones_controlado.py'
 
 permissions:
   contents: read
@@ -37,6 +39,8 @@ jobs:
         run: python -m unittest -v test_clasificacion_comercial_v1.py
       - name: Pruebas de compuerta de envios - sin SMTP
         run: python -m unittest -v test_compuerta_envio_real.py
+      - name: Pruebas del servicio de notificaciones - sin red ni SMTP
+        run: python -m unittest -v test_servicio_notificaciones_controlado.py
       - name: Consultar ComprasMX - sin importacion
         run: python tappad_importador_automatico.py --ventana-dias 2 --limite 1000
       - name: Simular coincidencias de ComprasMX - solo lectura
