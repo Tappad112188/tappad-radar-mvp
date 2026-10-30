@@ -114,3 +114,32 @@ def vista_previa_correo(empresa, oportunidades):
         "TAPPAD Radar | TAPPAD Consultoría",
     ])
     return {"asunto": asunto, "cuerpo": "\n".join(lineas)}
+
+
+def filtrar_lote_para_envio_real(resultado_preparacion, licitaciones, historial, configuracion, ahora=None):
+    """Filtro adicional para un futuro emisor; no ejecuta SMTP ni escrituras.
+
+    Debe revalidarse inmediatamente antes de enviar, con configuracion e
+    historial frescos. El emisor debe reservar atomicamente cada par en Supabase.
+    """
+    from control_notificaciones import autorizar_envio_real
+    por_id = {l["id"]: l for l in licitaciones}
+    estados = {(r["cliente_id"], r["licitacion_id"]): r["estado"] for r in historial}
+    aprobadas, bloqueadas = {}, {}
+    for cliente_id, oportunidades in resultado_preparacion.get("por_proveedor", {}).items():
+        for oportunidad in oportunidades:
+            licitacion_id = oportunidad["licitacion_id"]
+            licitacion = por_id.get(licitacion_id)
+            if licitacion is None:
+                motivo = "licitacion_no_encontrada"
+                ok = False
+            else:
+                ok, motivo = autorizar_envio_real(
+                    configuracion, licitacion,
+                    estados.get((cliente_id, licitacion_id)), ahora=ahora,
+                )
+            if ok:
+                aprobadas.setdefault(cliente_id, []).append(oportunidad)
+            else:
+                bloqueadas[motivo] = bloqueadas.get(motivo, 0) + 1
+    return {"por_proveedor": aprobadas, "bloqueadas": bloqueadas}
