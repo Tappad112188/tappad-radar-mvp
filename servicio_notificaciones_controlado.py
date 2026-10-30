@@ -67,7 +67,8 @@ class ServicioNotificaciones:
         # Si se pierde la respuesta HTTP, NO repetir el SMTP automaticamente.
         filas = self._rest("PATCH", "notificaciones_enviadas",
             {"id": "eq." + str(registro_id), "estado": "eq." + ("pendiente" if estado == "procesando" else "procesando")},
-            {"estado": estado, "intentos": intentos, "ultimo_error": error,\n             **({"enviado_en": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()} if estado == "enviado" else {})},
+            {"estado": estado, "intentos": intentos, "ultimo_error": error,
+             **({"enviado_en": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()} if estado == "enviado" else {})},
             "return=representation")
         if len(filas) != 1:
             raise RuntimeError("Transicion de estado no confirmada")
