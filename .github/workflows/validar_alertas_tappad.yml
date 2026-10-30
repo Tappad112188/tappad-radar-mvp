@@ -9,6 +9,9 @@ on:
       - 'simular_alertas_comprasmx_recientes.py'
       - 'diagnosticar_vigencia_v4.py'
       - 'test_clasificacion_comercial_v1.py'
+      - 'test_compuerta_envio_real.py'
+      - 'control_notificaciones.py'
+      - 'preparador_alertas.py'
 
 permissions:
   contents: read
@@ -32,6 +35,8 @@ jobs:
           python-version: '3.12'
       - name: Pruebas de clasificacion
         run: python -m unittest -v test_clasificacion_comercial_v1.py
+      - name: Pruebas de compuerta de envios - sin SMTP
+        run: python -m unittest -v test_compuerta_envio_real.py
       - name: Consultar ComprasMX - sin importacion
         run: python tappad_importador_automatico.py --ventana-dias 2 --limite 1000
       - name: Simular coincidencias de ComprasMX - solo lectura
