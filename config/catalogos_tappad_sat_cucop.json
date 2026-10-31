@@ -1,0 +1,24 @@
+{
+  "catalogos_habilitados": [
+    "SAT",
+    "CUCOP"
+  ],
+  "catalogos_excluidos": [
+    "SCIAN"
+  ],
+  "fuentes": {
+    "SAT": {
+      "tipo": "c_ClaveProdServ",
+      "archivo_usuario": "catalogo-productos-servicios-sat-2026-10-15.xlsx",
+      "estado": "archivo_recibido_pendiente_importacion"
+    },
+    "CUCOP": {
+      "tipo": "Clasificador Único de las Contrataciones Públicas",
+      "archivo_usuario": "Clasificador Único de las Contrataciones Públicas (CUCOP).xls",
+      "estado": "archivo_recibido_pendiente_validar_version",
+      "advertencia": "Metadatos del XLS indican última modificación en 2013; no tratar como catálogo vigente sin verificación."
+    }
+  },
+  "alertas_automaticas_habilitadas": false,
+  "politica": "No asignar claves sin validar ni inferir equivalencias oficiales SAT-CUCOP."
+}
