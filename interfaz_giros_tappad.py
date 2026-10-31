@@ -5,6 +5,7 @@ Requiere variables SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.
 Solo escucha en 127.0.0.1; no es un portal público.
 """
 import http.server
+import getpass
 import json
 import os
 import secrets
@@ -105,8 +106,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
-        raise SystemExit("Configura SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en CMD antes de iniciar.")
+    if not os.environ.get("SUPABASE_URL"):
+        os.environ["SUPABASE_URL"] = input("SUPABASE_URL: ").strip()
+    if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+        os.environ["SUPABASE_SERVICE_ROLE_KEY"] = getpass.getpass("SUPABASE_SERVICE_ROLE_KEY (oculta): ").strip()
+    if not os.environ["SUPABASE_URL"].startswith("https://") or not os.environ["SUPABASE_SERVICE_ROLE_KEY"]:
+        raise SystemExit("URL o clave inválida")
     with http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler) as server:
         url = f"http://127.0.0.1:{PORT}/?token={TOKEN}"
         print("Interfaz local TAPPAD Radar:", url)
