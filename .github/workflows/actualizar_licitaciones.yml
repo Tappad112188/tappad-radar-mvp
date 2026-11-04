@@ -1,4 +1,4 @@
-name: TAPPAD Radar - prueba controlada de importacion ComprasMX
+name: TAPPAD Radar - importacion programada ComprasMX
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  importar-cinco:
+  importar-comprasmx:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,8 +30,23 @@ jobs:
       - name: Instalar dependencia de Supabase
         run: python -m pip install 'supabase>=2,<3'
 
-      - name: Importar hasta cinco expedientes recientes
+      - name: Diagnostico de ejecucion
+        run: |
+          echo "Run ID: $GITHUB_RUN_ID"
+          echo "Evento: $GITHUB_EVENT_NAME"
+          echo "Inicio UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Inicio Coahuila: $(TZ=America/Monterrey date +%Y-%m-%dT%H:%M:%S%z)"
+
+      - name: Importar expedientes recientes
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
+
+      - name: Resumen de ejecucion
+        if: always()
+        run: |
+          echo "## TAPPAD Radar - ComprasMX" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: $GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Resultado: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Fecha local: $(TZ=America/Monterrey date +%Y-%m-%d\ %H:%M:%S)" >> "$GITHUB_STEP_SUMMARY"
