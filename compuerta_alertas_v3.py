@@ -34,7 +34,7 @@ def evaluar(licitacion, cliente_id, enviados, ahora=None):
 
 def fechas_correo(l):
     etiquetas=("Publicacion","Junta de aclaraciones","Presentacion y apertura de propuestas","Fallo programado")
-    return [(etiqueta,fecha_local(l.get(campo)).strftime("%d/%m/%Y" if campo=="fecha_publicacion" else "%d/%m/%Y %H:%M") if fecha_local(l.get(campo)) else "No especificada")
+    return [(etiqueta,fecha_local(l.get(campo)).strftime("%d/%m/%Y" if campo=="fecha_publicacion" else "%d/%m/%Y %H:%M") if fecha_local(l.get(campo)) else "Fecha no disponible, verificar enlace")
             for etiqueta,campo in zip(etiquetas,FECHAS)]
 
 def agrupar(candidatos,enviados,ahora=None):
@@ -51,12 +51,13 @@ def autoprueba():
     assert evaluar(base,1,set(),datetime(2026,10,24,10,0))==(False,"plazo_presentacion_vencido")
     assert evaluar(base,1,set(),datetime(2026,10,24,11,0))==(False,"plazo_presentacion_vencido")
     assert evaluar({**base,"fuente":"SECOP Coahuila","fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))==(True,"secop_fecha_apertura_no_identificada_revisar_bases")
-    assert evaluar({**base,"fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))[0] is False
+    assert evaluar({**base,"fuente":"ComprasMX","fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))[0] is True
+    assert evaluar({**base,"fuente":"SECOP Coahuila","fecha_apertura":None,"estatus":"cancelado"},1,set(),datetime(2026,10,24,9,0))[0] is False
     assert evaluar({**base,"estatus":"cancelada"},1,set(),datetime(2026,10,24,9,0))[0] is False
     assert evaluar(base,1,{(1,5)},datetime(2026,10,24,9,0))[0] is False
     assert len(fechas_correo(base))==4
-    assert fechas_correo(base)[0][1]=="No especificada"
+    assert fechas_correo(base)[0][1]=="Fecha no disponible, verificar enlace"
     assert len(agrupar([(1,base)],set(),datetime(2026,10,24,9,0))[0][1])==1
-    print("9 pruebas superadas. Solo lectura; vigencia por hora de apertura; SIN ENVIOS.")
+    print("Pruebas de compuerta superadas. Solo lectura; SIN ENVIOS.")
 
 if __name__=="__main__": autoprueba()
