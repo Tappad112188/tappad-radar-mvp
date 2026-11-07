@@ -1,0 +1,101 @@
+"""Extractor SECOP Coahuila: todos los procedimientos Vigente. SOLO LECTURA.
+Ejecutar en Windows: py extractor_secop_vigentes_actuales.py
+No modifica Supabase, Airtable ni envía correos.
+"""
+import asyncio, json, re, os
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+from playwright.async_api import async_playwright
+
+URL="https://www.sefincoahuila.gob.mx/sistemas/Secop/Convocatoria"
+SALIDA=Path(__file__).with_name("secop_vigentes_actuales.json")
+EXTRAER="""cards => cards.map(card => {
+ const result={};
+ for(const item of card.querySelectorAll('[id^="CardView_DXCardLayout"]')){
+  if(!/^CardView_DXCardLayout\\d+_\\d+$/.test(item.id))continue;
+  const cap=item.querySelector('[id$="_Cap"]');
+  const label=(cap?.textContent||'').replace(/:\\s*$/,'').trim();
+  const cell=item.querySelector('td.dxflNestedControlCell_SoftOrange');
+  if(label&&cell)result[label]=(cell.innerText||'').trim();
+ }
+ result._enlaces=[...card.querySelectorAll('a')].map(a=>({texto:(a.innerText||'').trim(),id:a.id||'',href:a.getAttribute('href')||'',url_absoluta:a.href||'',onclick:a.getAttribute('onclick')||'',target:a.getAttribute('target')||''}));
+ return result;
+})"""
+def limpio(s):return re.sub(r"\s+"," ",s or "").strip()
+def fecha_iso(s):
+ try:
+  d=datetime.strptime(s,"%d/%m/%Y").date()
+  return d.isoformat() if d.year>=2000 else None
+ except (ValueError,TypeError):return None
+
+async def main():
+ hoy=datetime.now(ZoneInfo("America/Monterrey")).date()
+ hoy_texto=hoy.strftime("%d/%m/%Y")
+ reporte={"fuente":URL,"fecha_consulta":hoy.isoformat(),"filtros_aplicados":False,"registros":[],"errores":[]}
+ async with async_playwright() as pw:
+  browser=await pw.chromium.launch(headless=os.environ.get('TAPPAD_HEADLESS', '0') == '1')
+  page=await browser.new_page(accept_downloads=False)
+  try:
+   response=await page.goto(URL,wait_until="domcontentloaded",timeout=45000)
+   if not response or response.status!=200:
+    cadena=[]
+    req=response.request if response else None
+    while req and len(cadena)<8:
+     resp=await req.response()
+     cadena.append({"url":req.url,"status":resp.status if resp else None,"location":(resp.headers.get("location","") if resp else "")[:350]})
+     req=req.redirected_from
+    reporte["diagnostico_http"]={"url_final":page.url,"cadena_redirecciones":cadena,"status":response.status if response else None}
+    raise RuntimeError("SECOP no respondió HTTP 200; status="+str(response.status if response else "sin_respuesta")+"; redirecciones="+json.dumps(cadena,ensure_ascii=False))
+   # Filtrar estatus antes que fecha: un día sin publicaciones puede vaciar las opciones.
+   await page.locator("#CardView_col3 img[alt='[Filtrar]']").click(timeout=15000)
+   opciones=page.locator("[id^='CardView_HFListBox_LBI']:visible")
+   await opciones.first.wait_for(state="visible",timeout=20000)
+   etiquetas=await opciones.all_inner_texts()
+   print("Estatus disponibles:",repr(etiquetas),flush=True)
+   indices=[i for i,etiqueta in enumerate(etiquetas) if etiqueta.strip().casefold()=="vigente"]
+   if len(indices)!=1:
+    raise RuntimeError("No se identificó una única opción Vigente: "+repr(etiquetas))
+   await opciones.nth(indices[0]).click(timeout=15000)
+   await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
+   print("Filtro Vigente aplicado; consultando todas las fechas.",flush=True)
+   await page.wait_for_timeout(1600)
+   reporte["filtros_aplicados"]=True
+   summary=page.locator("#CardView_DXPagerBottom .dxp-summary")
+   if await summary.count() and await summary.is_visible():
+    texto=limpio(await summary.inner_text())
+    match=re.search(r"Página\s+\d+\s+de\s+(\d+)\s+\((\d+)\s+elementos\)",texto,re.I)
+    if not match:raise RuntimeError("Paginación inesperada: "+texto)
+    paginas,total_reportado=map(int,match.groups())
+   else:
+    paginas=1
+    total_reportado=None
+   if paginas>100:raise RuntimeError("Más de 100 páginas; detener por seguridad")
+   registros=[]
+   for n in range(1,paginas+1):
+    if n>1:
+     await page.locator(f'#CardView_DXPagerBottom a.dxp-num[onclick*="\'PN{n-1}\'"]').click(timeout=15000)
+     await page.wait_for_function("(x)=>document.querySelector('#CardView_DXPagerBottom .dxp-current')?.textContent?.trim()===String(x)",arg=n,timeout=20000)
+    items=await page.locator("td[id^='CardView_DXDataCard']").evaluate_all(EXTRAER)
+    for item in items:
+     fecha=limpio(item.get("Fecha de Publicación"))
+     r={"codigo":limpio(item.get("Código")),"estatus":limpio(item.get("Estatus")),"descripcion":limpio(item.get("Descripción")),"fecha_publicacion_original":fecha,"fecha_publicacion":fecha_iso(fecha),"documentos_referencia":limpio(item.get("Documentos de Procedimiento")),"enlaces":item.get("_enlaces",[]),"url_procedimiento":None,"estado_enlace":"pendiente_identificar_enlace_individual"}
+     registros.append(r)
+   validos=[r for r in registros if r["estatus"].casefold()=="vigente" and r["codigo"] and r["fecha_publicacion"]]
+   rechazados=[r for r in registros if r not in validos]
+   unicos={r["codigo"]:r for r in validos}
+   if len(unicos)!=len(validos):reporte["errores"].append("Codigos duplicados en paginas SECOP")
+   reporte.update({"total_reportado":total_reportado,"total_extraido":len(registros),"total_validos":len(validos),"total_unicos":len(unicos),"total_rechazados":len(rechazados),"registros":list(unicos.values()),"rechazados":rechazados,"coincide_total":total_reportado is None or len(registros)==total_reportado})
+   if rechazados:reporte["errores"].append("SECOP devolvió registros sin fecha, Vigente o código")
+   if not reporte["coincide_total"]:reporte["errores"].append("Total extraído no coincide con paginación")
+   print("Procedimientos actualmente Vigente:",len(unicos),"| Rechazados:",len(rechazados))
+  except Exception as e:
+   reporte["error"]=str(e)
+   print("Error:",e)
+  finally:
+   SALIDA.write_text(json.dumps(reporte,ensure_ascii=False,indent=2),encoding="utf-8")
+   print("Reporte:",SALIDA)
+   await browser.close()
+ if reporte.get("error") or reporte.get("errores"):
+  raise SystemExit("ERROR: Extraccion SECOP incompleta; revisar reporte antes de continuar.")
+if __name__=="__main__":asyncio.run(main())
