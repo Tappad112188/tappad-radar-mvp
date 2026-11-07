@@ -84,7 +84,7 @@ def main():
         manifiesto.append({
             "cliente_id": cid, "licitacion_ids": lote["licitacion_ids"],
             "html": archivo.name,
-            "sha256_html": hashlib.sha256(html.encode("utf-8")).hexdigest(),
+            "sha256_html": hashlib.sha256(archivo.read_bytes()).hexdigest(),
             "destinatario_configurado": True,
         })
     salida = {
