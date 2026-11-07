@@ -31,6 +31,10 @@ def main():
     args=p.parse_args()
     if not LOTE.exists():raise SystemExit("Falta lote SECOP local")
     lote=json.loads(LOTE.read_text(encoding="utf-8-sig"))
+    # El preparador marca explicitamente los lotes sin validar: nunca importarlos.
+    # La simulacion sigue permitida para diagnostico, sin escritura.
+    if args.importar and lote.get("estado") != "VALIDADO_PARA_IMPORTACION":
+        raise SystemExit("IMPORTACION BLOQUEADA: lote SECOP sin validacion oficial. No se escribio en Supabase.")
     registros=lote.get("registros") or []
     if not registros:raise SystemExit("Lote vacio: sin cambios")
     ids=set()
