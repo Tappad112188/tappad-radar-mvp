@@ -18,6 +18,7 @@ PASOS = (
     "generar_fichas_secop_v3.py",
     "generar_fichas_comerciales_secop.py",
     "preparar_importacion_secop_supabase.py",
+    "auditar_secop_supabase_diario.py",
 )
 
 def ejecutar(nombre, log):
