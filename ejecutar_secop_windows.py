@@ -7,6 +7,7 @@ import subprocess
 import sys
 import msvcrt
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -47,8 +48,12 @@ def main():
                 ejecutar("extractor_secop_hoy_vigentes.py", log)
                 fuente = BASE / "secop_hoy_vigentes.json"
                 datos = json.loads(fuente.read_text(encoding="utf-8-sig"))
-                if not datos.get("filtros_aplicados") or datos.get("errores") or datos.get("error"):
+                if (datos.get("fecha_consulta") != datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
+                    or not datos.get("filtros_aplicados") or datos.get("errores") or datos.get("error")
+                    or datos.get("coincide_total") is False):
                     raise SystemExit("Extracción inválida; revisar el reporte.")
+                if any(r.get("fecha_publicacion") != datos["fecha_consulta"] or str(r.get("estatus","")).casefold() != "vigente" for r in datos.get("registros", [])):
+                    raise SystemExit("Lote contiene publicaciones fuera de hoy o no vigentes")
                 if not datos.get("registros"):
                     log.write("SIN PROCEDIMIENTOS HOY: no reutilizar documentos anteriores.\n")
                     print("Sin procedimientos nuevos vigentes hoy. Sin cambios.")
