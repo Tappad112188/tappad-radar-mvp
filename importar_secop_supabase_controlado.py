@@ -61,6 +61,7 @@ def main():
     if not registros:raise SystemExit("Lote vacio: sin cambios")
     ids=set()
     nuevos=[]
+    # Validar el lote completo ANTES de cualquier acceso a Supabase.
     for original in registros:
         uid=original.get("uuid_procedimiento")
         if not isinstance(uid,str) or not uid.startswith("secop-coahuila:") or uid in ids:
@@ -70,6 +71,8 @@ def main():
             raise SystemExit("Ficha incompleta: "+uid)
         if str(original.get("estatus") or "").strip().casefold()!="vigente":
             raise SystemExit("Estatus no Vigente en lote: "+uid)
+    for original in registros:
+        uid=original["uuid_procedimiento"]
         encontrado=api("GET",{"select":"id,uuid_procedimiento","uuid_procedimiento":"eq."+uid})
         if encontrado:
             print("EXISTENTE (sin actualizar):",uid)
