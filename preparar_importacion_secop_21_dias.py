@@ -1,0 +1,104 @@
+"""SECOP Coahuila -> formato de importacion de licitaciones Supabase.
+Prepara JSON para revision. No conecta ni escribe en Supabase.
+Solo incluye datos verificados de las fichas y conserva su estado pendiente.
+"""
+import json
+import re
+from urllib.parse import urlparse
+from pathlib import Path
+BASE=Path(__file__).resolve().parent/"documentos_secop_21_dias"
+ENTRADA=BASE/"fichas_comerciales_secop.json"
+SALIDA=BASE/"secop_importacion_pendiente_revision.json"
+REPORTE_ENLACES=BASE/"reporte_descargas.json"
+def fecha(evento):
+ if not isinstance(evento,dict) or not evento.get("fecha"):return None
+ return evento["fecha"]+("T"+evento["hora"]+":00" if evento.get("hora") else "")
+def adaptar(f):
+ codigo=f.get("codigo") or f.get("referencia")
+ if not codigo:raise ValueError("Ficha sin codigo ni referencia")
+ calendario=f.get("calendario") or {}
+ return {
+  "uuid_procedimiento":"secop-coahuila:"+str(codigo).strip().lower(),
+  "fuente":"SECOP Coahuila",
+  "numero_procedimiento":f.get("referencia") or codigo,
+  "cod_expediente":codigo,
+  "nombre_procedimiento":f.get("objeto"),
+  "descripcion":f.get("objeto"),
+  "entidad_federativa":"Coahuila",
+  "estatus":f.get("estatus_portal"),
+  "fecha_publicacion":f.get("publicacion"),
+  "fecha_junta_aclaraciones":fecha(calendario.get("junta_aclaraciones")),
+  "fecha_apertura":fecha(calendario.get("limite_presentacion_propuestas")),
+  "fecha_fallo_programado":fecha(calendario.get("fallo_programado")),
+  "url_procedimiento":f.get("url_procedimiento"),
+ }
+def codigo_normalizado(valor):
+ return str(valor or "").strip().casefold()
+
+def url_oficial(url):
+ p=urlparse(str(url or ""))
+ return (p.scheme=="https" and p.hostname=="www.sefincoahuila.gob.mx"
+  and bool(re.fullmatch(r"/sistemas/Secop/Procedimiento/GetFile/\d+",p.path,re.I))
+  and not p.query and not p.fragment)
+
+def incorporar_enlaces(registros):
+ """Asocia enlaces anonimos verificados; no confirma el calendario."""
+ if not REPORTE_ENLACES.exists():
+  return "Sin reporte_descargas.json: enlaces sin asociar"
+ datos=json.loads(REPORTE_ENLACES.read_text(encoding="utf-8-sig"))
+ por_codigo={codigo_normalizado(x.get("codigo")):x for x in datos.get("procedimientos",[]) if x.get("codigo")}
+ encontrados=0
+ evidencias=0
+ for registro in registros:
+  item=por_codigo.get(codigo_normalizado(registro["cod_expediente"]))
+  if not item:continue
+  encontrados+=1
+  # Clasificar evidencia visible del reporte previo sin asumir verificación HTTP.
+  candidatos=[{"url":e.get("url"),"texto":e.get("texto"),"estado":"pendiente_verificacion"}
+   for e in item.get("enlaces_documentos",[]) if isinstance(e,dict) and url_oficial(e.get("url"))]
+  registro["enlaces_documentales_detectados"]=candidatos
+  evidencias+=len(candidatos)
+  def clase(e):
+   nombre=str(e.get("texto") or "").upper()
+   if "BASES" in nombre or "BASE DE PROCEDIMIENTO" in nombre:return "bases"
+   if "CONVOCATORIA" in nombre:return "convocatoria"
+   if "INVITACION" in nombre:return "invitacion"
+   return "otro"
+  registro["documentos_disponibles"]=[
+   {"tipo":clase(e),"texto":e["texto"],"url":e["url"],"estado":"pendiente_verificacion"}
+   for e in candidatos]
+  bases=item.get("bases_verificadas") or []
+  verificadas=[b for b in bases if b.get("estado")=="verificado_sin_sesion"]
+  registro["documentos_bases_verificados"]=[{"url":b.get("url"),"texto":b.get("texto")} for b in verificadas]
+  convocatorias=[c for c in item.get("convocatorias_verificadas",[]) if c.get("estado")=="verificado_sin_sesion"]
+  registro["documentos_convocatorias_verificados"]=[{"url":c.get("url"),"texto":c.get("texto")} for c in convocatorias]
+  if len(bases)==len(verificadas)==1 and item.get("url_bases_candidata")==verificadas[0].get("url"):
+   registro["url_bases"]=verificadas[0]["url"]
+  if len(item.get("convocatorias_verificadas",[]))==len(convocatorias)==1 and item.get("url_convocatoria_candidata")==convocatorias[0].get("url"):
+   registro["url_convocatoria"]=convocatorias[0]["url"]
+  if len(bases)==1 and len(verificadas)==1 and item.get("estado_enlace")=="verificado_sin_sesion":
+   registro["revision_enlace"]="bases_descargables_pero_falta_enlace_expediente_individual"
+  elif len(bases)>1:
+   registro["revision_enlace"]="multiples_bases_no_seleccionar_automaticamente"
+ return (f"Procedimientos asociados al reporte: {encontrados}/{len(registros)}; "
+  f"URLs oficiales detectadas (no necesariamente verificadas): {evidencias}. "
+  "Enlaces de bases solo como evidencia interna; falta enlace individual de expediente SECOP")
+
+def main():
+ if not ENTRADA.exists():raise SystemExit("No se encontro fichas_comerciales_secop.json")
+ datos=json.loads(ENTRADA.read_text(encoding="utf-8-sig"))
+ registros=[adaptar(f) for f in datos.get("fichas",[])]
+ aviso_enlaces=incorporar_enlaces(registros)
+ ids=[r["uuid_procedimiento"] for r in registros]
+ if len(ids)!=len(set(ids)):raise ValueError("Hay procedimientos duplicados en el lote")
+ salida={"estado":"PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE",
+ "advertencia":"Las fechas documentales aun requieren validacion oficial. El campo fecha_fallo no se utiliza para representar un fallo programado.",
+ "total":len(registros),"aviso_enlaces":aviso_enlaces,"registros":registros}
+ SALIDA.write_text(json.dumps(salida,ensure_ascii=False,indent=2),encoding="utf-8")
+ print("Procedimientos SECOP preparados:",len(registros))
+ for r in registros:print(r["uuid_procedimiento"],"|",r["numero_procedimiento"])
+ print("Archivo de revision:",SALIDA)
+ print("Campos calendario: publicacion, junta, apertura y fallo programado.")
+ print("Enlaces:",aviso_enlaces)
+ print("No se ha importado nada a Supabase. Fechas pendientes de validacion.")
+if __name__=="__main__":main()
