@@ -28,13 +28,35 @@ def api(metodo,params=None,datos=None):
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--importar",action="store_true")
+    p.add_argument("--registrar_pendientes",action="store_true",help="Permite registrar expedientes pendientes, sin habilitar alertas")
     args=p.parse_args()
     if not LOTE.exists():raise SystemExit("Falta lote SECOP local")
     lote=json.loads(LOTE.read_text(encoding="utf-8-sig"))
     # El preparador marca explicitamente los lotes sin validar: nunca importarlos.
     # La simulacion sigue permitida para diagnostico, sin escritura.
-    if args.importar and lote.get("estado") != "VALIDADO_PARA_IMPORTACION":
+    estados_permitidos = {"VALIDADO_PARA_IMPORTACION"}
+    if args.registrar_pendientes:
+        estados_permitidos.add("PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE")
+    if args.importar and lote.get("estado") not in estados_permitidos:
         raise SystemExit("IMPORTACION BLOQUEADA: lote SECOP sin validacion oficial. No se escribio en Supabase.")
+    if args.importar and lote.get("estado") == "PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE":
+        if not args.registrar_pendientes:
+            raise SystemExit("Importacion de pendientes requiere --registrar_pendientes")
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        hoy=datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
+        extraccion=LOTE.parent.parent/"secop_hoy_vigentes.json"
+        if not extraccion.exists():raise SystemExit("Falta evidencia de extraccion de hoy")
+        evidencia=json.loads(extraccion.read_text(encoding="utf-8-sig"))
+        if (evidencia.get("fecha_consulta")!=hoy or not evidencia.get("filtros_aplicados")
+            or evidencia.get("error") or evidencia.get("errores") or evidencia.get("coincide_total") is False):
+            raise SystemExit("Extraccion diaria invalida; importacion bloqueada")
+        origen={str(x.get("codigo") or "").strip().casefold() for x in evidencia.get("registros",[])
+                if x.get("fecha_publicacion")==hoy and str(x.get("estatus","")).strip().casefold()=="vigente"}
+        preparados=lote.get("registros") or []
+        if len(origen)!=len(preparados) or any(str(x.get("cod_expediente") or "").strip().casefold() not in origen
+            or str(x.get("fecha_publicacion") or "")[:10]!=hoy for x in preparados):
+            raise SystemExit("Lote no coincide con publicaciones vigentes de hoy")
     registros=lote.get("registros") or []
     if not registros:raise SystemExit("Lote vacio: sin cambios")
     ids=set()
