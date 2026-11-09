@@ -18,6 +18,15 @@ class ControladorSecopTests(unittest.TestCase):
     def test_total_inconsistente(self):
         d={**self.base,"nuevos":["a"]}
         self.assertFalse(auditoria_autoriza_registro(d,"2026-11-09",2))
+    def test_identificadores_coincidentes(self):
+        d={**self.base,"nuevos":["secop-coahuila:a"],"existentes":["secop-coahuila:b"]}
+        self.assertTrue(auditoria_autoriza_registro(d,"2026-11-09",2,["secop-coahuila:a","secop-coahuila:b"]))
+    def test_rechaza_identificadores_distintos(self):
+        d={**self.base,"nuevos":["secop-coahuila:a"],"existentes":["secop-coahuila:c"]}
+        self.assertFalse(auditoria_autoriza_registro(d,"2026-11-09",2,["secop-coahuila:a","secop-coahuila:b"]))
+    def test_rechaza_identificadores_duplicados(self):
+        d={**self.base,"nuevos":["secop-coahuila:a"],"existentes":["secop-coahuila:a"]}
+        self.assertFalse(auditoria_autoriza_registro(d,"2026-11-09",2,["secop-coahuila:a","secop-coahuila:b"]))
     def test_alertas_habilitadas(self):
         d={**self.base,"notificaciones_habilitadas":True}
         self.assertFalse(auditoria_autoriza_registro(d,"2026-11-09",2))
