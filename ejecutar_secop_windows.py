@@ -1,7 +1,4 @@
-"""Pipeline local SECOP Coahuila: solo extracción y preparación para revisión.
-Uso Windows: py ejecutar_secop_windows.py
-Sin escrituras a Supabase ni envíos de correo.
-"""
+"""Pipeline SECOP: preparacion por defecto; registro opt-in sin correos."""
 import argparse
 import json
 import subprocess
@@ -38,10 +35,21 @@ def ejecutar(nombre, log):
         log.write("ERROR " + nombre + " codigo=" + str(resultado.returncode) + "\n")
         raise SystemExit(resultado.returncode)
 
+def auditoria_autoriza_registro(resultado, fecha, total):
+    return (resultado.get("fecha_consulta") == fecha
+            and resultado.get("consulta_supabase") == "realizada"
+            and resultado.get("total") == total
+            and resultado.get("estado") == "SOLO_LECTURA"
+            and resultado.get("importacion_habilitada") is False
+            and resultado.get("notificaciones_habilitadas") is False
+            and isinstance(resultado.get("nuevos"), list)
+            and isinstance(resultado.get("existentes"), list)
+            and len(resultado["nuevos"]) + len(resultado["existentes"]) == total)
+
 def ejecutar_importador(log):
     nombre = "importar_secop_supabase_controlado.py"
     print("Registrando pendientes SECOP (sin correos):", flush=True)
-    log.write("PASO " + nombre + " --importar --registrar_pendientes\\n")
+    log.write("PASO " + nombre + " --importar --registrar_pendientes\n")
     log.flush()
     resultado = subprocess.run(
         [sys.executable, str(BASE / nombre), "--importar", "--registrar_pendientes"],
@@ -81,9 +89,7 @@ def main():
                 if args.registrar_pendientes:
                     auditoria = BASE / "documentos_secop_lote" / "auditoria_supabase_secop.json"
                     resultado = json.loads(auditoria.read_text(encoding="utf-8-sig"))
-                    if (resultado.get("fecha_consulta") != datos["fecha_consulta"]
-                        or resultado.get("consulta_supabase") != "realizada"
-                        or resultado.get("total") != len(datos["registros"])):
+                    if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"])):
                         raise SystemExit("Auditoria Supabase no confirmada; registro bloqueado")
                     ejecutar_importador(log)
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
