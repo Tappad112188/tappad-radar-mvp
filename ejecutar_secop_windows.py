@@ -35,7 +35,7 @@ def ejecutar(nombre, log):
         log.write("ERROR " + nombre + " codigo=" + str(resultado.returncode) + "\n")
         raise SystemExit(resultado.returncode)
 
-def auditoria_autoriza_registro(resultado, fecha, total):
+def auditoria_autoriza_registro(resultado, fecha, total, ids_esperados=None):
     return (resultado.get("fecha_consulta") == fecha
             and resultado.get("consulta_supabase") == "realizada"
             and resultado.get("total") == total
@@ -44,7 +44,13 @@ def auditoria_autoriza_registro(resultado, fecha, total):
             and resultado.get("notificaciones_habilitadas") is False
             and isinstance(resultado.get("nuevos"), list)
             and isinstance(resultado.get("existentes"), list)
-            and len(resultado["nuevos"]) + len(resultado["existentes"]) == total)
+            and len(resultado["nuevos"]) + len(resultado["existentes"]) == total
+            and (ids_esperados is None or (
+                len(ids_esperados) == total
+                and len(set(ids_esperados)) == total
+                and all(isinstance(uid, str) and uid.startswith("secop-coahuila:") for uid in ids_esperados)
+                and set(resultado["nuevos"] + resultado["existentes"]) == set(ids_esperados)
+                and len(set(resultado["nuevos"] + resultado["existentes"])) == total)))
 
 def ejecutar_importador(log):
     nombre = "importar_secop_supabase_controlado.py"
@@ -89,7 +95,9 @@ def main():
                 if args.registrar_pendientes:
                     auditoria = BASE / "documentos_secop_lote" / "auditoria_supabase_secop.json"
                     resultado = json.loads(auditoria.read_text(encoding="utf-8-sig"))
-                    if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"])):
+                    lote = json.loads((BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json").read_text(encoding="utf-8-sig"))
+                    ids_esperados = [r.get("uuid_procedimiento") for r in lote.get("registros", [])]
+                    if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"]), ids_esperados):
                         raise SystemExit("Auditoria Supabase no confirmada; registro bloqueado")
                     ejecutar_importador(log)
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
