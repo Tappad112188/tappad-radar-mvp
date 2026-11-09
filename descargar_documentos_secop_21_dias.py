@@ -46,7 +46,8 @@ async def main():
  if not data.get("filtros_aplicados") or data.get("errores") or data.get("error") or data.get("coincide_total") is False or not registros:
   print("ERROR: El archivo no contiene procedimientos válidos y filtrados.")
   return
- if data.get("fecha_inicio")!=(datetime.now(ZoneInfo("America/Monterrey")).date()-timedelta(days=21)).isoformat() or data.get("fecha_fin")!=hoy:\n  raise SystemExit("ERROR: Ventana SECOP no corresponde a los ultimos 21 dias.")
+ if data.get("fecha_inicio")!=(datetime.now(ZoneInfo("America/Monterrey")).date()-timedelta(days=21)).isoformat() or data.get("fecha_fin")!=hoy:
+  raise SystemExit("ERROR: Ventana SECOP no corresponde a los ultimos 21 dias.")
  if data.get("fecha_consulta")!=hoy:
   raise SystemExit("ERROR: El lote SECOP es de "+str(data.get("fecha_consulta"))+" y hoy es "+hoy+". Ejecuta primero la extracción actualizada.")
  SALIDA.mkdir(exist_ok=True)
