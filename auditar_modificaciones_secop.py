@@ -2,6 +2,7 @@
 import json
 import hashlib
 import zipfile
+import posixpath
 import re
 import unicodedata
 from pathlib import Path
@@ -20,31 +21,41 @@ def cotejar_bases_pdf_zip(item):
     pdfs = [a for a in archivos if str(a.get("nombre", "")).lower().endswith(".pdf")]
     zips = [a for a in archivos if str(a.get("nombre", "")).lower().endswith(".zip")]
     resultados = []
+    diagnosticos = []
     for pdf in pdfs:
         ruta_pdf = Path(pdf.get("ruta") or "")
         if not ruta_pdf.is_file():
+            diagnosticos.append({"documento": pdf.get("nombre"), "motivo": "PDF_NO_ENCONTRADO", "ruta": str(ruta_pdf)})
             continue
         hash_pdf = hashlib.sha256(ruta_pdf.read_bytes()).hexdigest()
         for paquete in zips:
             ruta_zip = Path(paquete.get("ruta") or "")
             if not ruta_zip.is_file():
+                diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "ZIP_NO_ENCONTRADO", "ruta": str(ruta_zip)})
                 continue
             try:
                 with zipfile.ZipFile(ruta_zip) as z:
+                    coincidencias = 0
                     for entrada in z.infolist():
-                        if entrada.is_dir() or Path(entrada.filename).name.casefold() != ruta_pdf.name.casefold():
+                        if entrada.is_dir() or posixpath.basename(entrada.filename).casefold() != ruta_pdf.name.casefold():
                             continue
+                        coincidencias += 1
                         with z.open(entrada) as flujo:
-                            hash_interno = hashlib.file_digest(flujo, "sha256").hexdigest()
+                            sha_interno = hashlib.sha256()
+                            for bloque in iter(lambda: flujo.read(1024 * 1024), b""):
+                                sha_interno.update(bloque)
+                            hash_interno = sha_interno.hexdigest()
                         resultados.append({
                             "pdf": pdf.get("nombre"), "paquete": paquete.get("nombre"),
                             "miembro": entrada.filename, "sha256_pdf": hash_pdf,
                             "sha256_interno": hash_interno,
                             "identicos": hash_pdf == hash_interno,
                         })
-            except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
-                continue
-    return resultados
+                    if coincidencias == 0:
+                        diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "PDF_NO_COINCIDE_POR_NOMBRE", "pdf": pdf.get("nombre")})
+            except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
+                diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "ERROR_LECTURA_ZIP", "detalle": str(exc)})
+    return resultados, diagnosticos
 
 
 def auditar_procedimiento(item):
@@ -67,7 +78,7 @@ def auditar_procedimiento(item):
             hallazgos.append({"tipo": tipo, "documento": nombre, "referencia": referencia,
                               "estado": "REQUIERE_COTEJO_DOCUMENTAL"})
     errores = item.get("errores") or []
-    cotejos = cotejar_bases_pdf_zip(item)
+    cotejos, diagnosticos = cotejar_bases_pdf_zip(item)
     duplicado_confirmado = any(c["identicos"] for c in cotejos)
     # La igualdad de PDFs no resuelve la verificacion de los enlaces oficiales.
     errores_pendientes = list(errores)
@@ -77,6 +88,7 @@ def auditar_procedimiento(item):
         "errores_descarga": errores,
         "errores_pendientes": errores_pendientes,
         "cotejos_pdf_zip": cotejos,
+        "diagnosticos_cotejo": diagnosticos,
         "bases_duplicadas_confirmadas": duplicado_confirmado,
         "estado": "POSIBLE_MODIFICACION_REVISAR" if hallazgos else
                   "COBERTURA_INCOMPLETA_REVISAR" if errores_pendientes else
