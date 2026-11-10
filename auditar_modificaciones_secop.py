@@ -69,13 +69,13 @@ def auditar_procedimiento(item):
     errores = item.get("errores") or []
     cotejos = cotejar_bases_pdf_zip(item)
     duplicado_confirmado = any(c["identicos"] for c in cotejos)
-    errores_pendientes = [e for e in errores if not (duplicado_confirmado and "Multiples enlaces de bases" in str(e))]
+    # La igualdad de PDFs no resuelve la verificacion de los enlaces oficiales.\n    errores_pendientes = list(errores)
     return {
         "codigo": item.get("codigo"),
         "documentos_potencialmente_modificatorios": hallazgos,
         "errores_descarga": errores,
         "errores_pendientes": errores_pendientes,
-        "cotejos_pdf_zip": cotejos,
+        "cotejos_pdf_zip": cotejos,\n        "bases_duplicadas_confirmadas": duplicado_confirmado,
         "estado": "POSIBLE_MODIFICACION_REVISAR" if hallazgos else
                   "COBERTURA_INCOMPLETA_REVISAR" if errores_pendientes else
                   "SIN_INDICIOS_EN_DOCUMENTOS_CAPTURADOS",
