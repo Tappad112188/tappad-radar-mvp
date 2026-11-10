@@ -9,6 +9,10 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 LOTE=Path(__file__).resolve().parent/"documentos_secop_lote"/"secop_importacion_pendiente_revision.json"
+ROOT=LOTE.parent.parent
+EXTRACCION=ROOT/"secop_hoy_vigentes.json"
+AUDITORIA=LOTE.parent/"auditoria_supabase_secop.json"
+
 CAMPOS={"uuid_procedimiento","fuente","numero_procedimiento","cod_expediente",
 "nombre_procedimiento","descripcion","entidad_federativa","estatus",
 "fecha_publicacion","fecha_junta_aclaraciones","fecha_apertura",
@@ -25,6 +29,77 @@ def api(metodo,params=None,datos=None):
     solicitud=Request(url,headers=headers,method=metodo,data=json.dumps(datos).encode() if datos is not None else None)
     with urlopen(solicitud,timeout=40) as respuesta:
         return json.load(respuesta)
+def identificador(codigo):
+    valor=str(codigo or "").strip().casefold()
+    if not valor or valor in {"none", "null"}:
+        raise SystemExit("Codigo SECOP vacio")
+    return "secop-coahuila:"+valor
+
+def validar_lote(registros):
+    if not isinstance(registros,list) or not registros:
+        raise SystemExit("Lote vacio o invalido: sin cambios")
+    ids=[]
+    for r in registros:
+        if not isinstance(r,dict):
+            raise SystemExit("Registro SECOP invalido")
+        uid=identificador(r.get("cod_expediente"))
+        if r.get("uuid_procedimiento")!=uid:
+            raise SystemExit("UUID no corresponde al codigo SECOP: "+uid)
+        if r.get("fuente")!="SECOP Coahuila" or not r.get("nombre_procedimiento"):
+            raise SystemExit("Ficha SECOP incompleta: "+uid)
+        if str(r.get("estatus") or "").strip().casefold()!="vigente":
+            raise SystemExit("Estatus SECOP no vigente: "+uid)
+        ids.append(uid)
+    if len(ids)!=len(set(ids)):
+        raise SystemExit("Identificadores SECOP duplicados")
+    return ids
+
+def validar_autorizacion(lote,ids):
+    """Falla cerrada antes de cualquier escritura, incluso en ejecucion directa."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    hoy=datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
+    if lote.get("estado")!="PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE":
+        raise SystemExit("IMPORTACION BLOQUEADA: estado del lote no auditado")
+    if not EXTRACCION.is_file() or not AUDITORIA.is_file():
+        raise SystemExit("IMPORTACION BLOQUEADA: falta extraccion o auditoria")
+    fuente=json.loads(EXTRACCION.read_text(encoding="utf-8-sig"))
+    auditoria=json.loads(AUDITORIA.read_text(encoding="utf-8-sig"))
+    if (fuente.get("fecha_consulta")!=hoy or fuente.get("filtros_aplicados") is not True
+        or fuente.get("error") or fuente.get("errores") or fuente.get("coincide_total") is not True):
+        raise SystemExit("IMPORTACION BLOQUEADA: extraccion diaria no validada")
+    origen=fuente.get("registros")
+    if not isinstance(origen,list) or not origen:
+        raise SystemExit("IMPORTACION BLOQUEADA: extraccion vacia")
+    codigos=[]
+    for r in origen:
+        if not isinstance(r,dict) or r.get("fecha_publicacion")!=hoy or str(r.get("estatus") or "").strip().casefold()!="vigente":
+            raise SystemExit("IMPORTACION BLOQUEADA: extraccion fuera de fecha o estatus")
+        codigos.append(identificador(r.get("codigo")))
+    if len(codigos)!=len(set(codigos)) or set(codigos)!=set(ids):
+        raise SystemExit("IMPORTACION BLOQUEADA: lote y extraccion no coinciden")
+    if any(str(r.get("fecha_publicacion") or "")[:10]!=hoy for r in lote["registros"]):
+        raise SystemExit("IMPORTACION BLOQUEADA: publicacion del lote fuera de fecha")
+    nuevos=auditoria.get("nuevos")
+    existentes=auditoria.get("existentes")
+    if (auditoria.get("fecha_consulta")!=hoy
+        or auditoria.get("consulta_supabase")!="realizada"
+        or auditoria.get("estado")!="SOLO_LECTURA"
+        or auditoria.get("importacion_habilitada") is not False
+        or auditoria.get("notificaciones_habilitadas") is not False
+        or type(auditoria.get("total")) is not int or auditoria["total"]!=len(ids)
+        or not isinstance(nuevos,list) or not isinstance(existentes,list)
+        or len(nuevos)+len(existentes)!=len(ids)
+        or len(set(nuevos+existentes))!=len(ids)
+        or set(nuevos+existentes)!=set(ids)):
+        raise SystemExit("IMPORTACION BLOQUEADA: auditoria inconsistente")
+    # No aceptar un reporte anterior a las evidencias que certifica.
+    if AUDITORIA.stat().st_mtime+0.001 < max(LOTE.stat().st_mtime,EXTRACCION.stat().st_mtime):
+        raise SystemExit("IMPORTACION BLOQUEADA: auditoria anterior al lote o extraccion")
+    if AUDITORIA.stat().st_mtime > datetime.now(timezone.utc).timestamp()+60:
+        raise SystemExit("IMPORTACION BLOQUEADA: fecha de auditoria futura")
+    return set(nuevos)
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--importar",action="store_true")
@@ -39,38 +114,14 @@ def main():
         estados_permitidos.add("PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE")
     if args.importar and lote.get("estado") not in estados_permitidos:
         raise SystemExit("IMPORTACION BLOQUEADA: lote SECOP sin validacion oficial. No se escribio en Supabase.")
-    if args.importar and lote.get("estado") == "PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE":
-        if not args.registrar_pendientes:
-            raise SystemExit("Importacion de pendientes requiere --registrar_pendientes")
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        hoy=datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
-        extraccion=LOTE.parent.parent/"secop_hoy_vigentes.json"
-        if not extraccion.exists():raise SystemExit("Falta evidencia de extraccion de hoy")
-        evidencia=json.loads(extraccion.read_text(encoding="utf-8-sig"))
-        if (evidencia.get("fecha_consulta")!=hoy or not evidencia.get("filtros_aplicados")
-            or evidencia.get("error") or evidencia.get("errores") or evidencia.get("coincide_total") is False):
-            raise SystemExit("Extraccion diaria invalida; importacion bloqueada")
-        origen={str(x.get("codigo") or "").strip().casefold() for x in evidencia.get("registros",[])
-                if x.get("fecha_publicacion")==hoy and str(x.get("estatus","")).strip().casefold()=="vigente"}
-        preparados=lote.get("registros") or []
-        if len(origen)!=len(preparados) or any(str(x.get("cod_expediente") or "").strip().casefold() not in origen
-            or str(x.get("fecha_publicacion") or "")[:10]!=hoy for x in preparados):
-            raise SystemExit("Lote no coincide con publicaciones vigentes de hoy")
+    if args.importar and not args.registrar_pendientes:
+        raise SystemExit("IMPORTACION BLOQUEADA: requiere --registrar_pendientes y auditoria vigente")
     registros=lote.get("registros") or []
-    if not registros:raise SystemExit("Lote vacio: sin cambios")
-    ids=set()
+    ids=validar_lote(registros)
     nuevos=[]
-    # Validar el lote completo ANTES de cualquier acceso a Supabase.
-    for original in registros:
-        uid=original.get("uuid_procedimiento")
-        if not isinstance(uid,str) or not uid.startswith("secop-coahuila:") or uid in ids:
-            raise SystemExit("Identificador SECOP invalido o duplicado")
-        ids.add(uid)
-        if original.get("fuente")!="SECOP Coahuila" or not original.get("cod_expediente") or not original.get("nombre_procedimiento"):
-            raise SystemExit("Ficha incompleta: "+uid)
-        if str(original.get("estatus") or "").strip().casefold()!="vigente":
-            raise SystemExit("Estatus no Vigente en lote: "+uid)
+    autorizados=None
+    if args.importar:
+        autorizados=validar_autorizacion(lote,ids)
     for original in registros:
         uid=original["uuid_procedimiento"]
         encontrado=api("GET",{"select":"id,uuid_procedimiento","uuid_procedimiento":"eq."+uid})
@@ -84,6 +135,8 @@ def main():
         if lote.get("estado") == "PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE":
             for campo in ("fecha_junta_aclaraciones", "fecha_apertura", "fecha_fallo_programado"):
                 registro.pop(campo, None)
+        if args.importar and uid not in autorizados:
+            raise SystemExit("IMPORTACION BLOQUEADA: registro nuevo no autorizado por auditoria: "+uid)
         nuevos.append(registro)
         print("NUEVO:",uid,"| apertura:",registro.get("fecha_apertura") or "no identificada")
     print("RESUMEN: lote",len(registros),"| nuevos",len(nuevos),"| existentes",len(registros)-len(nuevos))
