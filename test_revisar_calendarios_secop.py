@@ -31,6 +31,30 @@ class RevisionCalendariosTests(unittest.TestCase):
         self.assertEqual(evento["estado_validacion"], "CONFLICTO_REVISAR_FECHAS")
         self.assertEqual(len(evento["alternativas"]), 1)
 
+    def test_apertura_antes_de_junta_genera_alerta(self):
+        def evento(fecha, hora):
+            return {"fecha": fecha, "hora": hora, "fuente": "bases.pdf",
+                    "evidencia": "Acto documentado", "estado": "candidato_documental"}
+        ficha = {"codigo": "ABC", "calendario": {
+            "junta_aclaraciones": evento("2026-11-15", "11:00"),
+            "limite_presentacion_propuestas": evento("2026-11-14", "12:00"),
+            "fallo_programado": evento("2026-11-20", "12:00")}}
+        resultado = revisar_ficha(ficha)
+        self.assertEqual(resultado["alertas_cronologicas"][0]["tipo"], "ORDEN_CRONOLOGICO_INCONSISTENTE")
+        self.assertEqual(resultado["eventos"]["junta_aclaraciones"]["estado_validacion"], "CONFLICTO_REVISAR_FECHAS")
+
+    def test_secuencia_correcta_no_genera_alerta(self):
+        def evento(fecha):
+            return {"fecha": fecha, "hora": "12:00", "fuente": "bases.pdf",
+                    "evidencia": "Acto documentado", "estado": "candidato_documental"}
+        ficha = {"codigo": "ABC", "calendario": {
+            "junta_aclaraciones": evento("2026-11-12"),
+            "limite_presentacion_propuestas": evento("2026-11-15"),
+            "fallo_programado": evento("2026-11-20")}}
+        resultado = revisar_ficha(ficha)
+        self.assertEqual(resultado["alertas_cronologicas"], [])
+        self.assertEqual(resultado["eventos"]["junta_aclaraciones"]["estado_validacion"], "PENDIENTE_REVISION_HUMANA")
+
     def test_no_habilita_correos_ni_escrituras(self):
         r = generar({"fecha_consulta": "2026-11-09", "fichas": [{"codigo": "ABC"}]})
         self.assertEqual(r["total"], 1)
