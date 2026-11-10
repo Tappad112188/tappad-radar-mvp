@@ -20,6 +20,17 @@ class RevisionCalendariosTests(unittest.TestCase):
         }})
         self.assertEqual(r["eventos"]["fallo_programado"]["estado_validacion"], "INCOMPLETO_REVISAR_BASES")
 
+    def test_fechas_alternativas_se_marcan_como_conflicto(self):
+        ficha = {"codigo": "ABC", "calendario": {"junta_aclaraciones": {
+            "fecha": "2026-11-12", "hora": "11:00",
+            "fuente": "bases.pdf pagina 4", "evidencia": "Junta 12 noviembre",
+            "estado": "requiere_revision",
+            "alternativas": [{"fecha": "2026-11-13", "hora": "11:00"}]
+        }}}
+        evento = revisar_ficha(ficha)["eventos"]["junta_aclaraciones"]
+        self.assertEqual(evento["estado_validacion"], "CONFLICTO_REVISAR_FECHAS")
+        self.assertEqual(len(evento["alternativas"]), 1)
+
     def test_no_habilita_correos_ni_escrituras(self):
         r = generar({"fecha_consulta": "2026-11-09", "fichas": [{"codigo": "ABC"}]})
         self.assertEqual(r["total"], 1)
