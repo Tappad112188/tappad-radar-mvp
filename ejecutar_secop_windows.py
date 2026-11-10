@@ -15,6 +15,7 @@ PASOS = (
     "descargar_documentos_secop_lote.py",
     "generar_fichas_secop_v3.py",
     "generar_fichas_comerciales_secop.py",
+    "revisar_calendarios_secop.py",
     "preparar_importacion_secop_supabase.py",
     "auditar_secop_supabase_diario.py",
 )
