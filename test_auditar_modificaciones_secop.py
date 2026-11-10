@@ -49,6 +49,22 @@ class AuditoriaModificacionesTests(unittest.TestCase):
             self.assertTrue(resultado["bases_duplicadas_confirmadas"])
             self.assertEqual(resultado["diagnosticos_cotejo"], [])
 
+    def test_pdf_con_nombre_distinto_en_zip(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            pdf = Path(carpeta) / "BASES SIDUM.pdf"
+            pdf.write_bytes(b"contenido de las bases")
+            paquete = Path(carpeta) / "anexos.zip"
+            with zipfile.ZipFile(paquete, "w") as z:
+                z.writestr("carpeta/BASES.pdf", b"contenido de las bases")
+                z.writestr("carpeta/OTRO.pdf", b"otro contenido")
+            resultado = auditar_procedimiento({"archivos": [
+                {"nombre": pdf.name, "ruta": str(pdf)},
+                {"nombre": paquete.name, "ruta": str(paquete)},
+            ]})
+            self.assertTrue(resultado["bases_duplicadas_confirmadas"])
+            self.assertEqual(len(resultado["cotejos_pdf_zip"]), 2)
+            self.assertEqual(sum(c["identicos"] for c in resultado["cotejos_pdf_zip"]), 1)
+
     def test_no_envia_ni_escribe(self):
         r = generar({"procedimientos": [{"codigo": "ABC"}]})
         self.assertFalse(r["notificaciones_habilitadas"])
