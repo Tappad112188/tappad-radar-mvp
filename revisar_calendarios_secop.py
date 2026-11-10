@@ -4,7 +4,7 @@ No convierte candidatos documentales en fechas oficialmente validadas.
 Uso: py revisar_calendarios_secop.py
 """
 import json
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -39,7 +39,30 @@ def revisar_ficha(ficha):
             "alternativas": alternativas,
             "estado_validacion": estado_validacion,
         }
+    # La secuencia cronologica es un control de plausibilidad, no validacion oficial.
+    alertas = []
+    pares = (
+        ("junta_aclaraciones", "limite_presentacion_propuestas"),
+        ("limite_presentacion_propuestas", "fallo_programado"),
+    )
+    for anterior, posterior in pares:
+        a, z = eventos[anterior], eventos[posterior]
+        fa, fz = a["fecha_candidata"], z["fecha_candidata"]
+        if not fa or not fz:
+            continue
+        try:
+            ta = datetime.fromisoformat(fa + "T" + (a["hora_candidata"] or "00:00"))
+            tz = datetime.fromisoformat(fz + "T" + (z["hora_candidata"] or "23:59"))
+        except (ValueError, TypeError):
+            alertas.append({"tipo": "FECHA_INVALIDA", "etapas": [anterior, posterior]})
+            continue
+        if ta > tz:
+            alertas.append({"tipo": "ORDEN_CRONOLOGICO_INCONSISTENTE",
+                            "etapas": [anterior, posterior]})
+            for etapa in (anterior, posterior):
+                eventos[etapa]["estado_validacion"] = "CONFLICTO_REVISAR_FECHAS"
     return {
+        "alertas_cronologicas": alertas,
         "codigo": ficha.get("codigo"),
         "objeto": ficha.get("objeto"),
         "publicacion": ficha.get("publicacion"),
