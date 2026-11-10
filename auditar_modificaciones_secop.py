@@ -1,5 +1,7 @@
 """Auditoria conservadora de documentos posteriores SECOP. Solo lectura."""
 import json
+import hashlib
+import zipfile
 import re
 import unicodedata
 from pathlib import Path
@@ -11,6 +13,39 @@ PATRON = re.compile(r"\b(?:acta|aclaracion(?:es)?|modificaci[oó]n(?:es)?|diferi
 
 def normalizar(texto):
     return "".join(c for c in unicodedata.normalize("NFD", str(texto or "").lower()) if unicodedata.category(c) != "Mn")
+
+def cotejar_bases_pdf_zip(item):
+    """Compara por SHA-256 un PDF descargado y su copia exacta en un ZIP local."""
+    archivos = item.get("archivos") or []
+    pdfs = [a for a in archivos if str(a.get("nombre", "")).lower().endswith(".pdf")]
+    zips = [a for a in archivos if str(a.get("nombre", "")).lower().endswith(".zip")]
+    resultados = []
+    for pdf in pdfs:
+        ruta_pdf = Path(pdf.get("ruta") or "")
+        if not ruta_pdf.is_file():
+            continue
+        hash_pdf = hashlib.sha256(ruta_pdf.read_bytes()).hexdigest()
+        for paquete in zips:
+            ruta_zip = Path(paquete.get("ruta") or "")
+            if not ruta_zip.is_file():
+                continue
+            try:
+                with zipfile.ZipFile(ruta_zip) as z:
+                    for entrada in z.infolist():
+                        if entrada.is_dir() or Path(entrada.filename).name.casefold() != ruta_pdf.name.casefold():
+                            continue
+                        with z.open(entrada) as flujo:
+                            hash_interno = hashlib.file_digest(flujo, "sha256").hexdigest()
+                        resultados.append({
+                            "pdf": pdf.get("nombre"), "paquete": paquete.get("nombre"),
+                            "miembro": entrada.filename, "sha256_pdf": hash_pdf,
+                            "sha256_interno": hash_interno,
+                            "identicos": hash_pdf == hash_interno,
+                        })
+            except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
+                continue
+    return resultados
+
 
 def auditar_procedimiento(item):
     hallazgos = []
@@ -32,12 +67,17 @@ def auditar_procedimiento(item):
             hallazgos.append({"tipo": tipo, "documento": nombre, "referencia": referencia,
                               "estado": "REQUIERE_COTEJO_DOCUMENTAL"})
     errores = item.get("errores") or []
+    cotejos = cotejar_bases_pdf_zip(item)
+    duplicado_confirmado = any(c["identicos"] for c in cotejos)
+    errores_pendientes = [e for e in errores if not (duplicado_confirmado and "Multiples enlaces de bases" in str(e))]
     return {
         "codigo": item.get("codigo"),
         "documentos_potencialmente_modificatorios": hallazgos,
         "errores_descarga": errores,
+        "errores_pendientes": errores_pendientes,
+        "cotejos_pdf_zip": cotejos,
         "estado": "POSIBLE_MODIFICACION_REVISAR" if hallazgos else
-                  "COBERTURA_INCOMPLETA_REVISAR" if errores else
+                  "COBERTURA_INCOMPLETA_REVISAR" if errores_pendientes else
                   "SIN_INDICIOS_EN_DOCUMENTOS_CAPTURADOS",
         "fechas_oficialmente_validadas": False,
         "advertencia": "Ausencia de indicios no acredita ausencia de modificaciones posteriores",
