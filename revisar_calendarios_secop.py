@@ -25,13 +25,19 @@ def revisar_ficha(ficha):
         fuente = dato.get("fuente")
         estado_extraccion = dato.get("estado", "no_identificado")
         completo = bool(fecha and hora and evidencia and fuente)
+        alternativas = dato.get("alternativas") or []
+        conflicto = bool(alternativas) or estado_extraccion == "requiere_revision"
+        estado_validacion = ("CONFLICTO_REVISAR_FECHAS" if conflicto else
+                             "PENDIENTE_REVISION_HUMANA" if completo else
+                             "INCOMPLETO_REVISAR_BASES")
         eventos[etapa] = {
             "fecha_candidata": fecha,
             "hora_candidata": hora,
             "estado_extraccion": estado_extraccion,
             "fuente_documental": fuente,
             "evidencia": evidencia,
-            "estado_validacion": "PENDIENTE_REVISION_HUMANA" if completo else "INCOMPLETO_REVISAR_BASES",
+            "alternativas": alternativas,
+            "estado_validacion": estado_validacion,
         }
     return {
         "codigo": ficha.get("codigo"),
