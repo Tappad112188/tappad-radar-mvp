@@ -75,7 +75,8 @@ def auditar_procedimiento(item):
         "documentos_potencialmente_modificatorios": hallazgos,
         "errores_descarga": errores,
         "errores_pendientes": errores_pendientes,
-        "cotejos_pdf_zip": cotejos,\n        "bases_duplicadas_confirmadas": duplicado_confirmado,
+        "cotejos_pdf_zip": cotejos,
+        "bases_duplicadas_confirmadas": duplicado_confirmado,
         "estado": "POSIBLE_MODIFICACION_REVISAR" if hallazgos else
                   "COBERTURA_INCOMPLETA_REVISAR" if errores_pendientes else
                   "SIN_INDICIOS_EN_DOCUMENTOS_CAPTURADOS",
