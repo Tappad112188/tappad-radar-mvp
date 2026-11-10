@@ -35,6 +35,20 @@ class AuditoriaModificacionesTests(unittest.TestCase):
             self.assertEqual(resultado["estado"], "COBERTURA_INCOMPLETA_REVISAR")
             self.assertEqual(len(resultado["errores_pendientes"]), 1)
 
+    def test_pdf_en_subcarpeta_zip(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            pdf = Path(carpeta) / "BASES.pdf"
+            pdf.write_bytes(b"contenido")
+            paquete = Path(carpeta) / "paquete.zip"
+            with zipfile.ZipFile(paquete, "w") as z:
+                z.writestr("documentos/BASES.pdf", b"contenido")
+            resultado = auditar_procedimiento({"archivos": [
+                {"nombre": pdf.name, "ruta": str(pdf)},
+                {"nombre": paquete.name, "ruta": str(paquete)},
+            ]})
+            self.assertTrue(resultado["bases_duplicadas_confirmadas"])
+            self.assertEqual(resultado["diagnosticos_cotejo"], [])
+
     def test_no_envia_ni_escribe(self):
         r = generar({"procedimientos": [{"codigo": "ABC"}]})
         self.assertFalse(r["notificaciones_habilitadas"])
