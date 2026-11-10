@@ -2,7 +2,6 @@
 import json
 import hashlib
 import zipfile
-import posixpath
 import re
 import unicodedata
 from pathlib import Path
@@ -35,11 +34,11 @@ def cotejar_bases_pdf_zip(item):
                 continue
             try:
                 with zipfile.ZipFile(ruta_zip) as z:
-                    coincidencias = 0
+                    pdfs_internos = 0
                     for entrada in z.infolist():
-                        if entrada.is_dir() or posixpath.basename(entrada.filename).casefold() != ruta_pdf.name.casefold():
+                        if entrada.is_dir() or not entrada.filename.casefold().endswith(".pdf"):
                             continue
-                        coincidencias += 1
+                        pdfs_internos += 1
                         with z.open(entrada) as flujo:
                             sha_interno = hashlib.sha256()
                             for bloque in iter(lambda: flujo.read(1024 * 1024), b""):
@@ -51,8 +50,8 @@ def cotejar_bases_pdf_zip(item):
                             "sha256_interno": hash_interno,
                             "identicos": hash_pdf == hash_interno,
                         })
-                    if coincidencias == 0:
-                        diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "PDF_NO_COINCIDE_POR_NOMBRE", "pdf": pdf.get("nombre")})
+                    if pdfs_internos == 0:
+                        diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "ZIP_SIN_PDF", "pdf": pdf.get("nombre")})
             except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
                 diagnosticos.append({"documento": paquete.get("nombre"), "motivo": "ERROR_LECTURA_ZIP", "detalle": str(exc)})
     return resultados, diagnosticos
