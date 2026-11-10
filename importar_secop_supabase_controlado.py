@@ -79,6 +79,11 @@ def main():
             continue
         registro={k:v for k,v in original.items() if k in CAMPOS and v is not None}
         registro["validacion_calendario"]="pendiente"
+        # Las fechas candidatas de PDF no son oficiales hasta su validacion.
+        # Se conservan en las fichas locales para revision, no en campos publicables.
+        if lote.get("estado") == "PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE":
+            for campo in ("fecha_junta_aclaraciones", "fecha_apertura", "fecha_fallo_programado"):
+                registro.pop(campo, None)
         nuevos.append(registro)
         print("NUEVO:",uid,"| apertura:",registro.get("fecha_apertura") or "no identificada")
     print("RESUMEN: lote",len(registros),"| nuevos",len(nuevos),"| existentes",len(registros)-len(nuevos))
