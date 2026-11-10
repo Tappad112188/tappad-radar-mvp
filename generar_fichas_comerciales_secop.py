@@ -30,7 +30,7 @@ def extracto(evidencias,patron,transformar=None):
  return {"valor":None,"estado":"pendiente_revision_documental","fuente":None,"evidencia":None}
 def campo_fecha(cal,k):
  x=cal.get(k,{})
- return {"fecha":x.get("fecha"),"hora":x.get("hora"),"estado":x.get("estado","no_identificado"),"fuente":x.get("fuente"),"evidencia":x.get("evidencia")}
+ return {"fecha":x.get("fecha"),"hora":x.get("hora"),"estado":x.get("estado","no_identificado"),"fuente":x.get("fuente"),"evidencia":x.get("evidencia"),"alternativas":x.get("alternativas",[])}
 def fmt(c):
  if not c or not c.get("fecha"):return "No identificado"
  return c["fecha"]+(" "+c["hora"] if c.get("hora") else "")+" ("+c.get("estado","")+")"
