@@ -32,11 +32,12 @@ def secop_apto_para_alerta(licitacion):
 
 
 
-def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historial, ahora=None):
+def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historial, ahora=None, preferencias_por_cliente=None):
     """Agrupa nuevas candidatas por proveedor y separa bloqueadas y reintentos."""
     coincidencias = generar_coincidencias(
         proveedores, licitaciones, coberturas_por_cliente,
         incluir_fuera_de_cobertura=False,
+        preferencias_por_cliente=preferencias_por_cliente,
     )
     expedientes = {l["id"]: l for l in licitaciones}
     candidatas = []
@@ -55,6 +56,7 @@ def preparar_alertas(proveedores, licitaciones, coberturas_por_cliente, historia
             "cliente_id": coincidencia["cliente_id"],
             "licitacion_id": coincidencia["licitacion_id"],
             "terminos": coincidencia["terminos"],
+            "claves_catalogo": coincidencia.get("claves_catalogo", []),
             "numero_procedimiento": licitacion.get("numero_procedimiento"),
             "nombre_procedimiento": licitacion.get("nombre_procedimiento"),
             "url_procedimiento": licitacion.get("url_procedimiento"),
