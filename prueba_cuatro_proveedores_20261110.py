@@ -92,6 +92,19 @@ def ejecutar(enviar=False):
             logo.read_bytes(), maintype="image", subtype="png",
             cid="<tappad-logo>", filename="logo_tappad.png", disposition="inline"
         )
+        # Validar el MIME final: HTML, imagen CID y siete campos comerciales.
+        html_parte = msg.get_body(preferencelist=("html",))
+        imagenes = [parte for parte in msg.walk() if parte.get_content_type() == "image/png"]
+        campos = (
+            "Descripción completa:", "Número de procedimiento:", "Fecha de publicación:",
+            "Fecha de Junta de aclaraciones:", "Fecha de apertura de proposiciones:",
+            "Fecha de fallo:", "Enlace a documentos del procedimiento:"
+        )
+        if html_parte is None or not all(campo in html_parte.get_content() for campo in campos):
+            raise RuntimeError("Faltan campos de licitación en HTML; envío bloqueado")
+        if len(imagenes) != 1 or imagenes[0]["Content-ID"] != "<tappad-logo>" or len(imagenes[0].get_payload(decode=True)) < 100:
+            raise RuntimeError("Logo MIME no integrado correctamente; envío bloqueado")
+        print("HTML VALIDADO:", c["id"], "| 7 campos | logo PNG CID | invitación a asesoría")
         mensajes.append(msg)
         print("PREVISTA:", c["id"], DESTINOS[c["id"]], len(oportunidades), "licitación(es)")
     if not enviar:
