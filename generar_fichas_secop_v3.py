@@ -42,34 +42,54 @@ def pdf_texto(p):
  with pymupdf.open(p) as d:return [(f"página {i+1}",pg.get_text()) for i,pg in enumerate(d)]
 
 def documentos_del_procedimiento(carpeta, codigo):
- """Selecciona únicamente bases cuyo nombre interno coincide con el código SECOP.
- No extrae rutas arbitrarias ni mezcla expedientes; conserva los RAR originales.
- """
- import subprocess, tempfile
+ """Lee bases PDF dentro de RAR con 7-Zip; evita duplicados y no mezcla códigos."""
+ import subprocess
+ import shutil
+ seven_zip = shutil.which("7z") or shutil.which("7z.exe")
+ if not seven_zip:
+  candidato = Path("C:/Program Files/7-Zip/7z.exe")
+  if candidato.is_file():seven_zip = str(candidato)
+ if not seven_zip:
+  print("ADVERTENCIA: 7-Zip no encontrado; no se pueden leer bases RAR")
+  return []
  encontrados=[]
+ hashes_rar=set()
+ hashes_pdf=set()
  for rar in sorted(carpeta.glob("*.rar")):
+  hash_rar=hashlib.sha256(rar.read_bytes()).hexdigest()
+  if hash_rar in hashes_rar:
+   print("RAR duplicado omitido:",rar.name)
+   continue
+  hashes_rar.add(hash_rar)
   try:
-   listado=subprocess.run(["tar","-tf",str(rar)],capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=90,check=True).stdout.splitlines()
+   listado=subprocess.run([seven_zip,"l","-slt",str(rar)],capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=90,check=True).stdout
   except (OSError,subprocess.SubprocessError) as e:
    print("ADVERTENCIA RAR:",rar.name,str(e)[:160]);continue
-  bases=[x for x in listado if re.search(r"^BASES\s+",Path(x.replace("\\\\","/")).name,re.I) and Path(x).suffix.lower()==".pdf"]
-  validas=[x for x in bases if codigo.casefold() in re.sub(r"\s+"," ",Path(x).name).casefold()]
+  # -slt lista las rutas internas, sin extraer archivos al disco.
+  rutas=[line[7:] for line in listado.splitlines() if line.startswith("Path = ")]
+  bases=[x for x in rutas if re.search(r"^BASES\\s+",x.replace("\\\\","/").rsplit("/",1)[-1],re.I) and x.lower().endswith(".pdf")]
+  validas=[x for x in bases if codigo.casefold() in re.sub(r"\\s+"," ",x.replace("\\\\","/").rsplit("/",1)[-1]).casefold()]
   if len(validas)!=1:
    print("ADVERTENCIA: bases no coincidentes o ambiguas en",rar.name,"|",bases)
    continue
-  # Extraer solo el miembro seleccionado en un directorio temporal, sin sobrescribir.
-  with tempfile.TemporaryDirectory(prefix="tappad_bases_") as temporal:
-   nombre=validas[0]
-   destino=Path(temporal)/Path(nombre).name
-   try:
-    with destino.open("wb") as f:
-     p=subprocess.run(["tar","-xOf",str(rar),nombre],stdout=f,stderr=subprocess.PIPE,timeout=120,check=True)
-    if destino.stat().st_size>30_000_000 or destino.read_bytes()[:5]!=b"%PDF-":
-     raise ValueError("PDF inválido o mayor a 30 MB")
+  nombre=validas[0]
+  try:
+   # El miembro se lee por stdout: no se escribe ninguna ruta del RAR.
+   resultado=subprocess.run([seven_zip,"e","-so",str(rar),nombre],capture_output=True,timeout=120,check=True)
+   contenido=resultado.stdout
+   if not contenido.startswith(b"%PDF-") or not 0<len(contenido)<=30_000_000:
+    raise ValueError("PDF invalido o mayor a 30 MB")
+   sha=hashlib.sha256(contenido).hexdigest()
+   if sha in hashes_pdf:continue
+   hashes_pdf.add(sha)
+   import tempfile
+   with tempfile.TemporaryDirectory(prefix="tappad_bases_") as temporal:
+    destino=Path(temporal)/"bases.pdf"
+    destino.write_bytes(contenido)
     secciones=pdf_texto(destino)
-    encontrados.append((rar.name,nombre,secciones,hashlib.sha256(destino.read_bytes()).hexdigest()))
-   except (OSError,subprocess.SubprocessError,ValueError) as e:
-    print("ADVERTENCIA: no se pudo leer",nombre,str(e)[:160])
+   encontrados.append((rar.name,nombre,secciones,sha))
+  except (OSError,subprocess.SubprocessError,ValueError) as e:
+   print("ADVERTENCIA: no se pudo leer",nombre,str(e)[:160])
  return encontrados
 
 def extraer_fecha(s):
