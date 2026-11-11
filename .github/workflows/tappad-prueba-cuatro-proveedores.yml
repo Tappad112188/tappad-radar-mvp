@@ -35,3 +35,5 @@ jobs:
           else
             python prueba_cuatro_proveedores_20261110.py
           fi
+
+# Reejecutar vista previa tras habilitar lectura service_role de preferencias
