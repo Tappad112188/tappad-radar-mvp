@@ -1,5 +1,9 @@
 name: TAPPAD - Prueba controlada cuatro proveedores
 on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-prueba-cuatro-proveedores.yml'
   workflow_dispatch:
     inputs:
       enviar:
