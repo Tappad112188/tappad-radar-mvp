@@ -4,17 +4,11 @@ on:
     branches: [desarrollo-registro-proveedores]
     paths:
       - '.github/workflows/tappad-prueba-cuatro-proveedores.yml'
-  workflow_dispatch:
-    inputs:
-      enviar:
-        description: "Enviar correos a las dos cuentas autorizadas (false = vista previa)"
-        required: true
-        type: boolean
-        default: false
 permissions:
   contents: read
 jobs:
   prueba-cuatro-proveedores:
+    if: github.event.head_commit.message == 'TAPPAD_ENVIO_UNICO_20261110_APROBADO'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -22,18 +16,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Comprobar credenciales y ejecutar prueba aislada
+      - name: Enviar solo tres alertas de prueba a correos autorizados
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
-          ENVIAR: ${{ inputs.enviar }}
-        run: |
-          if [ "$ENVIAR" = "true" ]; then
-            python prueba_cuatro_proveedores_20261110.py --enviar
-          else
-            python prueba_cuatro_proveedores_20261110.py
-          fi
-
-# Reejecutar vista previa tras habilitar lectura service_role de preferencias
+        run: python prueba_cuatro_proveedores_20261110.py --enviar
