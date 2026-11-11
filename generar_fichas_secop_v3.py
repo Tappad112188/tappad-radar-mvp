@@ -15,13 +15,11 @@ MESES={m:i for i,m in enumerate("enero febrero marzo abril mayo junio julio agos
 MESES["setiembre"]=9
 FECHA=re.compile(r"(?<!\d)(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(20\d{2})(?!\d)|(?<!\d)(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})(?!\d)",re.I)
 HORA=re.compile(r"(?<!\d)(\d{1,2})\s*[:.]\s*(\d{2})\s*(?:horas|hrs|h)?",re.I)
+# Fechas comerciales: publicacion se obtiene del portal SECOP, no de las bases.
 ETAPAS=[
- ("visita_obra",r"\bvisita\s+(?:al\s+(?:lugar|sitio)|de\s+obra|a\s+la\s+obra)"),
  ("junta_aclaraciones",r"\bjunta\s+de\s+aclaraciones"),
  ("presentacion_apertura",r"(?:presentaci[oó]n\s+(?:de\s+proposiciones\s+y\s+)?apertura|presentaci[oó]n\s+de\s+proposiciones\s+y\s+apertura|apertura\s+de\s+(?:proposiciones|propuestas)|presentaci[oó]n\s+de\s+proposiciones)"),
- ("fallo_programado",r"(?:\bfallo\s*:|\bacto\s+de\s+fallo\s*:|\bfecha\s+(?:del?\s+)?fallo\s*:)"),
- ("inicio_servicio_obra",r"(?:fecha\s+de\s+inicio|inicio\s+de\s+(?:los\s+)?(?:trabajos|servicios|obra))"),
- ("terminacion_servicio_obra",r"(?:fecha\s+de\s+t[eé]rmino|terminaci[oó]n\s+de\s+(?:los\s+)?(?:trabajos|servicios|obra))")
+ ("fallo_programado",r"(?:\bfallo\s*:|\bacto\s+de\s+fallo\s*:|\bfecha\s+(?:del?\s+)?fallo\s*:)")
 ]
 EXTRAS={
  "costo_bases":r"(?:costo|precio|importe|venta)\s+(?:de\s+)?(?:las\s+)?bases",
@@ -113,12 +111,9 @@ def fecha_hora(segmento):
  return fecha,(sorted(horas)[0][1] if horas else None)
 # Encabezados de actos: se exige dos puntos para evitar menciones narrativas.
 ENCABEZADOS={
- "visita_obra":r"(?:visita\s+(?:al\s+(?:lugar|sitio)|de\s+obra|a\s+la\s+obra)[^:\n]{0,75}:)",
  "junta_aclaraciones":r"junta\s+de\s+aclaraciones\s*:",
  "presentacion_apertura":r"(?:presentacion\s+de\s+proposiciones\s+y\s+apertura\s+de\s+propuestas\s+tecnicas\s+y\s+economicas|presentacion\s+y\s+apertura\s+de\s+propuestas\s+tecnicas\s+y\s+economicas|presentacion\s+de\s+proposiciones\s+y\s+apertura\s+de\s+proposiciones)\s*:",
- "fallo_programado":r"(?:acto\s+de\s+fallo|fallo)\s*:",
- "inicio_servicio_obra":r"(?:fecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\s*:|fecha\s+de\s+inicio\s+de\s+(?:los\s+)?trabajos\s*:)",
- "terminacion_servicio_obra":r"(?:terminacion\s+el\s+dia|\bterminar\s+(?:el\s+)?|fecha\s+de\s+terminacion\s*:|fecha\s+de\s+termino\s*:)"
+ "fallo_programado":r"(?:acto\s+de\s+fallo|fallo)\s*:"
 }
 def candidatos(secciones,etapa,patron):
  out=[]
