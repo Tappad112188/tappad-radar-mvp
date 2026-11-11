@@ -170,21 +170,43 @@ elif menu == "Registrar empresa":
     st.write("Registra tu empresa e indica qué licitaciones te interesan.")
     st.caption("El registro no activa una suscripción ni el envío automático de alertas.")
 
-    try:
-        supabase = conectar_supabase()
-        catalogo = (
-            supabase.table("giros_comerciales")
-            .select("id,nombre")
-            .eq("activo", True)
-            .order("nombre")
-            .execute()
-        ).data or []
-    except Exception:
-        catalogo = []
-        st.error("No fue posible consultar los giros comerciales. Inténtalo más tarde.")
-
-    if catalogo:
-        nombres_giros = {item["nombre"]: item["id"] for item in catalogo}
+    # El buscador consulta el catálogo oficial bajo demanda, sin descargar 64 mil claves.
+    if "catalogo_resultados" not in st.session_state:
+        st.session_state.catalogo_resultados = {}
+    st.subheader("Selecciona las actividades de la empresa")
+    st.caption("Busca por clave o descripción en los catálogos SAT y CUCOP. Puedes seleccionar varias claves.")
+    sistema_busqueda = st.selectbox("Catálogo", ["Ambos", "SAT", "CUCOP"], key="catalogo_sistema")
+    termino_busqueda = st.text_input("Buscar clave o actividad", key="catalogo_termino", placeholder="Ejemplo: limpieza, mantenimiento, 761115")
+    if st.button("Buscar actividades", key="buscar_catalogo"):
+        termino = termino_busqueda.strip()
+        if len(termino) < 2 or len(termino) > 80 or any(c in termino for c in "%*,.()\\\\"):
+            st.warning("Escribe entre 2 y 80 caracteres sin símbolos especiales.")
+        else:
+            try:
+                db_catalogo = conectar_supabase_admin()
+                consulta = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                if sistema_busqueda != "Ambos":
+                    consulta = consulta.eq("sistema", sistema_busqueda)
+                por_clave = consulta.ilike("clave", f"%{termino}%").limit(25).execute().data or []
+                consulta2 = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                if sistema_busqueda != "Ambos":
+                    consulta2 = consulta2.eq("sistema", sistema_busqueda)
+                por_descripcion = consulta2.ilike("descripcion", f"%{termino}%").limit(25).execute().data or []
+                encontrados = por_clave + por_descripcion
+                for item in encontrados:
+                    etiqueta = f'{item["sistema"]} | {item["clave"]} | {item["descripcion"]}'
+                    st.session_state.catalogo_resultados[etiqueta] = item
+                if not encontrados:
+                    st.info("No se encontraron claves. Prueba con otro término.")
+            except Exception:
+                st.error("No fue posible buscar en los catálogos. Inténtalo nuevamente.")
+    opciones_catalogo = list(st.session_state.catalogo_resultados)
+    seleccion_catalogo = st.multiselect(
+        "Claves SAT/CUCOP seleccionadas *", opciones_catalogo,
+        key="seleccion_catalogo_registro", max_selections=50,
+        help="Puedes realizar varias búsquedas; las claves seleccionadas se conservan."
+    )
+    st.caption(f"{len(seleccion_catalogo)} claves seleccionadas. Máximo 50 por registro.")
 
         st.write("### Verificación de seguridad")
         verificacion = turnstile_component(
@@ -209,7 +231,7 @@ elif menu == "Registrar empresa":
             estado_domicilio = st.selectbox("Estado de domicilio", ["No especificado"] + ESTADOS_MX)
 
             st.subheader("Productos y servicios")
-            giros = st.multiselect("Giros comerciales *", list(nombres_giros))
+            st.write("**Giros comerciales SAT/CUCOP:** seleccionados en el buscador anterior.")
             st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
             palabras = st.text_area(
                 "Productos o servicios específicos *",
@@ -254,8 +276,8 @@ elif menu == "Registrar empresa":
                 st.warning("Completa la empresa, un correo válido y los servicios de interés.")
             elif not rfc_valido:
                 st.warning("Verifica el formato del RFC (12 o 13 caracteres).")
-            elif not giros:
-                st.warning("Selecciona al menos un giro comercial.")
+            elif not seleccion_catalogo:
+                st.warning("Selecciona al menos una clave SAT o CUCOP.")
             elif not ubicaciones:
                 st.warning("Selecciona al menos un estado o municipio de cobertura.")
             elif not consentimiento:
@@ -274,13 +296,17 @@ elif menu == "Registrar empresa":
                     "p_telefono": telefono.strip() or None,
                     "p_ciudad": ciudad.strip() or None,
                     "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
-                    "p_giros": [nombres_giros[nombre] for nombre in giros],
+                    "p_preferencias": [
+                        {k: st.session_state.catalogo_resultados[etiqueta][k] for k in ("sistema", "clave", "version")}
+                        for etiqueta in seleccion_catalogo
+                    ],
+                    "p_declaracion_giros": bool(declaracion_giros),
                     "p_ubicaciones": ubicaciones,
                 }
                 try:
                     respuesta = requests.post(
                         st.secrets["SUPABASE_URL"].rstrip("/")
-                        + "/functions/v1/registro-proveedor-seguro",
+                        + "/functions/v1/registro-proveedor-catalogos-pruebas",
                         json={"turnstile_token": token_turnstile, "datos": datos},
                         timeout=15,
                     )
@@ -295,8 +321,6 @@ elif menu == "Registrar empresa":
                         st.error("No fue posible completar el registro. Revisa tus datos e inténtalo más tarde.")
                 except (requests.RequestException, ValueError, KeyError):
                     st.error("No fue posible conectar con el servicio de registro. Inténtalo más tarde.")
-    elif not catalogo:
-        st.info("El registro estará disponible cuando se cargue el catálogo de giros.")
 
 elif menu == "Panel administrativo":
     st.header("Panel administrativo")
