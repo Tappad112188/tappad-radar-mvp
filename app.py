@@ -210,11 +210,13 @@ elif menu == "Registrar empresa":
 
             st.subheader("Productos y servicios")
             giros = st.multiselect("Giros comerciales *", list(nombres_giros))
+            st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
             palabras = st.text_area(
                 "Productos o servicios específicos *",
                 placeholder="Ejemplo: artículos de limpieza, mantenimiento de oficinas",
                 max_chars=2000,
             )
+            st.caption("(Puede agregar palabras clave, términos similares o sinónimos para identificar oportunidades relacionadas exclusivamente con la persona física o moral registrada. No incluya actividades de otras empresas o personas físicas).")
 
             st.subheader("Cobertura de oportunidades")
             st.caption("Selecciona estados completos o municipios específicos. Esta cobertura es independiente de tu domicilio.")
@@ -228,6 +230,9 @@ elif menu == "Registrar empresa":
             )
             consentimiento = st.checkbox(
                 "Confirmo que tengo autorización para proporcionar estos datos y recibir comunicaciones relacionadas con mi solicitud."
+            )
+            declaracion_giros = st.checkbox(
+                "Declaro que los giros, actividades, productos, servicios y palabras clave seleccionados corresponden exclusivamente a la persona física o moral que estoy registrando en TAPPAD Radar."
             )
             enviar = st.form_submit_button("Registrar proveedor")
 
@@ -255,6 +260,8 @@ elif menu == "Registrar empresa":
                 st.warning("Selecciona al menos un estado o municipio de cobertura.")
             elif not consentimiento:
                 st.warning("Confirma que tienes autorización para proporcionar los datos.")
+            elif not declaracion_giros:
+                st.warning("Debes confirmar que las actividades y palabras clave corresponden exclusivamente a la persona física o moral registrada.")
             elif not token_turnstile:
                 st.warning("Completa la verificación de seguridad antes de registrarte.")
             else:
