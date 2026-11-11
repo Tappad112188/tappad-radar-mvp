@@ -9,12 +9,12 @@ import json
 import os
 import urllib.parse
 import urllib.request
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
 TABLAS = {
     "clientes": "id,empresa,activo,estado,ciudad,palabras_clave",
-    "preferencias": "cliente_id,origen,descripcion,activo",
+    "preferencias": "cliente_id,origen,clave,descripcion,activo",
     "licitaciones": "id,fuente,numero_procedimiento,descripcion,nombre_procedimiento,entidad_federativa,fecha_publicacion,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo,fecha_registro",
 }
 
@@ -37,6 +37,15 @@ def consultar(tabla, select, extra=None):
             return resultados
     raise RuntimeError("Se alcanzo el limite de paginacion; no se emite un reporte parcial")
 
+def cargar_preferencias_por_cliente():
+    """Consulta preferencias oficiales activas para alimentar el motor (solo lectura)."""
+    filas = consultar("clientes_giros_preferencias_tappad", TABLAS["preferencias"], {"activo": "eq.true"})
+    resultado = defaultdict(list)
+    for fila in filas:
+        resultado[fila["cliente_id"]].append(fila)
+    return dict(resultado)
+
+
 def diagnosticar():
     clientes = consultar("clientes", TABLAS["clientes"])
     preferencias = consultar("clientes_giros_preferencias_tappad", TABLAS["preferencias"])
@@ -54,6 +63,7 @@ def diagnosticar():
         "clientes_activos_sin_giro_ni_palabras": sum(
             not prefs[c["id"]] and not (c.get("palabras_clave") or "").strip() for c in activas),
         "preferencias_activas": sum(prefs.values()),
+        "clientes_con_preferencias_oficiales": len({p["cliente_id"] for p in preferencias if p.get("activo") is True and p.get("origen") in ("SAT", "CUCOP")}),
         "licitaciones_ultimos_7_dias": len(licitaciones),
         "fuentes_ultimos_7_dias": dict(fuentes),
         "calendarios_incompletos": {
