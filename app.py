@@ -170,133 +170,157 @@ elif menu == "Registrar empresa":
     st.write("Registra tu empresa e indica qué licitaciones te interesan.")
     st.caption("El registro no activa una suscripción ni el envío automático de alertas.")
 
-    try:
-        supabase = conectar_supabase()
-        catalogo = (
-            supabase.table("giros_comerciales")
-            .select("id,nombre")
-            .eq("activo", True)
-            .order("nombre")
-            .execute()
-        ).data or []
-    except Exception:
-        catalogo = []
-        st.error("No fue posible consultar los giros comerciales. Inténtalo más tarde.")
+    # El buscador consulta el catálogo oficial bajo demanda, sin descargar 64 mil claves.
+    if "catalogo_resultados" not in st.session_state:
+        st.session_state.catalogo_resultados = {}
+    st.subheader("Selecciona las actividades de la empresa")
+    st.caption("Busca por clave o descripción en los catálogos SAT y CUCOP. Puedes seleccionar varias claves.")
+    sistema_busqueda = st.selectbox("Catálogo", ["Ambos", "SAT", "CUCOP"], key="catalogo_sistema")
+    termino_busqueda = st.text_input("Buscar clave o actividad", key="catalogo_termino", placeholder="Ejemplo: limpieza, mantenimiento, 761115")
+    if st.button("Buscar actividades", key="buscar_catalogo"):
+        termino = termino_busqueda.strip()
+        if len(termino) < 2 or len(termino) > 80 or any(c in termino for c in "%*,.()\\\\"):
+            st.warning("Escribe entre 2 y 80 caracteres sin símbolos especiales.")
+        else:
+            try:
+                db_catalogo = conectar_supabase_admin()
+                consulta = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                if sistema_busqueda != "Ambos":
+                    consulta = consulta.eq("sistema", sistema_busqueda)
+                por_clave = consulta.ilike("clave", f"%{termino}%").limit(25).execute().data or []
+                consulta2 = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                if sistema_busqueda != "Ambos":
+                    consulta2 = consulta2.eq("sistema", sistema_busqueda)
+                por_descripcion = consulta2.ilike("descripcion", f"%{termino}%").limit(25).execute().data or []
+                encontrados = por_clave + por_descripcion
+                for item in encontrados:
+                    etiqueta = f'{item["sistema"]} | {item["clave"]} | {item["descripcion"]}'
+                    st.session_state.catalogo_resultados[etiqueta] = item
+                if not encontrados:
+                    st.info("No se encontraron claves. Prueba con otro término.")
+            except Exception:
+                st.error("No fue posible buscar en los catálogos. Inténtalo nuevamente.")
+    opciones_catalogo = list(st.session_state.catalogo_resultados)
+    seleccion_catalogo = st.multiselect(
+        "Claves SAT/CUCOP seleccionadas *", opciones_catalogo,
+        key="seleccion_catalogo_registro", max_selections=50,
+        help="Puedes realizar varias búsquedas; las claves seleccionadas se conservan."
+    )
+    st.caption(f"{len(seleccion_catalogo)} claves seleccionadas. Máximo 50 por registro.")
 
-    if catalogo:
-        nombres_giros = {item["nombre"]: item["id"] for item in catalogo}
+    st.write("### Verificación de seguridad")
+    verificacion = turnstile_component(
+        data={"sitekey": TURNSTILE_SITE_KEY},
+        default={"token": "", "error_code": ""},
+        key="turnstile_registro",
+        on_token_change=lambda: None,
+        on_error_code_change=lambda: None,
+    )
+    token_turnstile = verificacion.token
+    if verificacion.error_code:
+        st.warning(f"Turnstile informó el código de error: {verificacion.error_code}")
 
-        st.write("### Verificación de seguridad")
-        verificacion = turnstile_component(
-            data={"sitekey": TURNSTILE_SITE_KEY},
-            default={"token": "", "error_code": ""},
-            key="turnstile_registro",
-            on_token_change=lambda: None,
-            on_error_code_change=lambda: None,
+    with st.form("formulario_registro_proveedor"):
+        st.subheader("Datos empresariales")
+        empresa = st.text_input("Razón social o nombre comercial *", max_chars=200)
+        rfc = st.text_input("RFC", max_chars=13)
+        contacto = st.text_input("Nombre de contacto", max_chars=150)
+        correo = st.text_input("Correo electrónico *", max_chars=254)
+        telefono = st.text_input("Teléfono", max_chars=25)
+        ciudad = st.text_input("Ciudad de domicilio", max_chars=120)
+        estado_domicilio = st.selectbox("Estado de domicilio", ["No especificado"] + ESTADOS_MX)
+
+        st.subheader("Productos y servicios")
+        st.write("**Giros comerciales SAT/CUCOP:** seleccionados en el buscador anterior.")
+        st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
+        palabras = st.text_area(
+            "Productos o servicios específicos *",
+            placeholder="Ejemplo: artículos de limpieza, mantenimiento de oficinas",
+            max_chars=2000,
         )
-        token_turnstile = verificacion.token
-        if verificacion.error_code:
-            st.warning(f"Turnstile informó el código de error: {verificacion.error_code}")
+        st.caption("(Puede agregar palabras clave, términos similares o sinónimos para identificar oportunidades relacionadas exclusivamente con la persona física o moral registrada. No incluya actividades de otras empresas o personas físicas).")
 
-        with st.form("formulario_registro_proveedor"):
-            st.subheader("Datos empresariales")
-            empresa = st.text_input("Razón social o nombre comercial *", max_chars=200)
-            rfc = st.text_input("RFC", max_chars=13)
-            contacto = st.text_input("Nombre de contacto", max_chars=150)
-            correo = st.text_input("Correo electrónico *", max_chars=254)
-            telefono = st.text_input("Teléfono", max_chars=25)
-            ciudad = st.text_input("Ciudad de domicilio", max_chars=120)
-            estado_domicilio = st.selectbox("Estado de domicilio", ["No especificado"] + ESTADOS_MX)
+        st.subheader("Cobertura de oportunidades")
+        st.caption("Selecciona estados completos o municipios específicos. Esta cobertura es independiente de tu domicilio.")
+        estados_cobertura = st.multiselect("Estados completos", ESTADOS_MX)
+        estado_municipio = st.selectbox("Estado de municipios específicos", ["Ninguno"] + ESTADOS_MX)
+        municipios = st.text_input(
+            "Municipios de ese estado, separados por coma",
+            placeholder="Ejemplo: Saltillo, Ramos Arizpe",
+            max_chars=500,
+            
+        )
+        consentimiento = st.checkbox(
+            "Confirmo que tengo autorización para proporcionar estos datos y recibir comunicaciones relacionadas con mi solicitud."
+        )
+        declaracion_giros = st.checkbox(
+            "Declaro que los giros, actividades, productos, servicios y palabras clave seleccionados corresponden exclusivamente a la persona física o moral que estoy registrando en TAPPAD Radar."
+        )
+        enviar = st.form_submit_button("Registrar proveedor")
 
-            st.subheader("Productos y servicios")
-            giros = st.multiselect("Giros comerciales *", list(nombres_giros))
-            st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
-            palabras = st.text_area(
-                "Productos o servicios específicos *",
-                placeholder="Ejemplo: artículos de limpieza, mantenimiento de oficinas",
-                max_chars=2000,
+    if enviar:
+        rfc_limpio = rfc.strip().upper()
+        correo_limpio = correo.strip().lower()
+        ubicaciones = [{"estado": estado, "municipio": None} for estado in estados_cobertura]
+        if estado_municipio != "Ninguno":
+            municipios_unicos = list(dict.fromkeys(
+                m.strip() for m in municipios.split(",") if m.strip()
+            ))
+            ubicaciones.extend(
+                {"estado": estado_municipio, "municipio": municipio}
+                for municipio in municipios_unicos
             )
-            st.caption("(Puede agregar palabras clave, términos similares o sinónimos para identificar oportunidades relacionadas exclusivamente con la persona física o moral registrada. No incluya actividades de otras empresas o personas físicas).")
-
-            st.subheader("Cobertura de oportunidades")
-            st.caption("Selecciona estados completos o municipios específicos. Esta cobertura es independiente de tu domicilio.")
-            estados_cobertura = st.multiselect("Estados completos", ESTADOS_MX)
-            estado_municipio = st.selectbox("Estado de municipios específicos", ["Ninguno"] + ESTADOS_MX)
-            municipios = st.text_input(
-                "Municipios de ese estado, separados por coma",
-                placeholder="Ejemplo: Saltillo, Ramos Arizpe",
-                max_chars=500,
-                
-            )
-            consentimiento = st.checkbox(
-                "Confirmo que tengo autorización para proporcionar estos datos y recibir comunicaciones relacionadas con mi solicitud."
-            )
-            declaracion_giros = st.checkbox(
-                "Declaro que los giros, actividades, productos, servicios y palabras clave seleccionados corresponden exclusivamente a la persona física o moral que estoy registrando en TAPPAD Radar."
-            )
-            enviar = st.form_submit_button("Registrar proveedor")
-
-        if enviar:
-            rfc_limpio = rfc.strip().upper()
-            correo_limpio = correo.strip().lower()
-            ubicaciones = [{"estado": estado, "municipio": None} for estado in estados_cobertura]
-            if estado_municipio != "Ninguno":
-                municipios_unicos = list(dict.fromkeys(
-                    m.strip() for m in municipios.split(",") if m.strip()
-                ))
-                ubicaciones.extend(
-                    {"estado": estado_municipio, "municipio": municipio}
-                    for municipio in municipios_unicos
+        email_valido = re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo_limpio)
+        rfc_valido = not rfc_limpio or re.fullmatch(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}", rfc_limpio)
+        if not empresa.strip() or not email_valido or not palabras.strip():
+            st.warning("Completa la empresa, un correo válido y los servicios de interés.")
+        elif not rfc_valido:
+            st.warning("Verifica el formato del RFC (12 o 13 caracteres).")
+        elif not seleccion_catalogo:
+            st.warning("Selecciona al menos una clave SAT o CUCOP.")
+        elif not ubicaciones:
+            st.warning("Selecciona al menos un estado o municipio de cobertura.")
+        elif not consentimiento:
+            st.warning("Confirma que tienes autorización para proporcionar los datos.")
+        elif not declaracion_giros:
+            st.warning("Debes confirmar que las actividades y palabras clave corresponden exclusivamente a la persona física o moral registrada.")
+        elif not token_turnstile:
+            st.warning("Completa la verificación de seguridad antes de registrarte.")
+        else:
+            datos = {
+                "p_empresa": empresa.strip(),
+                "p_correo": correo_limpio,
+                "p_palabras_clave": palabras.strip(),
+                "p_rfc": rfc_limpio or None,
+                "p_nombre_contacto": contacto.strip() or None,
+                "p_telefono": telefono.strip() or None,
+                "p_ciudad": ciudad.strip() or None,
+                "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
+                "p_preferencias": [
+                    {k: st.session_state.catalogo_resultados[etiqueta][k] for k in ("sistema", "clave", "version")}
+                    for etiqueta in seleccion_catalogo
+                ],
+                "p_declaracion_giros": bool(declaracion_giros),
+                "p_ubicaciones": ubicaciones,
+            }
+            try:
+                respuesta = requests.post(
+                    st.secrets["SUPABASE_URL"].rstrip("/")
+                    + "/functions/v1/registro-proveedor-catalogos-pruebas",
+                    json={"turnstile_token": token_turnstile, "datos": datos},
+                    timeout=15,
                 )
-            email_valido = re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo_limpio)
-            rfc_valido = not rfc_limpio or re.fullmatch(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}", rfc_limpio)
-            if not empresa.strip() or not email_valido or not palabras.strip():
-                st.warning("Completa la empresa, un correo válido y los servicios de interés.")
-            elif not rfc_valido:
-                st.warning("Verifica el formato del RFC (12 o 13 caracteres).")
-            elif not giros:
-                st.warning("Selecciona al menos un giro comercial.")
-            elif not ubicaciones:
-                st.warning("Selecciona al menos un estado o municipio de cobertura.")
-            elif not consentimiento:
-                st.warning("Confirma que tienes autorización para proporcionar los datos.")
-            elif not declaracion_giros:
-                st.warning("Debes confirmar que las actividades y palabras clave corresponden exclusivamente a la persona física o moral registrada.")
-            elif not token_turnstile:
-                st.warning("Completa la verificación de seguridad antes de registrarte.")
-            else:
-                datos = {
-                    "p_empresa": empresa.strip(),
-                    "p_correo": correo_limpio,
-                    "p_palabras_clave": palabras.strip(),
-                    "p_rfc": rfc_limpio or None,
-                    "p_nombre_contacto": contacto.strip() or None,
-                    "p_telefono": telefono.strip() or None,
-                    "p_ciudad": ciudad.strip() or None,
-                    "p_estado": estado_domicilio if estado_domicilio != "No especificado" else None,
-                    "p_giros": [nombres_giros[nombre] for nombre in giros],
-                    "p_ubicaciones": ubicaciones,
-                }
-                try:
-                    respuesta = requests.post(
-                        st.secrets["SUPABASE_URL"].rstrip("/")
-                        + "/functions/v1/registro-proveedor-seguro",
-                        json={"turnstile_token": token_turnstile, "datos": datos},
-                        timeout=15,
-                    )
-                    if respuesta.status_code == 200 and respuesta.json().get("ok") is True:
-                        st.success("Solicitud de registro recibida correctamente.")
-                        st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
-                    elif respuesta.status_code == 409:
-                        st.warning("Este correo ya está registrado. Contacta a TAPPAD Consultoría si necesitas actualizar tus datos.")
-                    elif respuesta.status_code == 403:
-                        st.warning("La verificación de seguridad no fue válida o expiró. Inténtalo de nuevo.")
-                    else:
-                        st.error("No fue posible completar el registro. Revisa tus datos e inténtalo más tarde.")
-                except (requests.RequestException, ValueError, KeyError):
-                    st.error("No fue posible conectar con el servicio de registro. Inténtalo más tarde.")
-    elif not catalogo:
-        st.info("El registro estará disponible cuando se cargue el catálogo de giros.")
+                if respuesta.status_code == 200 and respuesta.json().get("ok") is True:
+                    st.success("Solicitud de registro recibida correctamente.")
+                    st.info("La activación de alertas y suscripciones se habilitará posteriormente.")
+                elif respuesta.status_code == 409:
+                    st.warning("Este correo ya está registrado. Contacta a TAPPAD Consultoría si necesitas actualizar tus datos.")
+                elif respuesta.status_code == 403:
+                    st.warning("La verificación de seguridad no fue válida o expiró. Inténtalo de nuevo.")
+                else:
+                    st.error("No fue posible completar el registro. Revisa tus datos e inténtalo más tarde.")
+            except (requests.RequestException, ValueError, KeyError):
+                st.error("No fue posible conectar con el servicio de registro. Inténtalo más tarde.")
 
 elif menu == "Panel administrativo":
     st.header("Panel administrativo")
