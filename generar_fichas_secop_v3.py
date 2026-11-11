@@ -118,7 +118,7 @@ ENCABEZADOS={
  "presentacion_apertura":r"(?:presentacion\s+de\s+proposiciones\s+y\s+apertura\s+de\s+propuestas\s+tecnicas\s+y\s+economicas|presentacion\s+y\s+apertura\s+de\s+propuestas\s+tecnicas\s+y\s+economicas|presentacion\s+de\s+proposiciones\s+y\s+apertura\s+de\s+proposiciones)\s*:",
  "fallo_programado":r"(?:acto\s+de\s+fallo|fallo)\s*:",
  "inicio_servicio_obra":r"(?:fecha\s+de\s+inicio\s+y\s+termino\s+de\s+la\s+obra\s*:|fecha\s+de\s+inicio\s+de\s+(?:los\s+)?trabajos\s*:)",
- "terminacion_servicio_obra":r"(?:terminacion\s+el\s+dia|fecha\s+de\s+terminacion\s*:|fecha\s+de\s+termino\s*:)"
+ "terminacion_servicio_obra":r"(?:terminacion\s+el\s+dia|\bterminar\s+(?:el\s+)?|fecha\s+de\s+terminacion\s*:|fecha\s+de\s+termino\s*:)"
 }
 def candidatos(secciones,etapa,patron):
  out=[]
