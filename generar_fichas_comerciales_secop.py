@@ -55,7 +55,7 @@ def main():
    "garantia_cumplimiento":{"estado":"mencionada_revisar_condiciones" if e.get("garantia_cumplimiento") else "no_identificada","evidencias":e.get("garantia_cumplimiento",[])[:2]},
    "experiencia":{"estado":"mencionada_revisar_condiciones" if e.get("experiencia") else "no_identificada","evidencias":e.get("experiencia",[])[:2]}
   }
-  calendario={k:campo_fecha(f.get("calendario",{}),k) for k in ("visita_obra","junta_aclaraciones","limite_presentacion_propuestas","fallo_programado","inicio_servicio_obra","terminacion_servicio_obra")}
+  calendario={k:campo_fecha(f.get("calendario",{}),k) for k in ("junta_aclaraciones","presentacion_apertura","limite_presentacion_propuestas","fallo_programado")}
   ficha={"codigo":f.get("codigo"),"referencia":f.get("referencia"),"objeto":f.get("objeto"),"publicacion":f.get("publicacion"),"estatus_portal":f.get("estatus"),"categorias_sugeridas":categoria(f.get("objeto","")),"clasificacion":"automatica_pendiente_revision","calendario":calendario,"condiciones":req,"documentos":f.get("documentos",[]),"estado_publicacion":"NO_PUBLICAR_PENDIENTE_VALIDACION"}
   fichas.append(ficha)
   lineas.extend(["="*65,f'{ficha["codigo"]} | {ficha["referencia"]}',ficha["objeto"] or "",f'Categorias sugeridas: {", ".join(ficha["categorias_sugeridas"])}',f'Costo bases (MXN): {costo["valor"] or "No identificado"}',f'Capital contable: {capital["valor"] or "No identificado"}',f'Garantia seriedad: {gar["valor"] or "No identificado"}',f'Padron: {"Mencionado, verificar vigencia y requisitos" if padron else "No identificado"}'])
