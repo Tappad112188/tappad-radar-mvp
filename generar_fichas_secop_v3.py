@@ -67,8 +67,8 @@ def documentos_del_procedimiento(carpeta, codigo):
    print("ADVERTENCIA RAR:",rar.name,str(e)[:160]);continue
   # -slt lista las rutas internas, sin extraer archivos al disco.
   rutas=[line[7:] for line in listado.splitlines() if line.startswith("Path = ")]
-  bases=[x for x in rutas if re.search(r"^BASES\\s+",x.replace("\\\\","/").rsplit("/",1)[-1],re.I) and x.lower().endswith(".pdf")]
-  validas=[x for x in bases if codigo.casefold() in re.sub(r"\\s+"," ",x.replace("\\\\","/").rsplit("/",1)[-1]).casefold()]
+  bases=[x for x in rutas if re.search(r"^BASES\s+",x.replace("\\\\","/").rsplit("/",1)[-1],re.I) and x.lower().endswith(".pdf")]
+  validas=[x for x in bases if codigo.casefold() in re.sub(r"\s+"," ",x.replace("\\\\","/").rsplit("/",1)[-1]).casefold()]
   if len(validas)!=1:
    print("ADVERTENCIA: bases no coincidentes o ambiguas en",rar.name,"|",bases)
    continue
