@@ -6,6 +6,8 @@ import json
 import os
 import smtplib
 from email.message import EmailMessage
+from pathlib import Path
+from plantilla_correo_html import construir_correo_html
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from motor_coincidencias import generar_coincidencias
@@ -76,6 +78,20 @@ def ejecutar(enviar=False):
         msg["To"] = DESTINOS[c["id"]]
         msg["Subject"] = "[PRUEBA CONTROLADA] " + vista["asunto"]
         msg.set_content("SIMULACIÓN INTERNA. NO ES UNA NOTIFICACIÓN COMERCIAL.\n\n" + vista["cuerpo"])
+        # Reutiliza la plantilla HTML corporativa ya existente, no una nueva.
+        expedientes_por_id = {l["id"]: l for l in licitaciones}
+        oportunidades_html = [{**expedientes_por_id[o["licitacion_id"]], **o} for o in oportunidades]
+        html = construir_correo_html(c["empresa"], oportunidades_html)
+        if 'cid:tappad-logo' not in html or 'TAPPAD Consultoría ofrece asesoría' not in html:
+            raise RuntimeError("Plantilla corporativa incompleta; envío bloqueado")
+        msg.add_alternative(html, subtype="html")
+        logo = Path(__file__).resolve().parent / "assets" / "logo_tappad.png"
+        if not logo.is_file():
+            raise RuntimeError("No se encontró el logo PNG; envío bloqueado")
+        msg.get_payload()[-1].add_related(
+            logo.read_bytes(), maintype="image", subtype="png",
+            cid="<tappad-logo>", filename="logo_tappad.png", disposition="inline"
+        )
         mensajes.append(msg)
         print("PREVISTA:", c["id"], DESTINOS[c["id"]], len(oportunidades), "licitación(es)")
     if not enviar:
