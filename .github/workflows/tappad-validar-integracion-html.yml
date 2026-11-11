@@ -1,0 +1,43 @@
+name: TAPPAD - Validar integracion HTML en motor de entrega
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-validar-integracion-html.yml'
+      - 'motor_entrega_tappad_v2.py'
+      - 'plantilla_correo_html.py'
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar sintaxis y plantilla de produccion sin SMTP
+        run: |
+          python -m py_compile motor_entrega_tappad_v2.py plantilla_correo_html.py
+          python - <<'PY'
+          from pathlib import Path
+          from plantilla_correo_html import construir_correo_html
+          import motor_entrega_tappad_v2 as motor
+          assert Path(motor.LOGO).is_file()
+          html = construir_correo_html("Empresa de prueba", [{
+              "numero_procedimiento":"LA-PRUEBA-2026",
+              "nombre_procedimiento":"Compra de prueba",
+              "descripcion":"Suministro de prueba",
+              "fuente":"ComprasMX",
+              "url_procedimiento":"https://comprasmx.buengobierno.gob.mx/"
+          }])
+          for texto in ("cid:tappad-logo", "TAPPAD Consultoría ofrece asesoría",
+              "Descripción completa:", "Número de procedimiento:", "Fecha de publicación:",
+              "Fecha de Junta de aclaraciones:", "Fecha de apertura de proposiciones:",
+              "Fecha de fallo:", "Enlace a documentos del procedimiento:"):
+              assert texto in html, texto
+          codigo = Path("motor_entrega_tappad_v2.py").read_text(encoding="utf-8")
+          assert 'html=construir_correo_html(cliente["empresa"]' in codigo
+          assert 'cid="<tappad-logo>"' in codigo
+          print("INTEGRACION HTML APROBADA: motor real, siete campos, logo CID y consultoria. SIN SMTP.")
+          PY
