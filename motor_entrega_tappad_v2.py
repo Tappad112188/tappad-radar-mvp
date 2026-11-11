@@ -13,6 +13,7 @@ from diagnosticar_vigencia_v4 import consulta
 from compuerta_alertas_v3 import evaluar
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from plantilla_correo_html import construir_correo_html
 
 BASE=Path(__file__).resolve().parent
 MANIFIESTO=BASE/"manifiesto_notificaciones_tappad.json"
@@ -48,7 +49,7 @@ def main():
     manifiesto=json.loads(MANIFIESTO.read_text(encoding="utf-8"))
     if manifiesto.get("modo")!="SOLO_PREPARACION": raise SystemExit("Manifiesto no valido")
     clientes={c["id"]:c for c in consulta("clientes","id,empresa,correo,activo",{"activo":"eq.true"})}
-    licitaciones={l["id"]:l for l in consulta("licitaciones","id,fuente,fecha_apertura,estatus,validacion_calendario")}
+    licitaciones={l["id"]:l for l in consulta("licitaciones","id,fuente,numero_procedimiento,nombre_procedimiento,descripcion,fecha_publicacion,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo_programado,url_procedimiento,estatus,validacion_calendario")}
     registros=consulta("notificaciones_enviadas","cliente_id,licitacion_id,estado")
     ocupados={(r["cliente_id"],r["licitacion_id"]) for r in registros}
     ahora=datetime.now(ZoneInfo("America/Monterrey")).replace(tzinfo=None)
@@ -76,7 +77,16 @@ def main():
             html=contenido.decode("utf-8")
             if "revisar" not in html.casefold() or ("bases" not in html.casefold() and "documento" not in html.casefold()):
                 raise SystemExit("Aviso obligatorio de revision documental ausente en HTML SECOP: "+str(cid))
-        tareas.append((cid,destino,ids,contenido.decode("utf-8")))
+        # El emisor utiliza la plantilla corporativa aprobada, conservando el manifiesto validado.
+        html=construir_correo_html(cliente["empresa"],[licitaciones[lid] for lid in ids])
+        obligatorios=("cid:tappad-logo","TAPPAD Consultoría ofrece asesoría",
+                      "Descripción completa:","Número de procedimiento:",
+                      "Fecha de publicación:","Fecha de Junta de aclaraciones:",
+                      "Fecha de apertura de proposiciones:","Fecha de fallo:",
+                      "Enlace a documentos del procedimiento:")
+        if not all(campo in html for campo in obligatorios):
+            raise SystemExit("Plantilla corporativa incompleta; envio bloqueado")
+        tareas.append((cid,destino,ids,html))
     print("PREFLIGHT:",len(tareas),"correos;",sum(len(t[2]) for t in tareas),"oportunidades")
     if not args.enviar_real:
         print("MODO SEGURO: sin SMTP y sin escrituras Supabase")
