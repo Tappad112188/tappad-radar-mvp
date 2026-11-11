@@ -170,44 +170,6 @@ elif menu == "Registrar empresa":
     st.write("Registra tu empresa e indica qué licitaciones te interesan.")
     st.caption("El registro no activa una suscripción ni el envío automático de alertas.")
 
-    # El buscador consulta el catálogo oficial bajo demanda, sin descargar 64 mil claves.
-    if "catalogo_resultados" not in st.session_state:
-        st.session_state.catalogo_resultados = {}
-    st.subheader("Selecciona las actividades de la empresa")
-    st.caption("Busca por clave o descripción en los catálogos SAT y CUCOP. Puedes seleccionar varias claves.")
-    sistema_busqueda = st.selectbox("Catálogo", ["Ambos", "SAT", "CUCOP"], key="catalogo_sistema")
-    termino_busqueda = st.text_input("Buscar clave o actividad", key="catalogo_termino", placeholder="Ejemplo: limpieza, mantenimiento, 761115")
-    if st.button("Buscar actividades", key="buscar_catalogo"):
-        termino = termino_busqueda.strip()
-        if len(termino) < 2 or len(termino) > 80 or any(c in termino for c in "%*,.()\\\\"):
-            st.warning("Escribe entre 2 y 80 caracteres sin símbolos especiales.")
-        else:
-            try:
-                db_catalogo = conectar_supabase_admin()
-                consulta = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
-                if sistema_busqueda != "Ambos":
-                    consulta = consulta.eq("sistema", sistema_busqueda)
-                por_clave = consulta.ilike("clave", f"%{termino}%").limit(25).execute().data or []
-                consulta2 = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
-                if sistema_busqueda != "Ambos":
-                    consulta2 = consulta2.eq("sistema", sistema_busqueda)
-                por_descripcion = consulta2.ilike("descripcion", f"%{termino}%").limit(25).execute().data or []
-                encontrados = por_clave + por_descripcion
-                for item in encontrados:
-                    etiqueta = f'{item["sistema"]} | {item["clave"]} | {item["descripcion"]}'
-                    st.session_state.catalogo_resultados[etiqueta] = item
-                if not encontrados:
-                    st.info("No se encontraron claves. Prueba con otro término.")
-            except Exception:
-                st.error("No fue posible buscar en los catálogos. Inténtalo nuevamente.")
-    opciones_catalogo = list(st.session_state.catalogo_resultados)
-    seleccion_catalogo = st.multiselect(
-        "Claves SAT/CUCOP seleccionadas *", opciones_catalogo,
-        key="seleccion_catalogo_registro", max_selections=50,
-        help="Puedes realizar varias búsquedas; las claves seleccionadas se conservan."
-    )
-    st.caption(f"{len(seleccion_catalogo)} claves seleccionadas. Máximo 50 por registro.")
-
     st.write("### Verificación de seguridad")
     verificacion = turnstile_component(
         data={"sitekey": TURNSTILE_SITE_KEY},
@@ -220,7 +182,7 @@ elif menu == "Registrar empresa":
     if verificacion.error_code:
         st.warning(f"Turnstile informó el código de error: {verificacion.error_code}")
 
-    with st.form("formulario_registro_proveedor"):
+    with st.container(border=True):
         st.subheader("Datos empresariales")
         empresa = st.text_input("Razón social o nombre comercial *", max_chars=200)
         rfc = st.text_input("RFC", max_chars=13)
@@ -231,8 +193,44 @@ elif menu == "Registrar empresa":
         estado_domicilio = st.selectbox("Estado de domicilio", ["No especificado"] + ESTADOS_MX)
 
         st.subheader("Productos y servicios")
-        st.write("**Giros comerciales SAT/CUCOP:** seleccionados en el buscador anterior.")
+        # El buscador consulta el catálogo oficial bajo demanda, sin descargar 64 mil claves.
+        if "catalogo_resultados" not in st.session_state:
+            st.session_state.catalogo_resultados = {}
+        sistema_busqueda = st.selectbox("Catálogo", ["Ambos", "SAT", "CUCOP"], key="catalogo_sistema")
+        termino_busqueda = st.text_input("Buscar clave o actividad", key="catalogo_termino", placeholder="Ejemplo: limpieza, mantenimiento, 761115")
+        if st.button("Buscar actividades", key="buscar_catalogo"):
+            termino = termino_busqueda.strip()
+            if len(termino) < 2 or len(termino) > 80 or any(c in termino for c in "%*,.()\\\\"):
+                st.warning("Escribe entre 2 y 80 caracteres sin símbolos especiales.")
+            else:
+                try:
+                    db_catalogo = conectar_supabase_admin()
+                    consulta = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                    if sistema_busqueda != "Ambos":
+                        consulta = consulta.eq("sistema", sistema_busqueda)
+                    por_clave = consulta.ilike("clave", f"%{termino}%").limit(25).execute().data or []
+                    consulta2 = db_catalogo.table("catalogos_oficiales_tappad").select("sistema,clave,descripcion,version")
+                    if sistema_busqueda != "Ambos":
+                        consulta2 = consulta2.eq("sistema", sistema_busqueda)
+                    por_descripcion = consulta2.ilike("descripcion", f"%{termino}%").limit(25).execute().data or []
+                    encontrados = por_clave + por_descripcion
+                    for item in encontrados:
+                        etiqueta = f'{item["sistema"]} | {item["clave"]} | {item["descripcion"]}'
+                        st.session_state.catalogo_resultados[etiqueta] = item
+                    if not encontrados:
+                        st.info("No se encontraron claves. Prueba con otro término.")
+                except Exception:
+                    st.error("No fue posible buscar en los catálogos. Inténtalo nuevamente.")
+        opciones_catalogo = list(st.session_state.catalogo_resultados)
+        seleccion_catalogo = st.multiselect(
+            "Claves SAT/CUCOP seleccionadas *", opciones_catalogo,
+            key="seleccion_catalogo_registro", max_selections=50,
+            help="Puedes realizar varias búsquedas; las claves seleccionadas se conservan."
+        )
+        st.caption(f"{len(seleccion_catalogo)} claves seleccionadas. Máximo 50 por registro.")
         st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
+
+
         palabras = st.text_area(
             "Productos o servicios específicos *",
             placeholder="Ejemplo: artículos de limpieza, mantenimiento de oficinas",
@@ -256,7 +254,7 @@ elif menu == "Registrar empresa":
         declaracion_giros = st.checkbox(
             "Declaro que los giros, actividades, productos, servicios y palabras clave seleccionados corresponden exclusivamente a la persona física o moral que estoy registrando en TAPPAD Radar."
         )
-        enviar = st.form_submit_button("Registrar proveedor")
+        enviar = st.button("Registrar proveedor", key="enviar_registro_catalogos")
 
     if enviar:
         rfc_limpio = rfc.strip().upper()
