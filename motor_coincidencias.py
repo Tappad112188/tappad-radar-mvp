@@ -74,7 +74,7 @@ def coincidencias_catalogo(texto, preferencias):
             frases.append(" ".join(distintivas))
         # Las coincidencias de una sola palabra requieren un término largo
         # y específico, para evitar clasificar licitaciones por "material".
-        if len(distintivas) == 1 and len(distintivas[0]) >= 7:
+        if len(descripcion.split()) == 1 and len(distintivas) == 1 and len(distintivas[0]) >= 7:
             frases.append(distintivas[0])
         if not any(" " + frase + " " in texto for frase in frases):
             continue
