@@ -26,6 +26,11 @@ jobs:
           fi
       - name: Instalar dependencias del proyecto
         run: python -m pip install -r requirements.txt
+      - name: Vista previa aislada cuatro proveedores sin envios
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python prueba_cuatro_proveedores_20261110.py
       - name: Pruebas integrales de alertas y correo sin envíos
         run: python -m unittest discover -p "test_*.py" -v
       - name: Simular preparación de alertas ficticias
