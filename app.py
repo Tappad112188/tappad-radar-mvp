@@ -196,6 +196,8 @@ elif menu == "Registrar empresa":
         # El buscador consulta el catálogo oficial bajo demanda, sin descargar 64 mil claves.
         if "catalogo_resultados" not in st.session_state:
             st.session_state.catalogo_resultados = {}
+        if "catalogo_busqueda_actual" not in st.session_state:
+            st.session_state.catalogo_busqueda_actual = []
         sistema_busqueda = st.selectbox("Catálogo", ["Ambos", "SAT", "CUCOP"], key="catalogo_sistema")
         termino_busqueda = st.text_input("Buscar clave o actividad", key="catalogo_termino", placeholder="Ejemplo: limpieza, mantenimiento, 761115")
         if st.button("Buscar actividades", key="buscar_catalogo"):
@@ -214,20 +216,29 @@ elif menu == "Registrar empresa":
                         consulta2 = consulta2.eq("sistema", sistema_busqueda)
                     por_descripcion = consulta2.ilike("descripcion", f"%{termino}%").limit(25).execute().data or []
                     encontrados = por_clave + por_descripcion
+                    nuevos = []
                     for item in encontrados:
                         etiqueta = f'{item["sistema"]} | {item["clave"]} | {item["descripcion"]}'
                         st.session_state.catalogo_resultados[etiqueta] = item
+                        if etiqueta not in nuevos:
+                            nuevos.append(etiqueta)
+                    st.session_state.catalogo_busqueda_actual = nuevos
                     if not encontrados:
                         st.info("No se encontraron claves. Prueba con otro término.")
                 except Exception:
                     st.error("No fue posible buscar en los catálogos. Inténtalo nuevamente.")
-        opciones_catalogo = list(st.session_state.catalogo_resultados)
+        # Mantener las claves elegidas, pero mostrar únicamente los resultados
+        # de la búsqueda más reciente y las selecciones previas.
+        seleccion_previa = list(st.session_state.get("seleccion_catalogo_registro", []))
+        opciones_catalogo = list(dict.fromkeys(
+            st.session_state.catalogo_busqueda_actual + seleccion_previa
+        ))
         seleccion_catalogo = st.multiselect(
             "Claves SAT/CUCOP seleccionadas *", opciones_catalogo,
             key="seleccion_catalogo_registro", max_selections=50,
-            help="Puedes realizar varias búsquedas; las claves seleccionadas se conservan."
+            help="Cada búsqueda reemplaza los resultados anteriores, pero conserva tus claves seleccionadas."
         )
-        st.caption(f"{len(seleccion_catalogo)} claves seleccionadas. Máximo 50 por registro.")
+        st.caption(f"Resultados de la búsqueda actual: {len(st.session_state.catalogo_busqueda_actual)}. Claves seleccionadas: {len(seleccion_catalogo)} de 50.")
         st.caption("(Seleccione únicamente las actividades o giros relacionados con la persona física o moral registrada en TAPPAD Radar. No incluya actividades correspondientes a otras empresas o personas físicas).")
 
 
