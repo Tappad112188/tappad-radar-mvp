@@ -1,0 +1,33 @@
+name: TAPPAD - Prueba controlada cuatro proveedores
+on:
+  workflow_dispatch:
+    inputs:
+      enviar:
+        description: "Enviar correos a las dos cuentas autorizadas (false = vista previa)"
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  prueba-cuatro-proveedores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar credenciales y ejecutar prueba aislada
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          ENVIAR: ${{ inputs.enviar }}
+        run: |
+          if [ "$ENVIAR" = "true" ]; then
+            python prueba_cuatro_proveedores_20261110.py --enviar
+          else
+            python prueba_cuatro_proveedores_20261110.py
+          fi
