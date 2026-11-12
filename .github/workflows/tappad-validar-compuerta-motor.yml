@@ -1,0 +1,33 @@
+name: TAPPAD - Validar compuerta en motor SMTP
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-validar-compuerta-motor.yml'
+      - 'motor_entrega_tappad_v2.py'
+permissions:
+  contents: read
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar compuerta antes de reserva y SMTP sin credenciales
+        run: |
+          python -m py_compile motor_entrega_tappad_v2.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("motor_entrega_tappad_v2.py").read_text()
+          a=s.index('configuraciones=consulta("configuracion_operativa_tappad"')
+          b=s.index('autorizar_envio_real(config,licitaciones[lid]')
+          c=s.index('reservado=api("POST","rpc/tappad_reservar_lote"')
+          d=s.index('smtp.send_message(mensaje)')
+          assert a < b < c < d
+          assert 'if not ok: raise SystemExit' in s[b:c]
+          assert 'Interruptor general de alertas desactivado' in s[a:b]
+          print("COMPUERTA VALIDADA: configuracion y vigencia antes de reserva atomica y SMTP.")
+          PY
+          python -m unittest -v test_entrega_automatica_comprasmx_segura
