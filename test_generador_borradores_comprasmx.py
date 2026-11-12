@@ -19,7 +19,7 @@ Fallo programado: No especificada
         self.assertEqual(nombre, "Empresa Prueba")
         self.assertEqual(len(oportunidades), 1)
         self.assertEqual(html.count("Fecha no disponible, verificar enlace"), 3)
-        for etiqueta in ("Descripción del procedimiento:", "Número de procedimiento:",
+        for etiqueta in ("Descripción completa:", "Número de procedimiento:",
                          "Fecha de publicación:", "Fecha de Junta de aclaraciones:",
                          "Fecha de apertura de proposiciones:", "Fecha de fallo:",
                          "Enlace a documentos del procedimiento:"):
