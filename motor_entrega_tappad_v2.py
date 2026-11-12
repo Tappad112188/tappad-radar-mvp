@@ -93,6 +93,10 @@ def main():
         print("MODO SEGURO: sin SMTP y sin escrituras Supabase")
         return
     if os.environ.get("TAPPAD_ENVIO_REAL")!="SI": raise SystemExit("Envio real deshabilitado por configuracion")
+    # Piloto cerrado: no enviar a destinatarios ajenos a las dos cuentas autorizadas.
+    destinos_piloto={"tappadcons@gmail.com","gerardotapia112188@gmail.com"}
+    if any(destino.casefold() not in destinos_piloto for _,destino,_,_ in tareas):
+        raise SystemExit("Envio real bloqueado: destinatario fuera del piloto autorizado")
     configuraciones=consulta("configuracion_operativa_tappad","clave,valor",{"clave":"eq.alertas_automaticas_habilitadas"})
     config={fila["clave"]:fila["valor"] for fila in configuraciones}
     if str(config.get("alertas_automaticas_habilitadas","false")).strip().lower()!="true":
