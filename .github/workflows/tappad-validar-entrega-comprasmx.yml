@@ -1,0 +1,20 @@
+name: TAPPAD - Validacion seguridad entrega ComprasMX
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-validar-entrega-comprasmx.yml'
+      - 'test_entrega_automatica_comprasmx_segura.py'
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probar compuerta y duplicados sin credenciales ni red
+        run: python -m unittest -v test_entrega_automatica_comprasmx_segura
