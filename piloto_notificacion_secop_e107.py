@@ -1,4 +1,4 @@
-"""Piloto SECOP E108: vista previa por defecto, SMTP solo con --enviar.
+"""Piloto SECOP E107: vista previa por defecto, SMTP solo con --enviar.
 No altera notificaciones de produccion ni envia a alias del proveedor ficticio.
 """
 import argparse,html,json,os,smtplib,ssl
@@ -33,7 +33,8 @@ def main():
     p.add_argument("--enviar",action="store_true",help="Enviar una sola prueba SMTP al correo autorizado")
     args=p.parse_args()
     lic=consulta("licitaciones",{"id":"eq.2753","numero_procedimiento":"eq."+CODIGO,"select":"id,numero_procedimiento,nombre_procedimiento,fecha_publicacion,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo_programado,validacion_calendario,fuente,estatus"})
-    # Perfil comercial simulado solo para este ensayo: sin activar clientes reales.\n    cli=[{"id":"simulado-e107","empresa":"[PRUEBA] Pavimentacion y obra vial","correo":"sin-destinatario","palabras_clave":"pavimentación, calle, obra vial","activo":False}]
+    # Perfil comercial simulado solo para este ensayo: sin activar clientes reales.
+    cli=[{"id":"simulado-e107","empresa":"[PRUEBA] Pavimentacion y obra vial","correo":"sin-destinatario","palabras_clave":"pavimentación, calle, obra vial","activo":False}]
     if len(lic)!=1 or len(cli)!=1:raise SystemExit("BLOQUEADO: registros no unicos")
     l,c=lic[0],cli[0]
     if l["fuente"]!="SECOP Coahuila" or l["validacion_calendario"]!="preliminar_documental" or c["activo"] is not False:
