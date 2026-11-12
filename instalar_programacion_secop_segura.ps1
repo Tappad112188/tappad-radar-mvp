@@ -6,7 +6,7 @@ New-Item -ItemType Directory -Path $dir -Force | Out-Null
 $cfg = Join-Path $dir 'supabase-secure.xml'
 $url = $env:SUPABASE_URL
 if (-not $url) { $url = Read-Host 'SUPABASE_URL (https://...supabase.co)' }
-if ($url -notmatch '^https://[a-z0-9.-]+\\.supabase\\.co/?$') { throw 'SUPABASE_URL invalida' }
+if ($url -notmatch '^https://[a-z0-9.-]+\.supabase\.co/?$') { throw 'SUPABASE_URL invalida' }
 $key = $env:SUPABASE_ADMIN_KEY
 if (-not $key) { $key = $env:SUPABASE_SERVICE_ROLE_KEY }
 if ($key) {
@@ -18,12 +18,12 @@ if ($key) {
 $runner = Join-Path $dir 'ejecutar_secop_programado.ps1'
 $source = @'
 $ErrorActionPreference = "Stop"
-$cfg = Import-Clixml -Path (Join-Path $env:LOCALAPPDATA "TAPPAD-Radar-SECOP\\supabase-secure.xml")
+$cfg = Import-Clixml -Path (Join-Path $env:LOCALAPPDATA "TAPPAD-Radar-SECOP\supabase-secure.xml")
 $env:SUPABASE_URL = $cfg.Url
 $env:SUPABASE_ADMIN_KEY = [System.Net.NetworkCredential]::new("",$cfg.Key).Password
 $env:TAPPAD_SECOP_ENVIO_REAL = "NO"
 Set-Location "__BASE__"
-& py ".\\ejecutar_secop_windows.py" --ciclo-seguro
+& py ".\ejecutar_secop_windows.py" --ciclo-seguro
 if ($LASTEXITCODE -ne 0) { throw "SECOP fallo con codigo $LASTEXITCODE" }
 '@
 $source = $source.Replace('__BASE__', $base.Replace("'","''"))
