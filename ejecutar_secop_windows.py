@@ -3,7 +3,10 @@ import argparse
 import json
 import subprocess
 import sys
-import msvcrt
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None  # Windows-only; permite probar auditoria en Linux
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -71,6 +74,8 @@ def main():
     parser.add_argument("--registrar-pendientes", action="store_true",
                         help="Registrar nuevos procedimientos SECOP con calendario pendiente; sin correos")
     args = parser.parse_args()
+    if msvcrt is None:
+        raise SystemExit("Este ejecutor SECOP requiere Windows")
     with LOCK.open("a+b") as candado:
         try:
             msvcrt.locking(candado.fileno(), msvcrt.LK_NBLCK, 1)
