@@ -1,0 +1,25 @@
+name: TAPPAD - Diagnostico integral ComprasMX SAT CUCOP
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-diagnostico-integral-comprasmx.yml'
+      - 'diagnostico_integral_comprasmx_catalogos.py'
+permissions:
+  contents: read
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxis
+        run: python -m py_compile diagnostico_integral_comprasmx_catalogos.py
+      - name: Probar circuito de lectura ComprasMX SAT CUCOP HTML
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python diagnostico_integral_comprasmx_catalogos.py
