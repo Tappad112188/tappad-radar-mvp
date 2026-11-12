@@ -1,0 +1,36 @@
+name: TAPPAD - Verificar encadenamiento ComprasMX seguro
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-verificar-cadena-comprasmx.yml'
+      - '.github/workflows/actualizar_licitaciones.yml'
+      - 'tappad_importador_automatico.py'
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar encadenamiento y limite sin importacion ni SMTP
+        run: |
+          python -m py_compile tappad_importador_automatico.py diagnostico_integral_comprasmx_catalogos.py
+          python - <<'PY'
+          from pathlib import Path
+          flujo=Path(".github/workflows/actualizar_licitaciones.yml").read_text()
+          importador=Path("tappad_importador_automatico.py").read_text()
+          orden=flujo.index("python tappad_importador_automatico.py")
+          posterior=flujo.index("python diagnostico_integral_comprasmx_catalogos.py")
+          assert orden<posterior
+          assert "--ventana-dias 2 --limite 10000 --importar" in flujo
+          assert "not 1 <= args.limite <= 100000" in importador
+          assert "smtp" not in flujo.lower()
+          assert "cron: '0 14 * * *'" in flujo
+          assert "cron: '0 19 * * *'" in flujo
+          assert "cron: '0 0 * * *'" in flujo
+          print("CADENA VALIDADA: 3 horarios; importacion completa antes de diagnostico; sin SMTP.")
+          PY
