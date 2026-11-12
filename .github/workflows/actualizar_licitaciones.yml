@@ -42,3 +42,11 @@ jobs:
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python diagnostico_integral_comprasmx_catalogos.py
 
+
+      - name: Generar manifiesto automatico y validar motor sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          python generar_manifiesto_comprasmx_automatico.py
+          python motor_entrega_tappad_v2.py
