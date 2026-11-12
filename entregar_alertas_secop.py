@@ -57,7 +57,10 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--fecha",help="Fecha de publicacion AAAA-MM-DD; por defecto hoy")
     p.add_argument("--enviar-real",action="store_true",help="Reservar y enviar correos autorizados")
+    p.add_argument("--prueba-controlada",action="store_true",help="Solo piloto E108 con cliente 4, requiere autorizacion explicita")
     args=p.parse_args()
+    if args.prueba_controlada and (not args.enviar_real or os.getenv("TAPPAD_SECOP_PRUEBA")!="SI"):
+        raise SystemExit("Prueba controlada bloqueada: requiere --enviar-real y TAPPAD_SECOP_PRUEBA=SI")
     ahora=datetime.now(ZoneInfo("America/Monterrey"))
     fecha=args.fecha or ahora.date().isoformat()
     datetime.strptime(fecha,"%Y-%m-%d")
@@ -75,11 +78,15 @@ def main():
         if str(l.get("estatus") or "").casefold()!="vigente":continue
         desc=" ".join((l.get("nombre_procedimiento") or "",l.get("descripcion") or ""))
         for c in clientes:
+            if args.prueba_controlada and (l["id"]!=2754 or c["id"]!=4):continue
             if (c["id"],l["id"]) in ocup:continue
-            hits=list(dict.fromkeys(k.strip() for k in (c.get("palabras_clave") or "").split(",") if coincide(k,desc)))
+            hits=(["Prueba controlada de entrega SECOP"] if args.prueba_controlada else
+                  list(dict.fromkeys(k.strip() for k in (c.get("palabras_clave") or "").split(",") if coincide(k,desc))))
             if not hits:continue
             destino=(c.get("correo") or "").strip().casefold()
             tareas.append((c,l,hits,destino))
+    if args.prueba_controlada and len(tareas)!=1:
+        raise SystemExit("Piloto bloqueado: se esperaba exactamente una alerta nueva E108/cliente 4")
     print("SECOP PREFLIGHT | fecha:",fecha,"| licitaciones:",len(lic),"| clientes activos:",len(clientes),"| pendientes:",len(tareas))
     for c,l,hits,destino in tareas:
         print("CANDIDATA",l["numero_procedimiento"],"| cliente",c["id"],"|",destino,"|",", ".join(hits))
