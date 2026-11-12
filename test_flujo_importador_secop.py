@@ -40,7 +40,7 @@ class FlujoImportadorTests(unittest.TestCase):
         self.addCleanup(p.stop)
 
     def correr(self):
-        with patch("sys.argv", ["importar_secop_supabase_controlado.py", "--importar"]):
+        with patch("sys.argv", ["importar_secop_supabase_controlado.py", "--importar", "--registrar_pendientes"]):
             with redirect_stdout(io.StringIO()) as output:
                 mod.main()
             return output.getvalue()
