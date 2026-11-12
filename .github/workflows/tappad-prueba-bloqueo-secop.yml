@@ -1,0 +1,21 @@
+name: TAPPAD - Validar bloqueo SECOP y entrega ComprasMX
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-prueba-bloqueo-secop.yml'
+      - 'compuerta_alertas_v3.py'
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pruebas de bloqueo sin SMTP
+        run: |
+          python -m unittest -v test_compuerta_comprasmx_fechas test_entrega_automatica_comprasmx_segura
+          python compuerta_alertas_v3.py
