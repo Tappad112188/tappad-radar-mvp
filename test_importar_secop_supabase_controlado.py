@@ -56,7 +56,7 @@ class ImportadorTests(unittest.TestCase):
     def test_importar_pendiente_sin_extraccion_bloqueado(self):
         with patch.object(mod,"api",side_effect=AssertionError("No consultar")):
             with self.assertRaises(SystemExit) as e:self.ejecutar("--importar","--registrar_pendientes")
-        self.assertIn("Falta evidencia",str(e.exception))
+        self.assertIn("falta extraccion o auditoria",str(e.exception))
 
     def test_rechaza_duplicados(self):
         self.guardar("VALIDADO_PARA_IMPORTACION",[self.registro,self.registro])
