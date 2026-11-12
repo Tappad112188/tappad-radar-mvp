@@ -78,7 +78,10 @@ def main():
                         help="Sincronizar fechas preliminares de registros SECOP existentes; sin correos")
     parser.add_argument("--simular-alertas", action="store_true",
                         help="Calcular coincidencias SECOP sin enviar correos ni escribir en Supabase")
-    parser.add_argument("--preparar-entrega", action="store_true",\n                        help="Preflight del motor de entrega SECOP sin correos")\n    args = parser.parse_args()
+    parser.add_argument("--preparar-entrega", action="store_true",
+                        help="Preflight del motor de entrega SECOP sin correos")
+    parser.add_argument("--ciclo-seguro",action="store_true",help="Importar, sincronizar y preflight SECOP sin enviar correos")
+    args = parser.parse_args()
     if msvcrt is None:
         raise SystemExit("Este ejecutor SECOP requiere Windows")
     with LOCK.open("a+b") as candado:
@@ -104,7 +107,7 @@ def main():
                     return
                 for paso in PASOS:
                     ejecutar(paso, log)
-                if args.registrar_pendientes:
+                if args.registrar_pendientes or args.ciclo_seguro:
                     auditoria = BASE / "documentos_secop_lote" / "auditoria_supabase_secop.json"
                     resultado = json.loads(auditoria.read_text(encoding="utf-8-sig"))
                     lote = json.loads((BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json").read_text(encoding="utf-8-sig"))
@@ -112,7 +115,7 @@ def main():
                     if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"]), ids_esperados):
                         raise SystemExit("Auditoria Supabase no confirmada; registro bloqueado")
                     ejecutar_importador(log)
-                if args.sincronizar_calendarios:
+                if args.sincronizar_calendarios or args.ciclo_seguro:
                     validaciones = json.loads((BASE / "documentos_secop_lote" / "validacion_automatica_secop.json").read_text(encoding="utf-8-sig"))
                     for ficha in validaciones.get("resultados", []):
                         if ficha.get("estado") != "APTO_PRELIMINAR":
@@ -131,7 +134,7 @@ def main():
                             raise SystemExit("Sincronizacion SECOP detenida: " + codigo)
                 if args.simular_alertas:
                     ejecutar("motor_alertas_secop.py", log)
-                if args.preparar_entrega:
+                if args.preparar_entrega or args.ciclo_seguro:
                     ejecutar("entregar_alertas_secop.py", log)
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
             print("Lote preparado para revisión:", BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json")
