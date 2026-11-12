@@ -1,6 +1,7 @@
 """Pipeline SECOP: preparacion por defecto; registro opt-in sin correos."""
 import argparse
 import json
+import os
 import subprocess
 import sys
 try:
@@ -81,6 +82,7 @@ def main():
     parser.add_argument("--preparar-entrega", action="store_true",
                         help="Preflight del motor de entrega SECOP sin correos")
     parser.add_argument("--ciclo-seguro",action="store_true",help="Importar, sincronizar y preflight SECOP sin enviar correos")
+    parser.add_argument("--ciclo-automatico-real",action="store_true",help="Ciclo SECOP completo con entrega real restringida a destinatarios autorizados")
     args = parser.parse_args()
     if msvcrt is None:
         raise SystemExit("Este ejecutor SECOP requiere Windows")
@@ -107,7 +109,7 @@ def main():
                     return
                 for paso in PASOS:
                     ejecutar(paso, log)
-                if args.registrar_pendientes or args.ciclo_seguro:
+                if args.registrar_pendientes or args.ciclo_seguro or args.ciclo_automatico_real:
                     auditoria = BASE / "documentos_secop_lote" / "auditoria_supabase_secop.json"
                     resultado = json.loads(auditoria.read_text(encoding="utf-8-sig"))
                     lote = json.loads((BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json").read_text(encoding="utf-8-sig"))
@@ -115,7 +117,7 @@ def main():
                     if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"]), ids_esperados):
                         raise SystemExit("Auditoria Supabase no confirmada; registro bloqueado")
                     ejecutar_importador(log)
-                if args.sincronizar_calendarios or args.ciclo_seguro:
+                if args.sincronizar_calendarios or args.ciclo_seguro or args.ciclo_automatico_real:
                     validaciones = json.loads((BASE / "documentos_secop_lote" / "validacion_automatica_secop.json").read_text(encoding="utf-8-sig"))
                     for ficha in validaciones.get("resultados", []):
                         if ficha.get("estado") != "APTO_PRELIMINAR":
@@ -136,9 +138,20 @@ def main():
                     ejecutar("motor_alertas_secop.py", log)
                 if args.preparar_entrega or args.ciclo_seguro:
                     ejecutar("entregar_alertas_secop.py", log)
+                if args.ciclo_automatico_real:
+                    if os.getenv("TAPPAD_SECOP_ENVIO_REAL") != "SI":
+                        raise SystemExit("Entrega automatica bloqueada: falta TAPPAD_SECOP_ENVIO_REAL=SI")
+                    nombre = "entregar_alertas_secop.py"
+                    log.write("PASO " + nombre + " --enviar-real\n")
+                    log.flush()
+                    entrega = subprocess.run([sys.executable, str(BASE / nombre), "--enviar-real"], cwd=str(BASE), stdout=log, stderr=subprocess.STDOUT, timeout=600, check=False)
+                    if entrega.returncode:
+                        raise SystemExit("Entrega SECOP fallida o incierta: revisar log y conciliacion antes de reintentar")
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
             print("Lote preparado para revisión:", BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json")
-            if args.ciclo_seguro:
+            if args.ciclo_automatico_real:
+                print("Ciclo SECOP automatico real completado; revisar entregas en el log.")
+            elif args.ciclo_seguro:
                 print("Ciclo seguro completado: importador y sincronizacion ejecutados; alertas solo en simulacion.")
             elif args.registrar_pendientes:
                 print("Importador SECOP ejecutado; revisar resumen de nuevos/existentes en el log.")
