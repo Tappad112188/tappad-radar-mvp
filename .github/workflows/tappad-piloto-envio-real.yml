@@ -1,0 +1,47 @@
+name: TAPPAD - Piloto SMTP real solo dos cuentas
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-piloto-envio-real.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tappad-piloto-envio-real
+  cancel-in-progress: false
+jobs:
+  envio-piloto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar secretos sin mostrarlos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import os
+          names=('SUPABASE_URL','SUPABASE_ADMIN_KEY','SMTP_USER','SMTP_APP_PASSWORD')
+          missing=[name for name in names if not os.getenv(name)]
+          if missing: raise SystemExit('Faltan secretos: '+', '.join(missing))
+          if os.environ['SMTP_USER'].strip().casefold()!='tappadcons@gmail.com':
+              raise SystemExit('Remitente SMTP fuera del piloto')
+          print('Secretos presentes; remitente autorizado')
+          PY
+      - name: Generar manifiesto y enviar exclusivamente a cuentas de prueba
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          TAPPAD_ENVIO_REAL: SI
+        run: |
+          python generar_manifiesto_comprasmx_automatico.py
+          python motor_entrega_tappad_v2.py --enviar-real
