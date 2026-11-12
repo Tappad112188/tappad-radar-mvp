@@ -1,0 +1,38 @@
+name: TAPPAD - Extremo a extremo ComprasMX controlado
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-e2e-comprasmx-controlado.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tappad-e2e-comprasmx-controlado
+  cancel-in-progress: false
+jobs:
+  importar-preparar-validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar cliente Supabase
+        run: python -m pip install 'supabase>=2,<3'
+      - name: Importar CSV oficial sin duplicar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python tappad_importador_automatico.py --ventana-dias 2 --limite 10000 --importar
+      - name: Clasificar oportunidades y generar manifiesto
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python generar_manifiesto_comprasmx_automatico.py
+      - name: Validar entrega sin SMTP ni reservas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python motor_entrega_tappad_v2.py
