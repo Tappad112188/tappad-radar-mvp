@@ -14,6 +14,7 @@ SALIDA=ROOT/"documentos_secop_lote"
 CODIGO="SIDUM-AI3-CO-E107-2026"
 DESTINATARIO="gerardotapia112188@gmail.com"
 REMITENTE="tappadcons@gmail.com"
+LOGO=ROOT/"assets"/"logo_tappad.png"
 
 def consulta(tabla,params):
     base=os.environ.get("SUPABASE_URL")
@@ -59,7 +60,8 @@ def main():
         ("Coincidencia con giro",", ".join(coincidencias))]
     texto="TAPPAD RADAR — PRUEBA CONTROLADA SECOP\n\n"+"\n".join(k+": "+str(v) for k,v in campos)+"\n\nFechas documentales preliminares. Verificar modificaciones oficiales posteriores.\nTAPPAD Consultoria ofrece asesoria para participar.\nSin enlaces a bases.\n"
     filas="".join("<tr><th style='text-align:left;padding:9px;border-bottom:1px solid #ddd'>"+html.escape(k)+"</th><td style='padding:9px;border-bottom:1px solid #ddd'>"+html.escape(str(v))+"</td></tr>" for k,v in campos)
-    cuerpo="<html><body style='font-family:Arial,sans-serif;color:#15243a'><h2>TAPPAD RADAR</h2><p><b>PRUEBA CONTROLADA — Alerta SECOP Coahuila</b></p><table>"+filas+"</table><p>Fechas documentales preliminares. Verificar modificaciones oficiales posteriores.</p><p>TAPPAD Consultoría ofrece asesoría para participar.</p></body></html>"
+    if not LOGO.is_file():raise SystemExit("Falta assets/logo_tappad.png; descargar logo oficial ComprasMX")
+    cuerpo="<html><body style='font-family:Arial,sans-serif;color:#15243a'><img src='cid:tappad-logo' alt='TAPPAD Radar' width='180' style='display:block;max-width:180px;height:auto;margin-bottom:16px'><h2>TAPPAD RADAR</h2><p><b>PRUEBA CONTROLADA — Alerta SECOP Coahuila</b></p><table>"+filas+"</table><p>Fechas documentales preliminares. Verificar modificaciones oficiales posteriores.</p><p>TAPPAD Consultoría ofrece asesoría para participar.</p></body></html>"
     SALIDA.mkdir(exist_ok=True)
     (SALIDA/"vista_previa_alerta_secop_e107.html").write_text(cuerpo,encoding="utf-8")
     print("COINCIDENCIAS:",", ".join(coincidencias))
@@ -75,6 +77,7 @@ def main():
     mensaje=EmailMessage()
     mensaje["From"]=REMITENTE;mensaje["To"]=DESTINATARIO;mensaje["Subject"]=asunto
     mensaje.set_content(texto);mensaje.add_alternative(cuerpo,subtype="html")
+    mensaje.get_payload()[-1].add_related(LOGO.read_bytes(),maintype="image",subtype="png",cid="<tappad-logo>",filename="logo_tappad.png",disposition="inline")
     with smtplib.SMTP_SSL("smtp.gmail.com",465,context=ssl.create_default_context(),timeout=40) as servidor:
         servidor.login(REMITENTE,password)
         servidor.send_message(mensaje)
