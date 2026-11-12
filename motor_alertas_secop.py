@@ -35,6 +35,7 @@ def coincide(clave,descripcion):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--fecha",help="Fecha de publicacion AAAA-MM-DD; por defecto hoy en Coahuila")
+    parser.add_argument("--incluir-inactivos",action="store_true",help="Solo diagnostico: incluye clientes inactivos sin habilitar envios")
     args=parser.parse_args()
     hoy=datetime.now(ZoneInfo("America/Monterrey"))
     fecha=args.fecha or hoy.date().isoformat()
@@ -45,7 +46,10 @@ def main():
         "fecha_publicacion":"gte."+fecha+"T00:00:00",
         "and":"(fecha_publicacion.lt."+fecha+"T23:59:59.999999,fecha_apertura.gt."+hoy.strftime("%Y-%m-%dT%H:%M:%S")+")",
         "limit":"1000"})
-    clientes=consultar("clientes",{"select":"id,empresa,correo,palabras_clave,activo","activo":"eq.true","limit":"1000"})
+    filtro_clientes={"select":"id,empresa,correo,palabras_clave,activo","limit":"1000"}
+    if not args.incluir_inactivos:
+        filtro_clientes["activo"]="eq.true"
+    clientes=consultar("clientes",filtro_clientes)
     enviados=consultar("notificaciones_enviadas",{"select":"cliente_id,licitacion_id,estado","limit":"10000"})
     ya={(int(n["cliente_id"]),int(n["licitacion_id"])) for n in enviados if n.get("estado") in ("enviado","pendiente","procesando")}
     resultados=[]
@@ -59,7 +63,8 @@ def main():
             if not hits:
                 continue
             destino=(c.get("correo") or "").strip().lower()
-            estado=("duplicado" if (c["id"],l["id"]) in ya else
+            estado=("cliente_inactivo" if not c["activo"] else
+                    "duplicado" if (c["id"],l["id"]) in ya else
                     "destinatario_no_autorizado" if destino not in PERMITIDOS else "listo_para_revision")
             resultados.append({"cliente_id":c["id"],"empresa":c["empresa"],"destinatario":destino,
                 "licitacion_id":l["id"],"procedimiento":l["numero_procedimiento"],
