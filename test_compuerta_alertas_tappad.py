@@ -11,8 +11,8 @@ class PruebasCompuerta(unittest.TestCase):
                      "fecha_apertura": "2026-11-08T12:00:00",
                      "validacion_calendario": "pendiente"}
 
-    def test_secop_sin_apertura_no_bloquea(self):
-        self.assertTrue(evaluar({**self.base, "fecha_apertura": None}, 1, set(), AHORA)[0])
+    def test_secop_sin_apertura_se_bloquea(self):
+        self.assertFalse(evaluar({**self.base, "fecha_apertura": None}, 1, set(), AHORA)[0])
 
     def test_comprasmx_sin_apertura_no_bloquea(self):
         self.assertTrue(evaluar({**self.base, "fuente": "ComprasMX", "fecha_apertura": None}, 1, set(), AHORA)[0])
