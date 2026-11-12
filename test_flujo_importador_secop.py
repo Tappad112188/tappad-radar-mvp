@@ -32,7 +32,7 @@ class FlujoImportadorTests(unittest.TestCase):
             "fecha_publicacion": "2026-11-09",
         }
         self.lote.write_text(json.dumps({
-            "estado": "VALIDADO_PARA_IMPORTACION",
+            "estado": "PENDIENTE_VALIDACION_OFICIAL_NO_IMPORTAR_AUTOMATICAMENTE",
             "registros": [registro],
         }), encoding="utf-8")
         p = patch.object(mod, "LOTE", self.lote)
@@ -41,8 +41,9 @@ class FlujoImportadorTests(unittest.TestCase):
 
     def correr(self):
         with patch("sys.argv", ["importar_secop_supabase_controlado.py", "--importar", "--registrar_pendientes"]):
-            with redirect_stdout(io.StringIO()) as output:
-                mod.main()
+            with patch.object(mod,"validar_autorizacion",return_value={self.uid}):
+                with redirect_stdout(io.StringIO()) as output:
+                    mod.main()
             return output.getvalue()
 
     def test_insercion_nueva_y_confirmacion(self):
@@ -94,8 +95,9 @@ class FlujoImportadorTests(unittest.TestCase):
                         "SUPABASE_URL": "https://example.supabase.co",
                         "SUPABASE_ADMIN_KEY": "clave-de-prueba",
                     }):
-                        with redirect_stdout(io.StringIO()):
-                            mod.main()
+                        with patch.object(mod,"validar_autorizacion",return_value={self.uid}):
+                            with redirect_stdout(io.StringIO()):
+                                mod.main()
         payload = json.loads(post.call_args.args[0].data)[0]
         self.assertEqual(payload["validacion_calendario"], "pendiente")
         for campo in ("fecha_junta_aclaraciones", "fecha_apertura", "fecha_fallo_programado"):
