@@ -1,7 +1,7 @@
 """Entrega SECOP controlada. Por defecto solo preflight; --enviar-real requiere habilitacion explicita.
 No modifica codigo ni workflows de ComprasMX.
 """
-import argparse, json, os, smtplib, ssl, html
+import argparse, json, os, smtplib, ssl, html, subprocess
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -53,6 +53,29 @@ def mensaje_html(l,hits):
     cuerpo="<html><body style='font-family:Arial,sans-serif;color:#15243a'><img src='cid:tappad-logo' alt='TAPPAD' width='180' style='display:block;max-width:180px;height:auto'><h2>TAPPAD Radar</h2><p>Nueva oportunidad en SECOP Coahuila</p><table>"+filas+"</table><p>Fechas preliminares extraídas de documentos; verificar modificaciones oficiales posteriores.</p><p>TAPPAD Consultoría ofrece asesoría para participar.</p></body></html>"
     return cuerpo, "\n".join(k+": "+str(v) for k,v in campos)
 
+def obtener_clave_gmail():
+    clave=os.getenv("SMTP_APP_PASSWORD") or os.getenv("GMAIL_APP_PASSWORD") or os.getenv("SMTP_PASSWORD")
+    if clave:
+        return clave
+    if os.name!="nt":
+        raise SystemExit("Falta contrasena de aplicacion Gmail en entorno")
+    # Export-Clixml usa DPAPI del usuario Windows que guardo el archivo.
+    # Nunca pasar la clave por argumentos, variables persistentes ni bitacoras.
+    script=r"""
+$ErrorActionPreference='Stop'
+$archivo=Join-Path $env:APPDATA 'TAPPAD\\gmail_secop.xml'
+if (-not (Test-Path -LiteralPath $archivo)) { exit 21 }
+$c=Import-Clixml -LiteralPath $archivo
+if ($c.UserName -ne 'tappadcons@gmail.com') { exit 22 }
+[Console]::Out.Write($c.GetNetworkCredential().Password)
+"""
+    resultado=subprocess.run(
+        ["powershell.exe","-NoProfile","-NonInteractive","-Command","-"],
+        input=script, text=True, capture_output=True, timeout=20, check=False)
+    if resultado.returncode or not resultado.stdout:
+        raise SystemExit("No se pudo abrir credencial Gmail DPAPI en la tarea Windows; verificar mismo usuario y archivo")
+    return resultado.stdout
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--fecha",help="Fecha de publicacion AAAA-MM-DD; por defecto hoy")
@@ -98,8 +121,7 @@ def main():
     if any(destino not in PERMITIDOS for _,_,_,destino in tareas):
         raise SystemExit("Envio bloqueado: cliente activo fuera de lista cerrada de prueba")
     if not LOGO.is_file():raise SystemExit("Falta assets/logo_tappad.png")
-    clave=os.getenv("SMTP_APP_PASSWORD") or os.getenv("GMAIL_APP_PASSWORD") or os.getenv("SMTP_PASSWORD")
-    if not clave:raise SystemExit("Falta contrasena de aplicacion Gmail en entorno")
+    clave=obtener_clave_gmail()
     if os.getenv("SMTP_USER",REMITENTE).casefold()!=REMITENTE:
         raise SystemExit("Remitente no autorizado")
     config=consultar("configuracion_operativa_tappad",{"select":"clave,valor","clave":"eq.alertas_automaticas_habilitadas"})
