@@ -14,6 +14,7 @@ from compuerta_alertas_v3 import evaluar
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from plantilla_correo_html import construir_correo_html
+from control_notificaciones import autorizar_envio_real
 
 BASE=Path(__file__).resolve().parent
 MANIFIESTO=BASE/"manifiesto_notificaciones_tappad.json"
@@ -92,6 +93,14 @@ def main():
         print("MODO SEGURO: sin SMTP y sin escrituras Supabase")
         return
     if os.environ.get("TAPPAD_ENVIO_REAL")!="SI": raise SystemExit("Envio real deshabilitado por configuracion")
+    configuraciones=consulta("configuracion_operativa_tappad","clave,valor",{"clave":"eq.alertas_automaticas_habilitadas"})
+    config={fila["clave"]:fila["valor"] for fila in configuraciones}
+    if str(config.get("alertas_automaticas_habilitadas","false")).strip().lower()!="true":
+        raise SystemExit("Interruptor general de alertas desactivado; sin SMTP ni reservas")
+    for cid,destino,ids,html in tareas:
+        for lid in ids:
+            ok,motivo=autorizar_envio_real(config,licitaciones[lid],ahora=ahora)
+            if not ok: raise SystemExit("Envio bloqueado por compuerta final: "+motivo)
     if not os.environ.get("SMTP_USER") or not os.environ.get("SMTP_APP_PASSWORD"): raise SystemExit("Faltan secretos SMTP")
     if not LOGO.is_file(): raise SystemExit("Falta logo PNG")
     logo=LOGO.read_bytes()
