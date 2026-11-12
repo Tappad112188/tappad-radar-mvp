@@ -75,8 +75,8 @@ def main():
     parser.add_argument("--solo-hoy", action="store_true")
     parser.add_argument("--ventana-dias", type=int, default=None, help="Publicaciones de hoy y N dias anteriores en Coahuila")
     args = parser.parse_args()
-    if args.dias < 0 or (args.ventana_dias is not None and not 0 <= args.ventana_dias <= 7) or not 1 <= args.limite <= 1000:
-        parser.error("--dias debe ser >= 0 y --limite debe estar entre 1 y 1000")
+    if args.dias < 0 or (args.ventana_dias is not None and not 0 <= args.ventana_dias <= 7) or not 1 <= args.limite <= 100000:
+        parser.error("--dias debe ser >= 0 y --limite debe estar entre 1 y 100000")
 
     with tempfile.TemporaryDirectory() as folder:
         ruta = Path(folder) / "Expedientes_ComprasMX_2026.csv"
