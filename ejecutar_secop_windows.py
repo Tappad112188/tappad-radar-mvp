@@ -76,7 +76,7 @@ def main():
                         help="Registrar nuevos procedimientos SECOP con calendario pendiente; sin correos")
     parser.add_argument("--sincronizar-calendarios", action="store_true",
                         help="Sincronizar fechas preliminares de registros SECOP existentes; sin correos")
-    args = parser.parse_args()
+    parser.add_argument("--simular-alertas", action="store_true",\n                        help="Calcular coincidencias SECOP sin enviar correos ni escribir en Supabase")\n    args = parser.parse_args()
     if msvcrt is None:
         raise SystemExit("Este ejecutor SECOP requiere Windows")
     with LOCK.open("a+b") as candado:
@@ -127,7 +127,7 @@ def main():
                         )
                         if resultado_sync.returncode:
                             raise SystemExit("Sincronizacion SECOP detenida: " + codigo)
-                log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
+                if args.simular_alertas:\n                    ejecutar("motor_alertas_secop.py", log)\n                log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
             print("Lote preparado para revisión:", BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json")
             print("Registro de pendientes solicitado." if args.registrar_pendientes else "Sin importación a Supabase y sin correos.")
         finally:
