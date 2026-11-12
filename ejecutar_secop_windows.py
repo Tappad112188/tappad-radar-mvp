@@ -124,7 +124,7 @@ def main():
                         codigo = ficha.get("referencia")
                         if not codigo:
                             raise SystemExit("Validacion SECOP sin referencia")
-                        log.write("PASO " + nombre + " --codigo " + codigo + " --aplicar\\n")
+                        log.write("PASO " + nombre + " --codigo " + codigo + " --aplicar\n")
                         log.flush()
                         resultado_sync = subprocess.run(
                             [sys.executable, str(BASE / nombre), "--codigo", codigo, "--aplicar"],
@@ -138,7 +138,12 @@ def main():
                     ejecutar("entregar_alertas_secop.py", log)
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
             print("Lote preparado para revisión:", BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json")
-            print("Registro de pendientes solicitado." if args.registrar_pendientes else "Sin importación a Supabase y sin correos.")
+            if args.ciclo_seguro:
+                print("Ciclo seguro completado: importador y sincronizacion ejecutados; alertas solo en simulacion.")
+            elif args.registrar_pendientes:
+                print("Importador SECOP ejecutado; revisar resumen de nuevos/existentes en el log.")
+            else:
+                print("Sin importacion solicitada; sin correos.")
         finally:
             msvcrt.locking(candado.fileno(), msvcrt.LK_UNLCK, 1)
 
