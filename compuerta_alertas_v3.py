@@ -26,7 +26,7 @@ def evaluar(licitacion, cliente_id, enviados, ahora=None):
         if not str(licitacion.get("fecha_apertura") or "").strip() and str(licitacion.get("fuente") or "").strip().casefold() == "comprasmx":
             return True,"comprasmx_sin_fecha_apertura_publicada"
         if not str(licitacion.get("fecha_apertura") or "").strip() and str(licitacion.get("fuente") or "").strip().casefold() == "secop coahuila":
-            return True,"secop_fecha_apertura_no_identificada_revisar_bases"
+            return False,"sin_fecha_apertura_valida"
         return False,"sin_fecha_apertura_valida"
     if apertura<=ahora: return False,"plazo_presentacion_vencido"
     # La verificacion documental no es requisito de coincidencia.
@@ -50,7 +50,7 @@ def autoprueba():
     assert evaluar(base,1,set(),datetime(2026,10,24,9,59))[0]
     assert evaluar(base,1,set(),datetime(2026,10,24,10,0))==(False,"plazo_presentacion_vencido")
     assert evaluar(base,1,set(),datetime(2026,10,24,11,0))==(False,"plazo_presentacion_vencido")
-    assert evaluar({**base,"fuente":"SECOP Coahuila","fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))==(True,"secop_fecha_apertura_no_identificada_revisar_bases")
+    assert evaluar({**base,"fuente":"SECOP Coahuila","fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))==(False,"sin_fecha_apertura_valida")
     assert evaluar({**base,"fuente":"ComprasMX","fecha_apertura":None},1,set(),datetime(2026,10,24,9,0))[0] is True
     assert evaluar({**base,"fuente":"SECOP Coahuila","fecha_apertura":None,"estatus":"cancelado"},1,set(),datetime(2026,10,24,9,0))[0] is False
     assert evaluar({**base,"estatus":"cancelada"},1,set(),datetime(2026,10,24,9,0))[0] is False
