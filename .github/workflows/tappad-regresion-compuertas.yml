@@ -1,0 +1,19 @@
+name: TAPPAD - Regresion funcional de compuertas
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-regresion-compuertas.yml'
+      - 'test_compuerta_alertas_tappad.py'
+      - 'test_bloqueo_calendario_entrega.py'
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest -v test_compuerta_alertas_tappad test_bloqueo_calendario_entrega test_compuerta_comprasmx_fechas test_entrega_automatica_comprasmx_segura
