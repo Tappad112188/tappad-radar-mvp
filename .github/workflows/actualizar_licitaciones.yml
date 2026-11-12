@@ -34,5 +34,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
-        run: python tappad_importador_automatico.py --dias 2 --limite 1000 --importar
+        run: python tappad_importador_automatico.py --ventana-dias 2 --limite 10000 --importar
+
+      - name: Preparar alertas con preferencias SAT CUCOP sin enviar correos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python diagnostico_integral_comprasmx_catalogos.py
 
