@@ -20,6 +20,7 @@ PASOS = (
     "generar_fichas_secop_v3.py",
     "generar_fichas_comerciales_secop.py",
     "revisar_calendarios_secop.py",
+    "validar_calendarios_secop_automatico.py",
     "preparar_importacion_secop_supabase.py",
     "auditar_secop_supabase_diario.py",
 )
@@ -73,6 +74,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--registrar-pendientes", action="store_true",
                         help="Registrar nuevos procedimientos SECOP con calendario pendiente; sin correos")
+    parser.add_argument("--sincronizar-calendarios", action="store_true",
+                        help="Sincronizar fechas preliminares de registros SECOP existentes; sin correos")
     args = parser.parse_args()
     if msvcrt is None:
         raise SystemExit("Este ejecutor SECOP requiere Windows")
@@ -107,6 +110,23 @@ def main():
                     if not auditoria_autoriza_registro(resultado, datos["fecha_consulta"], len(datos["registros"]), ids_esperados):
                         raise SystemExit("Auditoria Supabase no confirmada; registro bloqueado")
                     ejecutar_importador(log)
+                if args.sincronizar_calendarios:
+                    validaciones = json.loads((BASE / "documentos_secop_lote" / "validacion_automatica_secop.json").read_text(encoding="utf-8-sig"))
+                    for ficha in validaciones.get("resultados", []):
+                        if ficha.get("estado") != "APTO_PRELIMINAR":
+                            continue
+                        nombre = "sincronizar_calendarios_secop_supabase.py"
+                        codigo = ficha.get("referencia")
+                        if not codigo:
+                            raise SystemExit("Validacion SECOP sin referencia")
+                        log.write("PASO " + nombre + " --codigo " + codigo + " --aplicar\\n")
+                        log.flush()
+                        resultado_sync = subprocess.run(
+                            [sys.executable, str(BASE / nombre), "--codigo", codigo, "--aplicar"],
+                            cwd=str(BASE), stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False
+                        )
+                        if resultado_sync.returncode:
+                            raise SystemExit("Sincronizacion SECOP detenida: " + codigo)
                 log.write("FIN OK " + datetime.now().isoformat(timespec="seconds") + "\n")
             print("Lote preparado para revisión:", BASE / "documentos_secop_lote" / "secop_importacion_pendiente_revision.json")
             print("Registro de pendientes solicitado." if args.registrar_pendientes else "Sin importación a Supabase y sin correos.")
