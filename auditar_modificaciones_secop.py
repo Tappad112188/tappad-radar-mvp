@@ -81,6 +81,23 @@ def auditar_procedimiento(item):
     duplicado_confirmado = any(c["identicos"] for c in cotejos)
     # La igualdad de PDFs no resuelve la verificacion de los enlaces oficiales.
     errores_pendientes = list(errores)
+    # Multiples enlaces de bases son habituales cuando SECOP ofrece un ZIP
+    # de anexos y el PDF principal. No son por si mismos un error.
+    multiples = "Multiples enlaces de bases: requieren revision"
+    if multiples in errores_pendientes:
+        archivos = item.get("archivos") or []
+        nombres = [str(a.get("nombre") or "").lower() for a in archivos]
+        hay_zip = any(n.endswith(".zip") for n in nombres)
+        hay_pdf = any(n.endswith(".pdf") for n in nombres)
+        rutas_validas = all(
+            Path(a.get("ruta") or "").is_file()
+            and Path(a.get("ruta") or "").stat().st_size > 0
+            for a in archivos if str(a.get("nombre") or "").lower().endswith((".zip", ".pdf"))
+        )
+        # Exigir que se haya capturado al menos un ZIP y un PDF del mismo
+        # procedimiento; no considerar la sola presencia de URLs como prueba.
+        if hay_zip and hay_pdf and rutas_validas and not diagnosticos:
+            errores_pendientes = [e for e in errores_pendientes if e != multiples]
     return {
         "codigo": item.get("codigo"),
         "documentos_potencialmente_modificatorios": hallazgos,
