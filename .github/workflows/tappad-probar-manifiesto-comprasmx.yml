@@ -1,0 +1,28 @@
+name: TAPPAD - Integracion manifiesto ComprasMX sin SMTP
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-probar-manifiesto-comprasmx.yml'
+      - 'generar_manifiesto_comprasmx_automatico.py'
+      - 'motor_entrega_tappad_v2.py'
+permissions:
+  contents: read
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxis
+        run: python -m py_compile generar_manifiesto_comprasmx_automatico.py motor_entrega_tappad_v2.py
+      - name: Preparar y validar sin envios ni escrituras
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          python generar_manifiesto_comprasmx_automatico.py
+          python motor_entrega_tappad_v2.py
