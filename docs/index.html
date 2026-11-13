@@ -7,7 +7,7 @@
 <h2>Resultado</h2><pre id="out" role="status" aria-live="polite">Sin operaciones realizadas.</pre></main>
 <script>
 (()=>{"use strict";
-const $=id=>document.getElementById(id),output=x=>{$("out").textContent=typeof x==="string"?x:JSON.stringify(x,null,2)},base=()=>$("url").value.trim().replace(/\\/$/,""),key=()=>$("anon").value.trim();let token=null;
+const $=id=>document.getElementById(id),output=x=>{$("out").textContent=typeof x==="string"?x:JSON.stringify(x,null,2)},base=()=>$("url").value.trim().replace(/\/$/,""),key=()=>$("anon").value.trim();let token=null;
 function valid(){const u=base();if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(u))throw Error("URL de Supabase no válida");if(!key()||/service_role|sb_secret_/.test(key()))throw Error("Utiliza únicamente la clave pública anon/publishable");return u}
 async function request(path,method="GET",body,auth){const u=valid();const headers={"apikey":key(),"Content-Type":"application/json"};if(auth)headers.Authorization="Bearer "+auth;const r=await fetch(u+path,{method,headers,body:body?JSON.stringify(body):undefined});const data=await r.json().catch(()=>({error:"Respuesta no JSON"}));if(!r.ok)throw Error((data.msg||data.error_description||data.message||data.error||"Error HTTP")+" ("+r.status+")");return data}
 async function run(fn){for(const b of document.querySelectorAll("button"))b.disabled=true;try{await fn()}catch(e){output("Error: "+e.message)}finally{for(const b of document.querySelectorAll("button"))b.disabled=false}}
