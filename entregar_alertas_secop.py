@@ -209,8 +209,12 @@ def main():
     # Comprobar elegibilidad antes de abrir SMTP o reservar notificaciones.
     # No enviar ni reservar si la consulta de vigencia falla.
     elegibles = []
+    piloto = os.getenv("TAPPAD_PILOTO_REAL") == "SI"
+    pilotos = {1:"gerardotapia112188@gmail.com",4:"tappadcons@gmail.com"}
     for c, l, hits, destino in tareas:
-        if not acceso_comercial_vigente(c["id"]):
+        if piloto and (c["id"] not in pilotos or destino != pilotos[c["id"]]):
+            continue
+        if not (piloto and c["id"] in pilotos and destino == pilotos[c["id"]]) and not acceso_comercial_vigente(c["id"]):
             print("BLOQUEADO: acceso comercial sin vigencia confirmada", c["id"], l["id"])
             continue
         elegibles.append((c, l, hits, destino))
@@ -230,7 +234,7 @@ def main():
     for c,l,hits,destino in elegibles:
         cid,lid=c["id"],l["id"]
         # Segunda comprobacion inmediata antes de reservar: revocaciones recientes.
-        if not acceso_comercial_vigente(cid):
+        if not (piloto and cid in pilotos and destino == pilotos[cid]) and not acceso_comercial_vigente(cid):
             print("BLOQUEADO: vigencia revocada antes de reserva", cid, lid)
             continue
         marker=MARCA/(str(cid)+"_"+str(lid)+".json")
