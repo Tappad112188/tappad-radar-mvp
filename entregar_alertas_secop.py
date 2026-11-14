@@ -70,9 +70,43 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
         return False
     try:
         periodo = datetime.fromisoformat(str(sub["fin_periodo"]).replace("Z", "+00:00"))
-        return periodo.tzinfo is not None and periodo > ahora and fin <= periodo
+        if periodo.tzinfo is None or periodo <= ahora or fin > periodo:
+            return False
     except (ValueError, TypeError):
         return False
+    # No basta un estado editable de suscripcion: exigir activacion aplicada
+    # respaldada por pago comercial conciliado y periodo coincidente.
+    activaciones = api("GET", "activaciones_comerciales_tappad", {
+        "select": "cliente_id,suscripcion_id,pago_id,estado,periodo_inicio,periodo_fin",
+        "cliente_id": "eq." + str(int(cliente_id)),
+        "suscripcion_id": "eq." + str(suscripcion_id),
+        "estado": "eq.aplicada",
+        "limit": "100",
+    })
+    if not isinstance(activaciones, list):
+        return False
+    for activacion in activaciones:
+        try:
+            inicio = datetime.fromisoformat(str(activacion["periodo_inicio"]).replace("Z", "+00:00"))
+            cierre = datetime.fromisoformat(str(activacion["periodo_fin"]).replace("Z", "+00:00"))
+            pago_id = int(activacion["pago_id"])
+            if (inicio.tzinfo is None or cierre.tzinfo is None or
+                not (inicio <= ahora < cierre) or fin > cierre or pago_id <= 0):
+                continue
+        except (ValueError, TypeError, KeyError):
+            continue
+        pagos = api("GET", "pagos_tappad", {
+            "select": "id,suscripcion_id,estado,proveedor_cobro,referencia_externa",
+            "id": "eq." + str(pago_id),
+            "suscripcion_id": "eq." + str(suscripcion_id),
+            "limit": "2",
+        })
+        if (isinstance(pagos, list) and len(pagos) == 1 and
+            pagos[0].get("estado") == "pagado" and
+            pagos[0].get("proveedor_cobro") == sub["proveedor_cobro"] and
+            pagos[0].get("referencia_externa")):
+            return True
+    return False
 
 
 def actualizar(cid,lid,estado,detalle=None):
