@@ -60,7 +60,8 @@ def verificar_pago_desde_supabase(pago_id, *, supabase_url, supabase_key,
         raise VerificacionRechazada("plan_inactivo")
     evidencia = verificar_pago_servidor(
         sub, pago, importe_esperado=plan["precio_mxn"],
-        token=mercadopago_token, ahora=ahora or datetime.now(timezone.utc),
+        token=mercadopago_token, periodicidad=plan["periodicidad"],
+        ahora=ahora or datetime.now(timezone.utc),
         opener=mp_opener)
     return {"cliente_id": sub["cliente_id"], "suscripcion_id": sub["id"],
             "pago_id": pago["id"], "evidencia": evidencia,
