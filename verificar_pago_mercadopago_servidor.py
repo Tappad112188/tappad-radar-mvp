@@ -40,7 +40,7 @@ def _get_json(path, token, *, opener=urlopen):
 
 
 def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
-                           token, ahora=None, opener=urlopen):
+                           token, periodicidad="mensual", ahora=None, opener=urlopen):
     """Solo evidencia de lectura; requiere token de PRODUCCION aislado.
 
     El llamador debe cargar suscripcion, pago y plan de la base con permisos
@@ -62,10 +62,13 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
         raise VerificacionRechazada("vendedor_no_productivo_mexico")
     pre = _get_json("/preapproval/" + quote(sid, safe=""), token, opener=opener)
     ar = pre.get("auto_recurring") or {}
+    frecuencia = {"mensual": (1, "months"), "anual": (12, "months")}.get(periodicidad)
+    if frecuencia is None:
+        raise VerificacionRechazada("periodicidad_no_admitida")
     if (str(pre.get("id")) != sid or pre.get("status") != "authorized"
         or str(ar.get("currency_id")) != "MXN"
-        or str(ar.get("frequency_type")) != "months"
-        or str(ar.get("frequency")) != "1"):
+        or str(ar.get("frequency_type")) != frecuencia[1]
+        or str(ar.get("frequency")) != str(frecuencia[0])):
         raise VerificacionRechazada("suscripcion_remota_invalida")
     try:
         if Decimal(str(ar.get("transaction_amount"))) != Decimal(str(importe_esperado)):
@@ -73,6 +76,8 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise VerificacionRechazada("importe_suscripcion_invalido") from exc
     pago = _get_json("/v1/payments/" + quote(pid, safe=""), token, opener=opener)
+    if str(pago.get("collector_id") or "") not in ("", str(vendedor.get("id"))):
+        raise VerificacionRechazada("vendedor_pago_inconsistente")
     # En pagos recurrentes la vinculacion puede venir de authorized_payments,
     # no del detalle de /v1/payments. Se comprueba por dos fuentes remotas.
     if not pago.get("preapproval_id"):
