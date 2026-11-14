@@ -44,7 +44,7 @@ jobs:
           PY
       - name: Ejecutar una activacion privada
         env:
-          TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: 'SI'
+          TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_ACTIVACION_PRODUCCION }}
           TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
           TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
           TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
