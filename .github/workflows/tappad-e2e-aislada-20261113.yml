@@ -1,0 +1,37 @@
+name: TAPPAD - E2E aislada 13 noviembre dos buzones
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-e2e-aislada-20261113.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tappad-e2e-aislada-20261113
+  cancel-in-progress: false
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar secretos y ejecutar piloto real aislado
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          TAPPAD_PRUEBA_AISLADA: 'SI'
+          TAPPAD_PRUEBA_ENVIAR: 'SI'
+        run: |
+          python - <<'PY'
+          import os
+          names=('SUPABASE_URL','SUPABASE_ADMIN_KEY','SMTP_USER','SMTP_APP_PASSWORD')
+          missing=[n for n in names if not os.getenv(n)]
+          if missing: raise SystemExit('Secretos faltantes: '+', '.join(missing))
+          PY
+          python prueba_e2e_aislada_20261113.py
