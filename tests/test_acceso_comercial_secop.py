@@ -114,6 +114,23 @@ class AccesoComercialSecop(unittest.TestCase):
         self.suscripcion["proveedor_cobro"] = "mercadopago_prueba"
         self.assertFalse(self.evaluar())
 
+    def test_activacion_de_otro_cliente(self):
+        self.activacion = lambda: {**AccesoComercialSecop.activacion(self), "cliente_id": 99}
+        self.assertFalse(self.evaluar())
+
+    def test_activacion_pendiente_no_autoriza(self):
+        self.activacion = lambda: {**AccesoComercialSecop.activacion(self),
+                                   "estado": "pendiente_revision"}
+        self.assertFalse(self.evaluar())
+
+    def test_pago_de_otra_suscripcion(self):
+        self.pago = lambda: {**AccesoComercialSecop.pago(self), "suscripcion_id": 88}
+        self.assertFalse(self.evaluar())
+
+    def test_pago_sin_referencia(self):
+        self.pago = lambda: {**AccesoComercialSecop.pago(self), "referencia_externa": None}
+        self.assertFalse(self.evaluar())
+
     def test_activacion_expirada(self):
         self.activacion = lambda: {**AccesoComercialSecop.activacion(self),
             "periodo_fin": (self.ahora - timedelta(seconds=1)).isoformat()}
