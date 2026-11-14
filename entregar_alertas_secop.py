@@ -86,6 +86,10 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
     if not isinstance(activaciones, list):
         return False
     for activacion in activaciones:
+        if (activacion.get("estado") != "aplicada" or
+            activacion.get("cliente_id") != int(cliente_id) or
+            activacion.get("suscripcion_id") != suscripcion_id):
+            continue
         try:
             inicio = datetime.fromisoformat(str(activacion["periodo_inicio"]).replace("Z", "+00:00"))
             cierre = datetime.fromisoformat(str(activacion["periodo_fin"]).replace("Z", "+00:00"))
@@ -102,6 +106,8 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
             "limit": "2",
         })
         if (isinstance(pagos, list) and len(pagos) == 1 and
+            pagos[0].get("id") == pago_id and
+            pagos[0].get("suscripcion_id") == suscripcion_id and
             pagos[0].get("estado") == "pagado" and
             pagos[0].get("proveedor_cobro") == sub["proveedor_cobro"] and
             pagos[0].get("referencia_externa")):
