@@ -52,7 +52,7 @@ def main():
             if lic["fuente"]=="SECOP Coahuila" and lic.get("validacion_calendario") not in ("preliminar_documental","verificado"):
                 raise SystemExit("Calendario SECOP sin validacion documental")
         logo=Path(__file__).resolve().parent/"assets"/"logo_tappad.png"
-        if not logo.is_file() or not logo.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        if not logo.is_file() or not logo.read_bytes().startswith(bytes.fromhex("89504e470d0a1a0a")):
             raise SystemExit("Logo PNG no disponible o invalido")
         msg=EmailMessage()
         msg["From"]=os.environ["SMTP_USER"];msg["To"]=caso["correo"]
