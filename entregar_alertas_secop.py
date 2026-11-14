@@ -49,9 +49,15 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
             return False
     except (ValueError, TypeError):
         return False
+    try:
+        suscripcion_id = int(acceso["suscripcion_id"])
+        if suscripcion_id <= 0:
+            return False
+    except (ValueError, TypeError, KeyError):
+        return False
     subs = api("GET", "suscripciones_tappad", {
         "select": "id,cliente_id,estado,fin_periodo,proveedor_cobro",
-        "id": "eq." + str(int(acceso["suscripcion_id"])),
+        "id": "eq." + str(suscripcion_id),
         "cliente_id": "eq." + str(int(cliente_id)),
         "limit": "2",
     })
@@ -59,12 +65,12 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
         return False
     sub = subs[0]
     proveedores = {x.strip() for x in os.getenv("TAPPAD_PROVEEDORES_COMERCIALES", "").split(",") if x.strip()}
-    proveedores.discard("mercadopago_prueba")
+    proveedores = {x for x in proveedores if "prueba" not in x.casefold() and "test" not in x.casefold()}
     if sub.get("estado") != "activa" or sub.get("proveedor_cobro") not in proveedores:
         return False
     try:
         periodo = datetime.fromisoformat(str(sub["fin_periodo"]).replace("Z", "+00:00"))
-        return periodo.tzinfo is not None and periodo > ahora
+        return periodo.tzinfo is not None and periodo > ahora and fin <= periodo
     except (ValueError, TypeError):
         return False
 
