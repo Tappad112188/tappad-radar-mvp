@@ -7,7 +7,7 @@ IMPORTANTE: la credencial PostgreSQL debe existir solo en un worker confiable,
 NO en frontend, GitHub Actions, ni equipo de un cliente.
 """
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.request import urlopen
 
 from conexion_segura_mercadopago_supabase import verificar_pago_desde_supabase
@@ -48,6 +48,7 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
     # El contexto DB-API revierte la transaccion ante cualquier excepcion.
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
+            cursor.execute("SET LOCAL statement_timeout = '10000ms'")
             cursor.execute(
                 """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
                 FROM public.pagos_tappad p
@@ -64,11 +65,13 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             if fecha_pago.tzinfo is None:
                 raise VerificacionRechazada("fecha_pago_sin_zona")
             ahora = datetime.now(timezone.utc)
-            if fecha_pago > ahora or fecha_pago < ahora - __import__("datetime").timedelta(days=7):
+            if fecha_pago > ahora or fecha_pago < ahora - timedelta(days=7):
                 raise VerificacionRechazada("pago_fuera_de_ventana")
-            if vencimiento is not None and vencimiento > ahora:
-                raise VerificacionRechazada("renovacion_anticipada_pendiente")
+            # Una renovacion anticipada se extiende desde el vencimiento previo.
+            # La funcion SQL vuelve a comprobar continuidad y duplicados.
             inicio = vencimiento if vencimiento is not None else fecha_pago
+            if inicio > ahora:
+                raise VerificacionRechazada("renovacion_anticipada_pendiente")
             cursor.execute(
                 "select %s::timestamptz + case %s when 'mensual' then interval '1 month' else interval '1 year' end",
                 (inicio, periodicidad))
