@@ -33,7 +33,7 @@ class ConexionTests(unittest.TestCase):
             "/v1/payments/pay-1": {"id": "pay-1", "status": "approved",
                 "currency_id": "MXN", "transaction_amount": 449,
                 "date_approved": "2026-11-13T23:00:00Z",
-                "preapproval_id": "sub-1"}}
+                "collector_id": 5, "preapproval_id": "sub-1"}}
         self.requests = []
     def db_open(self, req, timeout):
         self.requests.append((req.method, req.full_url))
