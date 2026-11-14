@@ -27,6 +27,8 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
         return {"aplicacion": "bloqueada", "escrituras": 0}
     if not postgres_dsn:
         raise VerificacionRechazada("conexion_privada_ausente")
+    if not os.environ.get("TAPPAD_MERCADOPAGO_SELLER_ID"):
+        raise VerificacionRechazada("vendedor_esperado_no_configurado")
     if not isinstance(inicio, datetime) or not isinstance(fin, datetime):
         raise VerificacionRechazada("periodo_invalido")
     if inicio.tzinfo is None or fin.tzinfo is None or inicio > datetime.now(timezone.utc) or fin <= datetime.now(timezone.utc) or fin <= inicio:
@@ -36,6 +38,8 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
         pago_id, supabase_url=supabase_url, supabase_key=supabase_key,
         mercadopago_token=mercadopago_token,
         db_opener=db_opener, mp_opener=mp_opener)
+    if str(evidencia["evidencia"].get("seller_id") or "") != os.environ["TAPPAD_MERCADOPAGO_SELLER_ID"]:
+        raise VerificacionRechazada("vendedor_inesperado")
     if connect is None:
         try:
             import psycopg
