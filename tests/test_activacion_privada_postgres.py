@@ -12,7 +12,10 @@ class FakeCursor:
     def __enter__(self): return self
     def __exit__(self, *args): return False
     def execute(self, sql, args): self.executions.append((sql,args))
-    def fetchone(self): return (self.accepted,)
+    def fetchone(self):
+        if len(self.executions)==1: return (datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",None)
+        if len(self.executions)==2: return (datetime.now(timezone.utc)+timedelta(days=30),)
+        return (self.accepted,)
 
 
 class FakeConnection:
@@ -44,8 +47,6 @@ class PuenteTests(unittest.TestCase):
             2, supabase_url="https://example.supabase.co",
             supabase_key="dummy", mercadopago_token="dummy",
             postgres_dsn="postgresql://private", permitir=permitir,
-            inicio=datetime.now(timezone.utc)-timedelta(minutes=2),
-            fin=datetime.now(timezone.utc)+timedelta(days=30),
             connect=self.connect)
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_apagado_no_verifica_ni_escribe(self, verifier):
@@ -80,9 +81,9 @@ class PuenteTests(unittest.TestCase):
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
             self.assertEqual(self.run_bridge()["aplicacion"],"aplicada")
         self.assertTrue(self.con.committed)
-        self.assertEqual(len(self.con.cursor_obj.executions),1)
+        self.assertEqual(len(self.con.cursor_obj.executions),3)
         self.assertIn("tappad_internal.tappad_aplicar_activacion_comercial",
-                      self.con.cursor_obj.executions[0][0])
+                      self.con.cursor_obj.executions[2][0])
 
 
 if __name__=="__main__":
