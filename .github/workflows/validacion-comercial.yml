@@ -8,6 +8,7 @@ on:
       - 'tests/test_invariantes_comerciales.py'
       - 'tests/test_acceso_comercial_secop.py'
       - 'entregar_alertas_secop.py'
+      - 'motor_entrega_tappad_v2.py'
       - '.github/workflows/validacion-comercial.yml'
 permissions:
   contents: read
@@ -21,6 +22,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Comprobar sintaxis sin importar ni ejecutar el sistema
-        run: python -m py_compile entregar_alertas_secop.py tests/test_invariantes_comerciales.py tests/test_acceso_comercial_secop.py
+        run: python -m py_compile entregar_alertas_secop.py motor_entrega_tappad_v2.py tests/test_invariantes_comerciales.py tests/test_acceso_comercial_secop.py
       - name: Ejecutar pruebas con dependencias simuladas
         run: python -m unittest discover -s tests -p 'test_invariantes_comerciales.py' -v && python -m unittest discover -s tests -p 'test_acceso_comercial_secop.py' -v
