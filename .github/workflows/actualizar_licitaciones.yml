@@ -51,13 +51,26 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
         run: python tappad_importador_automatico.py --ventana-dias 2 --limite 10000 --importar
-      - name: Preparar alertas y validar sin enviar a clientes sin acceso comercial
+      - name: Generar logotipo corporativo valido
+        run: |
+          python -m pip install 'cairosvg==2.8.2'
+          python - <<'PY'
+          import cairosvg
+          from pathlib import Path
+          p=Path('assets')
+          cairosvg.svg2png(url=str(p/'logo_tappad.svg'),write_to=str(p/'logo_tappad.png'),output_width=330,output_height=330)
+          assert (p/'logo_tappad.png').read_bytes().startswith(bytes.fromhex('89504e470d0a1a0a'))
+          PY
+      - name: Preparar alertas y entregar solo a suscripciones comercialmente habilitadas
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          TAPPAD_ENVIO_REAL: SI
         run: |
           python generar_manifiesto_comprasmx_automatico.py
-          python motor_entrega_tappad_v2.py
+          python motor_entrega_tappad_v2.py --enviar-real
       - name: Resumen de ejecucion
         if: always()
         run: |
