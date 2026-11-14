@@ -70,7 +70,7 @@ class PuenteTests(unittest.TestCase):
     def test_rechazo_sql_revierte_transaccion(self, verifier):
         verifier.return_value=self.evidence
         self.con = FakeConnection(False)
-        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
             with self.assertRaisesRegex(VerificacionRechazada,"activacion_rechazada"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
@@ -96,7 +96,7 @@ class PuenteTests(unittest.TestCase):
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_pago_valido_aplica_una_vez(self, verifier):
         verifier.return_value=self.evidence
-        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
             self.assertEqual(self.run_bridge()["aplicacion"],"aplicada")
         self.assertTrue(self.con.committed)
         self.assertEqual(len(self.con.cursor_obj.executions),3)
