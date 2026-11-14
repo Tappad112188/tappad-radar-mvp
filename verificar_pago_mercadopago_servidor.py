@@ -58,7 +58,8 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
     ):
         raise VerificacionRechazada("identificadores_invalidos")
     vendedor = _get_json("/users/me", token, opener=opener)
-    if vendedor.get("site_id") != "MLM" or "test_user" in (vendedor.get("tags") or []):
+    if (vendedor.get("site_id") != "MLM" or not vendedor.get("id")
+        or "test_user" in (vendedor.get("tags") or [])):
         raise VerificacionRechazada("vendedor_no_productivo_mexico")
     pre = _get_json("/preapproval/" + quote(sid, safe=""), token, opener=opener)
     ar = pre.get("auto_recurring") or {}
@@ -76,7 +77,7 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise VerificacionRechazada("importe_suscripcion_invalido") from exc
     pago = _get_json("/v1/payments/" + quote(pid, safe=""), token, opener=opener)
-    if str(pago.get("collector_id") or "") not in ("", str(vendedor.get("id"))):
+    if str(pago.get("collector_id") or "") != str(vendedor.get("id")):
         raise VerificacionRechazada("vendedor_pago_inconsistente")
     # En pagos recurrentes la vinculacion puede venir de authorized_payments,
     # no del detalle de /v1/payments. Se comprueba por dos fuentes remotas.
@@ -92,7 +93,7 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
             and str(x.get("preapproval_id") or x.get("subscription_id") or "") == sid
             and str((x.get("payment") or {}).get("id") or x.get("payment_id") or "") == pid
         ]
-        if len(vinculados) != 1:
+        if len(vinculados) != 1 or vinculados[0].get("status") not in ("processed", "approved"):
             raise VerificacionRechazada("vinculo_pago_suscripcion_no_verificable")
         pago = dict(pago, preapproval_id=sid)
     ok, motivo = evaluar_pago_comercial(
