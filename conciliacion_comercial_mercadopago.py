@@ -46,6 +46,11 @@ def evaluar_pago_comercial(suscripcion, pago_local, pago_proveedor, *,
         return False, "suscripcion_inconsistente"
     if str(pago_local.get("estado")) != "pagado":
         return False, "pago_local_no_conciliado"
+    if (_importe(pago_local.get("monto_mxn")) is None or
+        _importe(pago_local["monto_mxn"]) != _importe(importe_esperado)):
+        return False, "importe_local_incorrecto"
+    if not str(suscripcion.get("referencia_externa") or "").strip():
+        return False, "referencia_suscripcion_ausente"
     referencia = str(pago_local.get("referencia_externa") or "").strip()
     if not referencia or referencia != str(pago_proveedor.get("id") or "").strip():
         return False, "referencia_no_verificada"
@@ -60,6 +65,9 @@ def evaluar_pago_comercial(suscripcion, pago_local, pago_proveedor, *,
     fecha_pago = _fecha(pago_proveedor.get("date_approved"))
     if fecha_pago is None or fecha_pago > ahora:
         return False, "fecha_pago_invalida"
+    fecha_local = _fecha(pago_local.get("fecha_pago"))
+    if fecha_local is None or fecha_local > ahora:
+        return False, "fecha_local_invalida"
     if not str(pago_proveedor.get("preapproval_id") or "").strip():
         return False, "suscripcion_remota_ausente"
     if str(pago_proveedor["preapproval_id"]) != str(suscripcion.get("referencia_externa") or ""):
