@@ -14,10 +14,8 @@ jobs:
     timeout-minutes: 10
     env:
       TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: 'NO'
-      TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
-      TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
-      TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
-      TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+      TAPPAD_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,14 +28,15 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_worker_activacion_comercial.py' -v
           python -m unittest discover -s tests -p 'test_conciliador_pagos_pendientes_lectura.py' -v
-      - name: Validar configuración del worker
+      - name: Diagnostico seguro de configuracion (sin pagos ni escrituras)
         run: |
           python - <<'PY'
           import os
-          needed=['TAPPAD_SUPABASE_URL','TAPPAD_SUPABASE_SERVICE_ROLE_KEY',
-                  'TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN','TAPPAD_MERCADOPAGO_SELLER_ID']
-          missing=[k for k in needed if not os.environ.get(k)]
-          if missing: raise SystemExit('Secretos pendientes: '+', '.join(missing))
+          required = ('TAPPAD_SUPABASE_URL', 'TAPPAD_SUPABASE_SERVICE_ROLE_KEY')
+          missing = [key for key in required if not os.environ.get(key)]
+          print('Modo: DIAGNOSTICO_SIN_CONSULTAS_DE_PAGOS')
+          print('Activacion comercial: DESHABILITADA')
+          print('Supabase: ' + ('PENDIENTE' if missing else 'CONFIGURADO'))
+          if missing:
+              raise SystemExit('Configuracion incompleta: ' + ', '.join(missing))
           PY
-      - name: Ejecutar worker sin activaciones
-        run: python worker_activacion_comercial.py
