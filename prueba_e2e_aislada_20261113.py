@@ -1,4 +1,4 @@
-"""Prueba aislada de matching real y SMTP a dos buzones. Sin escrituras ni acceso comercial."""
+"""Prueba aislada con perfiles ficticios y cuatro procedimientos reales del 13/11. Sin escrituras comerciales."""
 import json, os, smtplib, ssl, html
 from urllib.request import Request,urlopen
 from urllib.parse import urlencode
@@ -21,8 +21,11 @@ def main():
         clientes=get("clientes",{"select":"id,correo,palabras_clave,activo","id":"eq."+str(cid)})
         if len(clientes)!=1 or not clientes[0]["activo"] or clientes[0]["correo"].casefold()!=caso["correo"]:
             raise SystemExit("Cliente/destino no autorizado")
-        claves=(clientes[0]["palabras_clave"] or "").casefold()
-        if not all(t in claves for t in caso["terminos"]): raise SystemExit("Palabras clave de prueba no configuradas")
+        # Los giros son exclusivos de los dos perfiles ficticios de esta ejecucion.
+        # No se alteran palabras_clave, giros ni suscripciones de clientes reales.
+        claves=", ".join(caso["terminos"]).casefold()
+        if not all(t in claves for t in caso["terminos"]): raise SystemExit("Giros ficticios invalidos")
+        print("PERFIL FICTICIO",cid,"| GIROS:",", ".join(caso["terminos"]))
         items=[]
         for fuente,numero,termino in (("ComprasMX",caso["comprasmx"],caso["terminos"][0]),("SECOP Coahuila",caso["secop"],caso["terminos"][1])):
             rows=get("licitaciones",{"select":"id,fuente,numero_procedimiento,nombre_procedimiento,descripcion,fecha_publicacion,fecha_apertura,url_procedimiento,validacion_calendario","numero_procedimiento":"eq."+numero,"fuente":"eq."+fuente})
@@ -38,14 +41,14 @@ def main():
             cuerpo.append("<p>"+html.escape(str(lic.get("nombre_procedimiento") or ""))+"</p>")
             cuerpo.append("<p>Coincidencia: "+html.escape(termino)+"</p>")
             if lic["fuente"]=="SECOP Coahuila":
-                cuerpo.append("<p><b>SECOP: expediente/calendario pendientes de validación; no usar para presentar propuestas.</b></p>")
+                cuerpo.append("<p><b>SECOP: calendario preliminar documental; verificar bases y posibles modificaciones antes de presentar propuestas.</b></p>")
             elif lic.get("url_procedimiento"):
                 u=html.escape(lic["url_procedimiento"],quote=True)
                 cuerpo.append('<p><a href="'+u+'">Expediente oficial ComprasMX</a></p>')
         msg=EmailMessage()
         msg["From"]=os.environ["SMTP_USER"];msg["To"]=caso["correo"]
         msg["Subject"]="[PRUEBA AISLADA] TAPPAD Radar | SECOP + ComprasMX | cliente "+str(cid)
-        msg.set_content("Prueba aislada TAPPAD Radar. Coincidencias de ComprasMX y SECOP del 13/11/2026. SECOP pendiente de validacion documental.")
+        msg.set_content("Prueba aislada TAPPAD Radar. Coincidencias de ComprasMX y SECOP del 13/11/2026. SECOP con calendario preliminar documental; verificar bases oficiales antes de participar.")
         msg.add_alternative("<html><body style='font-family:Arial'>"+ "".join(cuerpo)+"</body></html>",subtype="html")
         correos.append(msg)
     print("PREVALIDACION OK: 2 clientes, 4 coincidencias reales, 2 buzones cerrados")
