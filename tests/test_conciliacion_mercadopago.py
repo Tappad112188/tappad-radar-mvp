@@ -10,7 +10,8 @@ class ConciliacionMercadoPago(unittest.TestCase):
         self.s = {"id": 7, "proveedor_cobro": "mercadopago_produccion",
                   "referencia_externa": "preapproval-123"}
         self.local = {"suscripcion_id": 7, "proveedor_cobro": "mercadopago_produccion",
-                      "estado": "pagado", "referencia_externa": "pay-456"}
+                      "estado": "pagado", "referencia_externa": "pay-456",
+                      "monto_mxn": "449.00", "fecha_pago": "2026-11-14T01:00:00Z"}
         self.remoto = {"id": "pay-456", "status": "approved",
                        "currency_id": "MXN", "transaction_amount": 449,
                        "date_approved": "2026-11-14T01:00:00Z",
@@ -33,6 +34,22 @@ class ConciliacionMercadoPago(unittest.TestCase):
 
     def test_importe_distinto(self):
         self.remoto["transaction_amount"] = "448.99"
+        self.assertFalse(self.evaluar())
+
+    def test_importe_local_distinto(self):
+        self.local["monto_mxn"] = "448.00"
+        self.assertFalse(self.evaluar())
+
+    def test_fecha_local_ausente(self):
+        self.local["fecha_pago"] = None
+        self.assertFalse(self.evaluar())
+
+    def test_fecha_local_futura(self):
+        self.local["fecha_pago"] = "2026-12-14T01:00:00Z"
+        self.assertFalse(self.evaluar())
+
+    def test_suscripcion_sin_referencia(self):
+        self.s["referencia_externa"] = None
         self.assertFalse(self.evaluar())
 
     def test_referencia_ajena(self):
