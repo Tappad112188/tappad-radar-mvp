@@ -16,7 +16,7 @@ from verificar_pago_mercadopago_servidor import VerificacionRechazada
 
 def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
                             mercadopago_token, postgres_dsn,
-                            inicio, fin, permitir=False,
+                            inicio=None, fin=None, permitir=False,
                             db_opener=urlopen, mp_opener=urlopen,
                             connect=None):
     """No escribe salvo autorización doble y verificacion remota satisfactoria.
@@ -29,10 +29,8 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
         raise VerificacionRechazada("conexion_privada_ausente")
     if not os.environ.get("TAPPAD_MERCADOPAGO_SELLER_ID"):
         raise VerificacionRechazada("vendedor_esperado_no_configurado")
-    if not isinstance(inicio, datetime) or not isinstance(fin, datetime):
-        raise VerificacionRechazada("periodo_invalido")
-    if inicio.tzinfo is None or fin.tzinfo is None or inicio > datetime.now(timezone.utc) or fin <= datetime.now(timezone.utc) or fin <= inicio:
-        raise VerificacionRechazada("periodo_invalido")
+    if inicio is not None or fin is not None:
+        raise VerificacionRechazada("periodo_no_puede_ser_proporcionado")
     # Verificacion remota ANTES de abrir transaccion.
     evidencia = verificar_pago_desde_supabase(
         pago_id, supabase_url=supabase_url, supabase_key=supabase_key,
@@ -50,6 +48,34 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
     # El contexto DB-API revierte la transaccion ante cualquier excepcion.
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
+            cursor.execute(
+                """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
+                FROM public.pagos_tappad p
+                JOIN public.suscripciones_tappad s ON s.id=p.suscripcion_id
+                JOIN public.planes_tappad pl ON pl.id=s.plan_id
+                LEFT JOIN public.acceso_comercial_tappad a ON a.cliente_id=s.cliente_id
+                WHERE p.id=%s AND s.id=%s AND s.cliente_id=%s
+                FOR UPDATE OF p,s""",
+                (evidencia["pago_id"], evidencia["suscripcion_id"], evidencia["cliente_id"]))
+            ciclo = cursor.fetchone()
+            if not ciclo or ciclo[0] is None or ciclo[1] not in ("mensual", "anual"):
+                raise VerificacionRechazada("ciclo_no_verificable")
+            fecha_pago, periodicidad, vencimiento = ciclo
+            if fecha_pago.tzinfo is None:
+                raise VerificacionRechazada("fecha_pago_sin_zona")
+            ahora = datetime.now(timezone.utc)
+            if fecha_pago > ahora or fecha_pago < ahora - __import__("datetime").timedelta(days=7):
+                raise VerificacionRechazada("pago_fuera_de_ventana")
+            if vencimiento is not None and vencimiento > ahora:
+                raise VerificacionRechazada("renovacion_anticipada_pendiente")
+            inicio = vencimiento if vencimiento is not None else fecha_pago
+            cursor.execute(
+                "select %s::timestamptz + case %s when 'mensual' then interval '1 month' else interval '1 year' end",
+                (inicio, periodicidad))
+            fin_row = cursor.fetchone()
+            if not fin_row or fin_row[0] <= ahora:
+                raise VerificacionRechazada("periodo_expirado")
+            fin = fin_row[0]
             cursor.execute(
                 "select tappad_internal.tappad_aplicar_activacion_comercial("
                 "%s,%s,%s,%s,%s,%s::jsonb)",
