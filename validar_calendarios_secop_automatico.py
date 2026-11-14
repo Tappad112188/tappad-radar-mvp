@@ -1,5 +1,6 @@
 """Valida evidencia local SECOP sin redes, Supabase ni SMTP."""
 import json
+import hashlib
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -10,6 +11,31 @@ PALABRAS={"junta_aclaraciones":("JUNTA DE ACLARACIONES",),"limite_presentacion_p
 
 def leer(nombre):
     return json.loads((BASE/nombre).read_text(encoding="utf-8-sig"))
+
+def evidencia_documental(f, etapa, fuente):
+    """PDF: página identificada. DOCX: documento íntegro y hash SHA256 cotejado."""
+    if "BASES" not in fuente.upper():
+        return False, "origen sin identificacion de bases"
+    if "PÁGINA" in fuente.upper() or "PAGINA" in fuente.upper():
+        return True, None
+    if "DOCUMENTO WORD" not in fuente.upper():
+        return False, "origen documental sin pagina ni Word verificable"
+    docs = f.get("documentos") or []
+    candidatos = [d for d in docs if str(d.get("nombre") or "").lower().endswith(".docx")
+                  and str(d.get("nombre")) in fuente and not d.get("error")]
+    if len(candidatos) != 1:
+        return False, "documento Word no identificable de forma unica"
+    doc = candidatos[0]
+    codigo = str(f.get("codigo") or "")
+    if not codigo or "/" in codigo or "\\\\" in codigo or ".." in codigo:
+        return False, "codigo de carpeta no seguro"
+    carpeta = BASE / codigo
+    ruta = carpeta / doc["nombre"]
+    if not ruta.is_file() or not ruta.resolve().is_relative_to(carpeta.resolve()):
+        return False, "archivo Word original no encontrado"
+    if hashlib.sha256(ruta.read_bytes()).hexdigest() != doc.get("sha256"):
+        return False, "hash del documento Word no coincide"
+    return True, None
 
 def validar(f, auditoria):
     codigo=f.get("codigo")
@@ -27,8 +53,9 @@ def validar(f, auditoria):
             continue
         fuente=str(e.get("fuente") or "")
         evidencia=str(e.get("evidencia") or "")
-        if "BASES" not in fuente.upper() or "PÁGINA" not in fuente.upper() and "PAGINA" not in fuente.upper():
-            errores.append(etapa+": sin pagina de bases")
+        ok_origen, detalle_origen = evidencia_documental(f, etapa, fuente)
+        if not ok_origen:
+            errores.append(etapa+": "+detalle_origen)
         if not all(k in evidencia.upper() for k in PALABRAS[etapa]):
             errores.append(etapa+": evidencia sin encabezado esperado")
         if e.get("alternativas") or e.get("estado")!="candidato_documental":
