@@ -54,7 +54,15 @@ class VerificadorTests(unittest.TestCase):
         with self.assertRaises(VerificacionRechazada): self.verificar()
     def test_pago_sin_vinculo(self):
         self.responses["/v1/payments/pay-1"].pop("preapproval_id")
+        self.responses["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {"results": []}
         with self.assertRaises(VerificacionRechazada): self.verificar()
+    def test_pago_recurrente_vinculado_en_authorized_payments(self):
+        self.responses["/v1/payments/pay-1"].pop("preapproval_id")
+        self.responses["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {
+            "results": [{"preapproval_id": "sub-1", "payment": {"id": "pay-1"}}]}
+        self.assertEqual(self.verificar()["payment_id"], "pay-1")
+        self.assertEqual(len(self.visits), 4)
+
     def test_pago_de_otra_suscripcion(self):
         self.responses["/v1/payments/pay-1"]["preapproval_id"] = "otra"
         with self.assertRaises(VerificacionRechazada): self.verificar()
