@@ -7,7 +7,7 @@ import json
 import os
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -21,7 +21,7 @@ class VerificacionRechazada(Exception):
 def _get_json(path, token, *, opener=urlopen):
     if not token or not token.strip():
         raise VerificacionRechazada("token_proveedor_ausente")
-    if not path.startswith("/") or "?" in path or "#" in path:
+    if not path.startswith("/") or "#" in path or not path.startswith(("/users/me", "/preapproval/", "/v1/payments/", "/authorized_payments/search?")):
         raise VerificacionRechazada("ruta_invalida")
     req = Request("https://api.mercadopago.com" + path,
                   headers={"Authorization": "Bearer " + token.strip(),
@@ -73,10 +73,23 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise VerificacionRechazada("importe_suscripcion_invalido") from exc
     pago = _get_json("/v1/payments/" + quote(pid, safe=""), token, opener=opener)
-    # El endpoint /v1/payments puede no incluir preapproval_id. No inferir
-    # ownership: sin enlace verificable se rechaza, nunca se activa.
+    # En pagos recurrentes la vinculacion puede venir de authorized_payments,
+    # no del detalle de /v1/payments. Se comprueba por dos fuentes remotas.
     if not pago.get("preapproval_id"):
-        raise VerificacionRechazada("vinculo_pago_suscripcion_no_verificable")
+        consulta = "/authorized_payments/search?" + urlencode(
+            {"preapproval_id": sid, "limit": "100", "offset": "0"})
+        autorizados = _get_json(consulta, token, opener=opener)
+        filas = autorizados.get("results")
+        if not isinstance(filas, list):
+            raise VerificacionRechazada("autorizaciones_invalidas")
+        vinculados = [
+            x for x in filas if isinstance(x, dict)
+            and str(x.get("preapproval_id") or x.get("subscription_id") or "") == sid
+            and str((x.get("payment") or {}).get("id") or x.get("payment_id") or "") == pid
+        ]
+        if len(vinculados) != 1:
+            raise VerificacionRechazada("vinculo_pago_suscripcion_no_verificable")
+        pago = dict(pago, preapproval_id=sid)
     ok, motivo = evaluar_pago_comercial(
         suscripcion, pago_local, pago, ahora=ahora,
         importe_esperado=importe_esperado)
