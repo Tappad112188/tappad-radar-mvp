@@ -1,10 +1,11 @@
 name: TAPPAD - E2E aislada 13 noviembre dos buzones
 on:
-  push:
-    branches: [desarrollo-registro-proveedores]
-    paths:
-      - '.github/workflows/tappad-e2e-aislada-20261113.yml'
   workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribir ENVIAR_PRUEBA para repetir dos correos'
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -12,6 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prueba:
+    if: ${{ inputs.confirmar == 'ENVIAR_PRUEBA' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
