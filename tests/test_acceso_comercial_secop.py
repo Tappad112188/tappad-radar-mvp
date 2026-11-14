@@ -63,6 +63,14 @@ class AccesoComercialSecop(unittest.TestCase):
         self.suscripcion["fin_periodo"] = self.ahora.isoformat()
         self.assertFalse(self.evaluar())
 
+    def test_suscripcion_sin_identificador(self):
+        self.acceso["suscripcion_id"] = None
+        self.assertFalse(self.evaluar())
+
+    def test_acceso_mas_largo_que_suscripcion(self):
+        self.acceso["vigente_hasta"] = (self.ahora + timedelta(days=6)).isoformat()
+        self.assertFalse(self.evaluar())
+
     def test_fecha_ausente(self):
         self.acceso["vigente_hasta"] = None
         self.assertFalse(self.evaluar())
