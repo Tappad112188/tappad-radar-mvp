@@ -11,10 +11,10 @@ class ConciliacionMercadoPago(unittest.TestCase):
                   "referencia_externa": "preapproval-123"}
         self.local = {"suscripcion_id": 7, "proveedor_cobro": "mercadopago_produccion",
                       "estado": "pagado", "referencia_externa": "pay-456",
-                      "monto_mxn": "449.00", "fecha_pago": "2026-11-14T01:00:00Z"}
+                      "monto_mxn": "449.00", "fecha_pago": "2026-11-13T23:00:00Z"}
         self.remoto = {"id": "pay-456", "status": "approved",
                        "currency_id": "MXN", "transaction_amount": 449,
-                       "date_approved": "2026-11-14T01:00:00Z",
+                       "date_approved": "2026-11-13T23:00:00Z",
                        "preapproval_id": "preapproval-123"}
 
     def evaluar(self):
