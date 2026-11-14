@@ -48,7 +48,6 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
     # El contexto DB-API revierte la transaccion ante cualquier excepcion.
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
-            cursor.execute("SET LOCAL statement_timeout = '10000ms'")
             cursor.execute(
                 """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
                 FROM public.pagos_tappad p
