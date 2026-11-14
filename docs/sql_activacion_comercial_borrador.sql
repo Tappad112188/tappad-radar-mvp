@@ -51,7 +51,7 @@ BEGIN
     OR nullif(btrim(v_pago.referencia_externa),'') IS NULL
     OR v_pago.monto_mxn <> v_plan.precio_mxn
     OR v_pago.fecha_pago IS NULL OR v_pago.fecha_pago > transaction_timestamp()
-    OR (v_fin_anterior IS NOT NULL AND v_pago.fecha_pago < v_fin_anterior)
+    OR (v_fin_anterior IS NOT NULL AND v_pago.fecha_pago < p_inicio - interval '1 year')
     OR p_evidencia->>'payment_id' <> v_pago.referencia_externa
     OR p_evidencia->>'preapproval_id' <> v_sub.referencia_externa THEN
    RETURN false;
@@ -87,6 +87,7 @@ REVOKE ALL ON FUNCTION public.tappad_aplicar_activacion_comercial(
 -- REVISAR ANTES DE APLICAR:
 -- 1. Un backend comprometido podria falsificar p_evidencia.
 -- 2. Constraint PRIMARY KEY(cliente_id) confirmado en la base real.
--- 3. Regla de renovacion conservadora: exige continuidad exacta y pago
---    posterior al cierre anterior; casos de gracia requieren diseno separado.
--- 4. No aplicar este borrador a produccion sin revisar los puntos anteriores.
+-- 3. Regla de renovacion conservadora: exige continuidad exacta.
+--    Cobros anticipados son admisibles; ventanas de gracia requieren diseno.
+-- 4. El origen confiable de la evidencia NO esta implementado: BLOQUEANTE.
+-- 5. No aplicar este borrador a produccion sin revisar los puntos anteriores.
