@@ -23,4 +23,4 @@ jobs:
       - name: Comprobar sintaxis sin importar ni ejecutar el sistema
         run: python -m py_compile entregar_alertas_secop.py tests/test_invariantes_comerciales.py tests/test_acceso_comercial_secop.py
       - name: Ejecutar pruebas con dependencias simuladas
-        run: python -m unittest discover -s tests -p 'test_*comercial*.py' -v
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
