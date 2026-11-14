@@ -41,7 +41,7 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
     if not isinstance(filas, list) or len(filas) != 1:
         return False
     acceso = filas[0]
-    if acceso.get("estado") != "activo" or not acceso.get("vigente_hasta"):
+    if acceso.get("estado") != "habilitado" or not acceso.get("vigente_hasta"):
         return False
     try:
         fin = datetime.fromisoformat(str(acceso["vigente_hasta"]).replace("Z", "+00:00"))
@@ -58,7 +58,7 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
     if not isinstance(subs, list) or len(subs) != 1:
         return False
     sub = subs[0]
-    if sub.get("estado") != "activa" or sub.get("proveedor_cobro") == "mercadopago_prueba":
+    if sub.get("estado") != "activa" or sub.get("proveedor_cobro") != "mercadopago":
         return False
     try:
         periodo = datetime.fromisoformat(str(sub["fin_periodo"]).replace("Z", "+00:00"))
