@@ -49,6 +49,22 @@ class VerificadorTests(unittest.TestCase):
     def test_vendedor_de_prueba(self):
         self.responses["/users/me"]["tags"] = ["test_user"]
         with self.assertRaises(VerificacionRechazada): self.verificar()
+    def test_plan_anual_verificado(self):
+        self.responses["/preapproval/sub-1"]["auto_recurring"].update(
+            {"frequency": 12, "transaction_amount": 4490})
+        self.responses["/v1/payments/pay-1"]["transaction_amount"] = 4490
+        self.p["monto_mxn"] = "4490"
+        result = verificar_pago_servidor(self.s, self.p,
+            importe_esperado=4490, periodicidad="anual",
+            token="dummy-test-token",
+            ahora=datetime(2026,11,14,tzinfo=timezone.utc),
+            opener=self.opener)
+        self.assertEqual(result["entorno"], "produccion")
+
+    def test_pago_de_otro_vendedor(self):
+        self.responses["/v1/payments/pay-1"]["collector_id"] = 99
+        with self.assertRaises(VerificacionRechazada): self.verificar()
+
     def test_suscripcion_cancelada(self):
         self.responses["/preapproval/sub-1"]["status"] = "cancelled"
         with self.assertRaises(VerificacionRechazada): self.verificar()
