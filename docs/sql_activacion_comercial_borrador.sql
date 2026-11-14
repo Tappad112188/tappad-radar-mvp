@@ -51,7 +51,7 @@ BEGIN
     OR nullif(btrim(v_pago.referencia_externa),'') IS NULL
     OR v_pago.monto_mxn <> v_plan.precio_mxn
     OR v_pago.fecha_pago IS NULL OR v_pago.fecha_pago > transaction_timestamp()
-    OR (v_fin_anterior IS NOT NULL AND v_pago.fecha_pago < p_inicio - interval '1 year')
+
     OR p_evidencia->>'payment_id' <> v_pago.referencia_externa
     OR p_evidencia->>'preapproval_id' <> v_sub.referencia_externa THEN
    RETURN false;
