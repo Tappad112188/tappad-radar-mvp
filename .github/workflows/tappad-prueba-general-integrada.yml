@@ -1,0 +1,82 @@
+name: TAPPAD - Prueba general integrada aislada
+on:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/tappad-prueba-general-integrada.yml'
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribir PRUEBA_GENERAL para enviar a los dos buzones autorizados'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: tappad-prueba-general-integrada
+  cancel-in-progress: false
+jobs:
+  extremo-a-extremo:
+    if: ${{ github.event_name == 'push' || inputs.confirmar == 'PRUEBA_GENERAL' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar controles comerciales y de calendario
+        run: |
+          python -m unittest -v test_compuerta_alertas_tappad test_bloqueo_calendario_entrega test_compuerta_comprasmx_fechas test_entrega_automatica_comprasmx_segura
+          python -m unittest discover -s tests -p 'test_acceso_comercial_secop.py' -v
+          python -m unittest discover -s tests -p 'test_activacion_privada_postgres.py' -v
+      - name: Verificar precondiciones comerciales reales sin escrituras
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: |
+          python - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.parse import urlencode
+          base=os.environ["SUPABASE_URL"].rstrip("/")+"/rest/v1/"
+          key=os.environ["SUPABASE_ADMIN_KEY"]
+          def get(table,params):
+              req=Request(base+table+"?"+urlencode(params),headers={"apikey":key,"Authorization":"Bearer "+key})
+              with urlopen(req,timeout=30) as r:return json.load(r)
+          clientes=get("clientes",{"select":"id,activo,correo","id":"in.(1,4)"})
+          assert len(clientes)==2 and all(x["activo"] for x in clientes)
+          accesos=get("acceso_comercial_tappad",{"select":"cliente_id,estado","cliente_id":"in.(1,4)"})
+          assert not any(x["estado"]=="habilitado" for x in accesos),"No enviar piloto si hay acceso comercial habilitado"
+          subs=get("suscripciones_tappad",{"select":"cliente_id,estado","cliente_id":"in.(1,4)"})
+          assert not any(x["estado"]=="activa" for x in subs),"No enviar piloto a suscripcion comercial activa"
+          historial=get("notificaciones_enviadas",{"select":"cliente_id,licitacion_id","limit":"10000"})
+          claves=[(x["cliente_id"],x["licitacion_id"]) for x in historial]
+          assert len(claves)==len(set(claves)),"Historial con duplicados"
+          print("COMERCIAL FAIL-CLOSED OK | 2 clientes piloto sin acceso productivo | duplicados:",len(claves)-len(set(claves)))
+          PY
+      - name: Preparar logotipo corporativo PNG
+        run: |
+          python -m pip install 'cairosvg==2.8.2'
+          python - <<'PY'
+          import cairosvg
+          from pathlib import Path
+          p=Path("assets")
+          cairosvg.svg2png(url=str(p/"logo_tappad.svg"),write_to=str(p/"logo_tappad.png"),output_width=330,output_height=330)
+          assert (p/"logo_tappad.png").read_bytes().startswith(bytes.fromhex("89504e470d0a1a0a"))
+          PY
+      - name: Prueba real de fuentes, matching, calendario, HTML y SMTP en buzones cerrados
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          TAPPAD_PRUEBA_AISLADA: SI
+          TAPPAD_PRUEBA_ENVIAR: SI
+        run: python prueba_e2e_aislada_20261113.py
+      - name: Resumen de alcance
+        if: always()
+        run: |
+          echo "## Prueba general TAPPAD Radar" >> "$GITHUB_STEP_SUMMARY"
+          echo "Validacion comercial, duplicados, 2 fuentes, 4 oportunidades, calendario, plantilla y SMTP piloto." >> "$GITHUB_STEP_SUMMARY"
+          echo "Sin ejecucion de extractores SECOP Windows ni activacion de cobros de produccion." >> "$GITHUB_STEP_SUMMARY"
