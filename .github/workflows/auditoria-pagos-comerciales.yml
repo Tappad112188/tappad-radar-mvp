@@ -18,6 +18,8 @@ jobs:
         run: python -m py_compile conciliador_pagos_pendientes_lectura.py
       - name: Pruebas unitarias sin red ni credenciales
         run: python -m unittest discover -s tests -p 'test_conciliador_pagos_pendientes_lectura.py' -v
+      - name: Probar worker privado sin red
+        run: python -m unittest discover -s tests -p 'test_worker_activacion_comercial.py' -v
       - name: Auditar sin modificar datos
         env:
           TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
