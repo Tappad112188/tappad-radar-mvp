@@ -166,8 +166,19 @@ def main():
         return
     if os.getenv("TAPPAD_SECOP_ENVIO_REAL")!="SI":
         raise SystemExit("Envio SECOP bloqueado: falta TAPPAD_SECOP_ENVIO_REAL=SI")
-    if any(destino not in PERMITIDOS for _,_,_,destino in tareas):
-        raise SystemExit("Envio bloqueado: cliente activo fuera de lista cerrada de prueba")
+    # Comprobar elegibilidad antes de abrir SMTP o reservar notificaciones.
+    # No enviar ni reservar si la consulta de vigencia falla.
+    elegibles = []
+    for c, l, hits, destino in tareas:
+        if not acceso_comercial_vigente(c["id"]):
+            print("BLOQUEADO: acceso comercial sin vigencia confirmada", c["id"], l["id"])
+            continue
+        elegibles.append((c, l, hits, destino))
+    if not elegibles:
+        print("SIN DESTINATARIOS COMERCIALES HABILITADOS: sin correos ni reservas.")
+        return
+    if any(destino not in PERMITIDOS for _,_,_,destino in elegibles):
+        raise SystemExit("Envio bloqueado: cliente habilitado fuera de lista cerrada de prueba")
     if not LOGO.is_file():raise SystemExit("Falta assets/logo_tappad.png")
     clave=obtener_clave_gmail()
     if os.getenv("SMTP_USER",REMITENTE).casefold()!=REMITENTE:
@@ -176,10 +187,11 @@ def main():
     if not config or str(config[0]["valor"]).strip().lower()!="true":
         raise SystemExit("Interruptor global de alertas desactivado")
     MARCA.mkdir(parents=True,exist_ok=True)
-    for c,l,hits,destino in tareas:
+    for c,l,hits,destino in elegibles:
         cid,lid=c["id"],l["id"]
+        # Segunda comprobacion inmediata antes de reservar: revocaciones recientes.
         if not acceso_comercial_vigente(cid):
-            print("BLOQUEADO: acceso comercial sin vigencia confirmada", cid, lid)
+            print("BLOQUEADO: vigencia revocada antes de reserva", cid, lid)
             continue
         marker=MARCA/(str(cid)+"_"+str(lid)+".json")
         if marker.exists():
