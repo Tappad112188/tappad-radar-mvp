@@ -26,6 +26,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Generar logo PNG real desde arte corporativo SVG
+        run: |
+          python -m pip install 'cairosvg==2.8.2'
+          python - <<'PY'
+          import cairosvg
+          from pathlib import Path
+          raiz=Path('assets')
+          cairosvg.svg2png(url=str(raiz/'logo_tappad.svg'),write_to=str(raiz/'logo_tappad.png'),output_width=330,output_height=330)
+          png=(raiz/'logo_tappad.png').read_bytes()
+          assert png.startswith(b'\x89PNG\r\n\x1a\n') and len(png)>1000
+          print('Logotipo corporativo PNG generado y validado')
+          PY
       - name: Verificar secretos y ejecutar piloto real aislado
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
