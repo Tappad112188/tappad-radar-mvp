@@ -22,7 +22,7 @@ jobs:
       - name: Obtener version validada del piloto
         uses: actions/checkout@v4
         with:
-          ref: d0dda9df033a2ad182aee95ecb930eb85d20949d
+          ref: 883ef02a4875e0292589d8201acaa666be5de5d7
           persist-credentials: false
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -68,6 +68,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           TAPPAD_ENVIO_REAL: SI
+          TAPPAD_PILOTO_REAL: SI
         run: |
           python generar_manifiesto_comprasmx_automatico.py
           python motor_entrega_tappad_v2.py --enviar-real
