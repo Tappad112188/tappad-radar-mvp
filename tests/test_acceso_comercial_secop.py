@@ -28,6 +28,17 @@ class AccesoComercialSecop(unittest.TestCase):
                             "proveedor_cobro": "mercadopago_produccion",
                             "fin_periodo": (self.ahora + timedelta(days=5)).isoformat()}
 
+    def activacion(self):
+        return {"cliente_id": 4, "suscripcion_id": 9, "pago_id": 20,
+                "estado": "aplicada",
+                "periodo_inicio": (self.ahora - timedelta(days=1)).isoformat(),
+                "periodo_fin": (self.ahora + timedelta(days=5)).isoformat()}
+
+    def pago(self):
+        return {"id": 20, "suscripcion_id": 9, "estado": "pagado",
+                "proveedor_cobro": "mercadopago_produccion",
+                "referencia_externa": "referencia-confirmada"}
+
     def evaluar(self):
         def fake_api(metodo, tabla, params=None, datos=None):
             self.assertEqual(metodo, "GET")
@@ -35,6 +46,10 @@ class AccesoComercialSecop(unittest.TestCase):
                 return [self.acceso]
             if tabla == "suscripciones_tappad":
                 return [self.suscripcion]
+            if tabla == "activaciones_comerciales_tappad":
+                return [self.activacion()]
+            if tabla == "pagos_tappad":
+                return [self.pago()]
             raise AssertionError(tabla)
         with patch.object(mod, "api", fake_api), patch.dict(
             os.environ, {"TAPPAD_PROVEEDORES_COMERCIALES": "mercadopago_produccion"}):
@@ -76,11 +91,34 @@ class AccesoComercialSecop(unittest.TestCase):
         self.assertFalse(self.evaluar())
 
     def test_no_habilitar_sin_proveedor_configurado(self):
-        with patch.object(mod, "api", lambda *a, **k:
-                          [self.acceso] if a[1] == "acceso_comercial_tappad"
-                          else [self.suscripcion]), patch.dict(
-            os.environ, {"TAPPAD_PROVEEDORES_COMERCIALES": ""}):
+        with patch.dict(os.environ, {"TAPPAD_PROVEEDORES_COMERCIALES": ""}):
+            with patch.object(mod, "api", lambda metodo, tabla, *args:
+                              [self.acceso] if tabla == "acceso_comercial_tappad"
+                              else [self.suscripcion]):
+                self.assertFalse(mod.acceso_comercial_vigente(4, self.ahora))
+
+    def test_sin_activacion_aplicada(self):
+        original = self.activacion
+        self.activacion = lambda: {**original(), "estado": "pendiente_revision"}
+        # Consulta REST filtra aplicada: no devolver registros pendientes.
+        def fake_api(metodo, tabla, *args):
+            if tabla == "acceso_comercial_tappad": return [self.acceso]
+            if tabla == "suscripciones_tappad": return [self.suscripcion]
+            if tabla == "activaciones_comerciales_tappad": return []
+            raise AssertionError(tabla)
+        with patch.object(mod, "api", fake_api), patch.dict(
+            os.environ, {"TAPPAD_PROVEEDORES_COMERCIALES": "mercadopago_produccion"}):
             self.assertFalse(mod.acceso_comercial_vigente(4, self.ahora))
+
+    def test_pago_de_prueba_no_habilita(self):
+        self.suscripcion["proveedor_cobro"] = "mercadopago_prueba"
+        self.assertFalse(self.evaluar())
+
+    def test_activacion_expirada(self):
+        self.activacion = lambda: {**AccesoComercialSecop.activacion(self),
+            "periodo_fin": (self.ahora - timedelta(seconds=1)).isoformat()}
+        self.assertFalse(self.evaluar())
+
 
 
 if __name__ == "__main__":
