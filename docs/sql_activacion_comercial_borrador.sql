@@ -14,6 +14,8 @@ DECLARE
  v_pago public.pagos_tappad%ROWTYPE;
  v_plan public.planes_tappad%ROWTYPE;
  v_activacion bigint;
+ v_fin_anterior timestamptz;
+ v_inicio_esperado timestamptz;
 BEGIN
  IF p_cliente IS NULL OR p_suscripcion IS NULL OR p_pago IS NULL
     OR p_inicio IS NULL OR p_fin IS NULL OR p_evidencia IS NULL
@@ -31,6 +33,17 @@ BEGIN
     nullif(btrim(v_sub.referencia_externa),'') IS NULL THEN RETURN false; END IF;
  SELECT * INTO v_plan FROM public.planes_tappad WHERE id=v_sub.plan_id;
  IF NOT FOUND OR NOT v_plan.activo THEN RETURN false; END IF;
+ -- Una renovacion solo extiende el periodo previo; nunca lo acorta
+ -- ni crea un hueco o solapamiento entre ciclos.
+ SELECT vigente_hasta INTO v_fin_anterior
+ FROM public.acceso_comercial_tappad
+ WHERE cliente_id=p_cliente FOR UPDATE;
+ IF v_fin_anterior IS NOT NULL THEN
+   v_inicio_esperado := v_fin_anterior;
+   IF p_inicio <> v_inicio_esperado OR p_fin <= v_fin_anterior THEN
+     RETURN false;
+   END IF;
+ END IF;
  SELECT * INTO v_pago FROM public.pagos_tappad
   WHERE id=p_pago AND suscripcion_id=p_suscripcion FOR UPDATE;
  IF NOT FOUND OR v_pago.estado <> 'pagado'
@@ -38,6 +51,7 @@ BEGIN
     OR nullif(btrim(v_pago.referencia_externa),'') IS NULL
     OR v_pago.monto_mxn <> v_plan.precio_mxn
     OR v_pago.fecha_pago IS NULL OR v_pago.fecha_pago > transaction_timestamp()
+    OR (v_fin_anterior IS NOT NULL AND v_pago.fecha_pago < v_fin_anterior)
     OR p_evidencia->>'payment_id' <> v_pago.referencia_externa
     OR p_evidencia->>'preapproval_id' <> v_sub.referencia_externa THEN
    RETURN false;
@@ -72,6 +86,7 @@ REVOKE ALL ON FUNCTION public.tappad_aplicar_activacion_comercial(
 ) FROM PUBLIC, anon, authenticated, service_role;
 -- REVISAR ANTES DE APLICAR:
 -- 1. Un backend comprometido podria falsificar p_evidencia.
--- 2. No se ha probado constraint ON CONFLICT(cliente_id) en esta instalacion.
--- 3. No se ha resuelto correctamente el periodo de renovacion.
+-- 2. Constraint PRIMARY KEY(cliente_id) confirmado en la base real.
+-- 3. Regla de renovacion conservadora: exige continuidad exacta y pago
+--    posterior al cierre anterior; casos de gracia requieren diseno separado.
 -- 4. No aplicar este borrador a produccion sin revisar los puntos anteriores.
