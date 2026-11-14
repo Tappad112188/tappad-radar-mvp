@@ -51,6 +51,12 @@ class InvariantesComerciales(unittest.TestCase):
     def test_sin_verificacion_remota(self):
         self.assertFalse(renovacion_admisible(**(self.base | {"proveedor_confirmado": False})))
 
+    def test_falta_fecha_pago(self):
+        self.assertFalse(renovacion_admisible(**(self.base | {"fecha_pago": None})))
+
+    def test_fecha_incompatible(self):
+        self.assertFalse(renovacion_admisible(**(self.base | {"fecha_pago": "no_es_fecha"})))
+
     def test_falta_fecha(self):
         self.assertFalse(renovacion_admisible(**(self.base | {"proximo_cobro": None})))
 
