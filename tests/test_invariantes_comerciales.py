@@ -10,17 +10,14 @@ def renovacion_admisible(checkpoint_anterior, proximo_cobro, fecha_pago,
                          pago_aprobado, referencia_unica, proveedor_confirmado,
                          entorno_prueba):
     """La fecha de cobro por si sola nunca acredita una renovacion."""
-    return all((
-        not entorno_prueba,
-        proveedor_confirmado,
-        pago_aprobado,
-        referencia_unica,
-        checkpoint_anterior is not None,
-        proximo_cobro is not None,
-        fecha_pago is not None,
-        proximo_cobro > checkpoint_anterior,
-        fecha_pago > checkpoint_anterior,
-    ))
+    if entorno_prueba or not (proveedor_confirmado and pago_aprobado and referencia_unica):
+        return False
+    if any(x is None for x in (checkpoint_anterior, proximo_cobro, fecha_pago)):
+        return False
+    try:
+        return proximo_cobro > checkpoint_anterior and fecha_pago > checkpoint_anterior
+    except (TypeError, ValueError):
+        return False
 
 
 class InvariantesComerciales(unittest.TestCase):
