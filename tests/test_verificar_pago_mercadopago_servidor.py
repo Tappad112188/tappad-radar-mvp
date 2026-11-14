@@ -32,7 +32,7 @@ class VerificadorTests(unittest.TestCase):
             "/v1/payments/pay-1": {"id": "pay-1", "status": "approved",
                 "currency_id": "MXN", "transaction_amount": 449,
                 "date_approved": "2026-11-13T23:00:00Z",
-                "preapproval_id": "sub-1"}
+                "collector_id": 11, "preapproval_id": "sub-1"}
         }
         self.visits = []
     def opener(self, request, timeout):
@@ -61,6 +61,17 @@ class VerificadorTests(unittest.TestCase):
             opener=self.opener)
         self.assertEqual(result["entorno"], "produccion")
 
+    def test_sin_collector_rechazado(self):
+        self.responses["/v1/payments/pay-1"].pop("collector_id")
+        with self.assertRaises(VerificacionRechazada): self.verificar()
+
+    def test_autorizacion_no_confirmada(self):
+        self.responses["/v1/payments/pay-1"].pop("preapproval_id")
+        self.responses["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {
+            "results": [{"preapproval_id": "sub-1", "status": "pending",
+                         "payment": {"id": "pay-1"}}]}
+        with self.assertRaises(VerificacionRechazada): self.verificar()
+
     def test_pago_de_otro_vendedor(self):
         self.responses["/v1/payments/pay-1"]["collector_id"] = 99
         with self.assertRaises(VerificacionRechazada): self.verificar()
@@ -75,7 +86,7 @@ class VerificadorTests(unittest.TestCase):
     def test_pago_recurrente_vinculado_en_authorized_payments(self):
         self.responses["/v1/payments/pay-1"].pop("preapproval_id")
         self.responses["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {
-            "results": [{"preapproval_id": "sub-1", "payment": {"id": "pay-1"}}]}
+            "results": [{"preapproval_id": "sub-1", "status": "processed", "payment": {"id": "pay-1"}}]}
         self.assertEqual(self.verificar()["payment_id"], "pay-1")
         self.assertEqual(len(self.visits), 4)
 
