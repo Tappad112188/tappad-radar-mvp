@@ -1,0 +1,43 @@
+name: TAPPAD Worker comercial (solo lectura)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 15 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: tappad-worker-comercial-lectura
+  cancel-in-progress: false
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: 'NO'
+      TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
+      TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
+      TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+      TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0e6d934bfe49dd9b7964ec08c927a7c2ecaeeb44
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Pruebas unitarias del worker
+        run: |
+          python -m unittest discover -s tests -p 'test_worker_activacion_comercial.py' -v
+          python -m unittest discover -s tests -p 'test_conciliador_pagos_pendientes_lectura.py' -v
+      - name: Validar configuración del worker
+        run: |
+          python - <<'PY'
+          import os
+          needed=['TAPPAD_SUPABASE_URL','TAPPAD_SUPABASE_SERVICE_ROLE_KEY',
+                  'TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN','TAPPAD_MERCADOPAGO_SELLER_ID']
+          missing=[k for k in needed if not os.environ.get(k)]
+          if missing: raise SystemExit('Secretos pendientes: '+', '.join(missing))
+          PY
+      - name: Ejecutar worker sin activaciones
+        run: python worker_activacion_comercial.py
