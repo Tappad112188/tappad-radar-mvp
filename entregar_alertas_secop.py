@@ -58,7 +58,7 @@ def acceso_comercial_vigente(cliente_id, ahora=None):
     if not isinstance(subs, list) or len(subs) != 1:
         return False
     sub = subs[0]
-    if sub.get("estado") != "activa" or sub.get("proveedor_cobro") != "mercadopago":
+    if sub.get("estado") != "activa" or sub.get("proveedor_cobro") not in ("mercadopago_produccion",):
         return False
     try:
         periodo = datetime.fromisoformat(str(sub["fin_periodo"]).replace("Z", "+00:00"))
