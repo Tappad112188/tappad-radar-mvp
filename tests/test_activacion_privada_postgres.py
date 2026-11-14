@@ -49,13 +49,13 @@ class PuenteTests(unittest.TestCase):
             connect=self.connect)
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_apagado_no_verifica_ni_escribe(self, verifier):
-        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
             self.assertEqual(self.run_bridge(False)["aplicacion"],"bloqueada")
         verifier.assert_not_called()
         self.assertEqual(self.calls,[])
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_entorno_no_autorizado(self, verifier):
-        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"NO"}):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"NO","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
             self.assertEqual(self.run_bridge()["aplicacion"],"bloqueada")
         verifier.assert_not_called()
         self.assertEqual(self.calls,[])
