@@ -57,6 +57,20 @@ def cotejar_bases_pdf_zip(item):
     return resultados, diagnosticos
 
 
+def docx_local_integro(item):
+    archivos = item.get("archivos") or []
+    if len(archivos) != 1 or not str(archivos[0].get("nombre") or "").lower().endswith(".docx"):
+        return False
+    ruta = Path(archivos[0].get("ruta") or "")
+    try:
+        if not ruta.is_file() or ruta.stat().st_size <= 0:
+            return False
+        with zipfile.ZipFile(ruta) as z:
+            return "word/document.xml" in z.namelist() and z.testzip() is None
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
+        return False
+
+
 def auditar_procedimiento(item):
     hallazgos = []
     vistos = set()
@@ -98,7 +112,14 @@ def auditar_procedimiento(item):
         # procedimiento; no considerar la sola presencia de URLs como prueba.
         if hay_zip and hay_pdf and rutas_validas and not diagnosticos:
             errores_pendientes = [e for e in errores_pendientes if e != multiples]
+    aviso = "Enlace de bases no confirmado sin sesion"
+    docx_verificado = docx_local_integro(item)
+    if aviso in errores_pendientes and docx_verificado and not hallazgos and not diagnosticos:
+        errores_pendientes = [e for e in errores_pendientes if e != aviso]
     return {
+        "docx_local_integro": docx_verificado,
+        "enlace_anonimo_no_verificado": aviso in errores,
+        "advertencias_no_bloqueantes": [aviso] if aviso in errores and docx_verificado else [],
         "codigo": item.get("codigo"),
         "documentos_potencialmente_modificatorios": hallazgos,
         "errores_descarga": errores,
