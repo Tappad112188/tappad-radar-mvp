@@ -1,5 +1,7 @@
 """Prueba aislada con perfiles ficticios y cuatro procedimientos reales del 13/11. Sin escrituras comerciales."""
-import json, os, smtplib, ssl, html
+import json, os, smtplib, ssl
+from pathlib import Path
+from plantilla_correo_html import construir_correo_html
 from urllib.request import Request,urlopen
 from urllib.parse import urlencode
 from email.message import EmailMessage
@@ -28,28 +30,36 @@ def main():
         print("PERFIL FICTICIO",cid,"| GIROS:",", ".join(caso["terminos"]))
         items=[]
         for fuente,numero,termino in (("ComprasMX",caso["comprasmx"],caso["terminos"][0]),("SECOP Coahuila",caso["secop"],caso["terminos"][1])):
-            rows=get("licitaciones",{"select":"id,fuente,numero_procedimiento,nombre_procedimiento,descripcion,fecha_publicacion,fecha_apertura,url_procedimiento,validacion_calendario","numero_procedimiento":"eq."+numero,"fuente":"eq."+fuente})
+            rows=get("licitaciones",{"select":"id,fuente,numero_procedimiento,nombre_procedimiento,descripcion,fecha_publicacion,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo_programado,url_procedimiento,url_bases,url_convocatoria,documentos_disponibles,validacion_calendario","numero_procedimiento":"eq."+numero,"fuente":"eq."+fuente})
             if len(rows)!=1: raise SystemExit("Procedimiento no unico: "+numero)
             lic=rows[0]
             texto=" ".join(str(lic.get(x) or "") for x in ("nombre_procedimiento","descripcion")).casefold()
             if termino not in texto: raise SystemExit("Coincidencia no comprobada: "+numero)
             if str(lic["fecha_publicacion"])[:10]!="2026-11-13": raise SystemExit("Fecha de publicacion inesperada")
             items.append((lic,termino))
-        cuerpo=["<h2>[PRUEBA AISLADA] TAPPAD Radar</h2>","<p>Coincidencias reales del 13/11/2026. No es una alerta comercial de producción.</p>"]
+        oportunidades=[]
         for lic,termino in items:
-            cuerpo.append("<h3>"+html.escape(lic["fuente"]+" — "+lic["numero_procedimiento"])+"</h3>")
-            cuerpo.append("<p>"+html.escape(str(lic.get("nombre_procedimiento") or ""))+"</p>")
-            cuerpo.append("<p>Coincidencia: "+html.escape(termino)+"</p>")
-            if lic["fuente"]=="SECOP Coahuila":
-                cuerpo.append("<p><b>SECOP: calendario preliminar documental; verificar bases y posibles modificaciones antes de presentar propuestas.</b></p>")
-            elif lic.get("url_procedimiento"):
-                u=html.escape(lic["url_procedimiento"],quote=True)
-                cuerpo.append('<p><a href="'+u+'">Expediente oficial ComprasMX</a></p>')
+            lic=dict(lic)
+            lic["terminos"]=[termino]
+            oportunidades.append(lic)
+        contenido=construir_correo_html("Proveedor ficticio "+str(cid),oportunidades)
+        campos=("cid:tappad-logo","Fecha de publicación:","Fecha de Junta de aclaraciones:",
+                "Fecha de apertura de proposiciones:","Fecha de fallo:",
+                "TAPPAD Consultoría ofrece asesoría")
+        if not all(c in contenido for c in campos):
+            raise SystemExit("Plantilla corporativa incompleta")
+        for lic in oportunidades:
+            if lic["fuente"]=="SECOP Coahuila" and lic.get("validacion_calendario") not in ("preliminar_documental","verificado"):
+                raise SystemExit("Calendario SECOP sin validacion documental")
+        logo=Path(__file__).resolve().parent/"assets"/"logo_tappad.png"
+        if not logo.is_file() or not logo.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+            raise SystemExit("Logo PNG no disponible o invalido")
         msg=EmailMessage()
         msg["From"]=os.environ["SMTP_USER"];msg["To"]=caso["correo"]
-        msg["Subject"]="[PRUEBA AISLADA] TAPPAD Radar | SECOP + ComprasMX | cliente "+str(cid)
-        msg.set_content("Prueba aislada TAPPAD Radar. Coincidencias de ComprasMX y SECOP del 13/11/2026. SECOP con calendario preliminar documental; verificar bases oficiales antes de participar.")
-        msg.add_alternative("<html><body style='font-family:Arial'>"+ "".join(cuerpo)+"</body></html>",subtype="html")
+        msg["Subject"]="[PRUEBA AISLADA] TAPPAD Radar | SECOP + ComprasMX | proveedor "+str(cid)
+        msg.set_content("Prueba aislada de TAPPAD Radar. Consulte la version HTML para fechas, documentos y asesoria.")
+        msg.add_alternative(contenido,subtype="html")
+        msg.get_payload()[-1].add_related(logo.read_bytes(),maintype="image",subtype="png",cid="<tappad-logo>",filename="logo_tappad.png",disposition="inline")
         correos.append(msg)
     print("PREVALIDACION OK: 2 clientes, 4 coincidencias reales, 2 buzones cerrados")
     if os.getenv("TAPPAD_PRUEBA_ENVIAR")!="SI":
