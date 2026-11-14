@@ -1,7 +1,7 @@
 """Pruebas del puente privado: sin red, pagos ni escrituras reales."""
 import os
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 from activacion_privada_postgres import activar_conexion_privada
 from verificar_pago_mercadopago_servidor import VerificacionRechazada
@@ -44,8 +44,8 @@ class PuenteTests(unittest.TestCase):
             2, supabase_url="https://example.supabase.co",
             supabase_key="dummy", mercadopago_token="dummy",
             postgres_dsn="postgresql://private", permitir=permitir,
-            inicio=datetime(2026,11,14,tzinfo=timezone.utc),
-            fin=datetime(2026,12,14,tzinfo=timezone.utc),
+            inicio=datetime.now(timezone.utc)-timedelta(minutes=2),
+            fin=datetime.now(timezone.utc)+timedelta(days=30),
             connect=self.connect)
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_apagado_no_verifica_ni_escribe(self, verifier):
@@ -75,9 +75,7 @@ class PuenteTests(unittest.TestCase):
         self.assertTrue(self.con.rolled_back)
         self.assertFalse(self.con.committed)
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
-    @patch("activacion_privada_postgres.datetime")
-    def test_pago_valido_aplica_una_vez(self, clock, verifier):
-        clock.now.return_value=datetime(2026,11,14,tzinfo=timezone.utc)
+    def test_pago_valido_aplica_una_vez(self, verifier):
         verifier.return_value=self.evidence
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
             self.assertEqual(self.run_bridge()["aplicacion"],"aplicada")
