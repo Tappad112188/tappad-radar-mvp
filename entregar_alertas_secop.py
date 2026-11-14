@@ -27,6 +27,46 @@ def api(metodo,tabla,params=None,datos=None):
         body=r.read()
         return json.loads(body) if body else None
 
+def acceso_comercial_vigente(cliente_id, ahora=None):
+    """Fail-closed: una cuenta activa no equivale a una suscripcion pagada.
+
+    Consulta solo lectura. No modifica estados ni autoriza cuentas de prueba.
+    """
+    ahora = ahora or datetime.now(ZoneInfo("UTC"))
+    filas = api("GET", "acceso_comercial_tappad", {
+        "select": "cliente_id,suscripcion_id,estado,vigente_hasta",
+        "cliente_id": "eq." + str(int(cliente_id)),
+        "limit": "2",
+    })
+    if not isinstance(filas, list) or len(filas) != 1:
+        return False
+    acceso = filas[0]
+    if acceso.get("estado") != "activo" or not acceso.get("vigente_hasta"):
+        return False
+    try:
+        fin = datetime.fromisoformat(str(acceso["vigente_hasta"]).replace("Z", "+00:00"))
+        if fin.tzinfo is None or fin <= ahora:
+            return False
+    except (ValueError, TypeError):
+        return False
+    subs = api("GET", "suscripciones_tappad", {
+        "select": "id,cliente_id,estado,fin_periodo,proveedor_cobro",
+        "id": "eq." + str(int(acceso["suscripcion_id"])),
+        "cliente_id": "eq." + str(int(cliente_id)),
+        "limit": "2",
+    })
+    if not isinstance(subs, list) or len(subs) != 1:
+        return False
+    sub = subs[0]
+    if sub.get("estado") != "activa" or sub.get("proveedor_cobro") == "mercadopago_prueba":
+        return False
+    try:
+        periodo = datetime.fromisoformat(str(sub["fin_periodo"]).replace("Z", "+00:00"))
+        return periodo.tzinfo is not None and periodo > ahora
+    except (ValueError, TypeError):
+        return False
+
+
 def actualizar(cid,lid,estado,detalle=None):
     datos={"estado":estado,"ultimo_error":detalle,"actualizado_en":datetime.now(ZoneInfo("UTC")).isoformat()}
     if estado=="enviado":datos["enviado_en"]=datetime.now(ZoneInfo("UTC")).isoformat()
@@ -130,6 +170,9 @@ def main():
     MARCA.mkdir(parents=True,exist_ok=True)
     for c,l,hits,destino in tareas:
         cid,lid=c["id"],l["id"]
+        if not acceso_comercial_vigente(cid):
+            print("BLOQUEADO: acceso comercial sin vigencia confirmada", cid, lid)
+            continue
         marker=MARCA/(str(cid)+"_"+str(lid)+".json")
         if marker.exists():
             print("BLOQUEADO: marca local existente",cid,lid)
