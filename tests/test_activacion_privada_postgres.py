@@ -76,6 +76,24 @@ class PuenteTests(unittest.TestCase):
         self.assertTrue(self.con.rolled_back)
         self.assertFalse(self.con.committed)
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_vendedor_ajeno_rechazado_antes_de_db(self, verifier):
+        verifier.return_value=dict(self.evidence, evidencia=dict(self.evidence["evidencia"], seller_id="999"))
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"vendedor_inesperado"):
+                self.run_bridge()
+        self.assertEqual(self.calls, [])
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_fechas_del_llamador_rechazadas(self, verifier):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"periodo_no_puede_ser_proporcionado"):
+                activar_conexion_privada(
+                    2,supabase_url="https://example.supabase.co",supabase_key="dummy",
+                    mercadopago_token="dummy",postgres_dsn="postgresql://private",
+                    inicio=datetime.now(timezone.utc),permitir=True,connect=self.connect)
+        verifier.assert_not_called()
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_pago_valido_aplica_una_vez(self, verifier):
         verifier.return_value=self.evidence
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI"}):
