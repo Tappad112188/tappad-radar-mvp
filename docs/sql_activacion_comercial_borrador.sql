@@ -22,7 +22,8 @@ BEGIN
     OR p_inicio > transaction_timestamp()
     OR p_fin <= transaction_timestamp() OR p_fin <= p_inicio
     OR p_evidencia->>'verificacion_remota' <> 'confirmada'
-    OR p_evidencia->>'entorno' <> 'produccion' THEN
+    OR p_evidencia->>'entorno' <> 'produccion'
+    OR nullif(p_evidencia->>'seller_id','') IS NULL THEN
    RETURN false;
  END IF;
  SELECT * INTO v_sub FROM public.suscripciones_tappad
@@ -32,7 +33,7 @@ BEGIN
     OR v_sub.estado NOT IN ('pendiente','activa') OR
     nullif(btrim(v_sub.referencia_externa),'') IS NULL THEN RETURN false; END IF;
  SELECT * INTO v_plan FROM public.planes_tappad WHERE id=v_sub.plan_id;
- IF NOT FOUND OR NOT v_plan.activo THEN RETURN false; END IF;
+ IF NOT FOUND OR NOT v_plan.activo OR v_plan.periodicidad NOT IN ('mensual','anual') THEN RETURN false; END IF;
  -- Una renovacion solo extiende el periodo previo; nunca lo acorta
  -- ni crea un hueco o solapamiento entre ciclos.
  SELECT vigente_hasta INTO v_fin_anterior
@@ -43,7 +44,16 @@ BEGIN
    IF p_inicio <> v_inicio_esperado OR p_fin <= v_fin_anterior THEN
      RETURN false;
    END IF;
+ ELSE
+   -- Primer ciclo: inicio no puede ser futuro ni arbitrariamente antiguo.
+   IF p_inicio < transaction_timestamp() - interval '7 days' THEN
+     RETURN false;
+   END IF;
  END IF;
+ -- El periodo se deriva de la periodicidad del plan, no del cliente.
+ IF p_fin <> (p_inicio + CASE v_plan.periodicidad
+     WHEN 'mensual' THEN interval '1 month'
+     WHEN 'anual' THEN interval '1 year' END) THEN RETURN false; END IF;
  SELECT * INTO v_pago FROM public.pagos_tappad
   WHERE id=p_pago AND suscripcion_id=p_suscripcion FOR UPDATE;
  IF NOT FOUND OR v_pago.estado <> 'pagado'
