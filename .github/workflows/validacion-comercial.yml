@@ -12,6 +12,8 @@ on:
       - 'conciliacion_comercial_mercadopago.py'
       - 'verificar_pago_mercadopago_servidor.py'
       - 'conexion_segura_mercadopago_supabase.py'
+      - 'aplicar_activacion_comercial_controlada.py'
+      - 'tests/test_aplicar_activacion_comercial_controlada.py'
       - 'tests/test_conexion_segura_mercadopago_supabase.py'
       - 'tests/test_verificar_pago_mercadopago_servidor.py'
       - 'tests/test_conciliacion_mercadopago.py'
@@ -28,6 +30,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Comprobar sintaxis sin importar ni ejecutar el sistema
-        run: python -m py_compile entregar_alertas_secop.py motor_entrega_tappad_v2.py conciliacion_comercial_mercadopago.py verificar_pago_mercadopago_servidor.py conexion_segura_mercadopago_supabase.py tests/test_conexion_segura_mercadopago_supabase.py tests/test_verificar_pago_mercadopago_servidor.py tests/test_invariantes_comerciales.py tests/test_acceso_comercial_secop.py tests/test_conciliacion_mercadopago.py
+        run: python -m py_compile entregar_alertas_secop.py motor_entrega_tappad_v2.py conciliacion_comercial_mercadopago.py verificar_pago_mercadopago_servidor.py conexion_segura_mercadopago_supabase.py aplicar_activacion_comercial_controlada.py tests/test_aplicar_activacion_comercial_controlada.py tests/test_conexion_segura_mercadopago_supabase.py tests/test_verificar_pago_mercadopago_servidor.py tests/test_invariantes_comerciales.py tests/test_acceso_comercial_secop.py tests/test_conciliacion_mercadopago.py
       - name: Ejecutar pruebas con dependencias simuladas
-        run: python -m unittest discover -s tests -p 'test_invariantes_comerciales.py' -v && python -m unittest discover -s tests -p 'test_acceso_comercial_secop.py' -v && python -m unittest discover -s tests -p 'test_conciliacion_mercadopago.py' -v && python -m unittest discover -s tests -p 'test_verificar_pago_mercadopago_servidor.py' -v && python -m unittest discover -s tests -p 'test_conexion_segura_mercadopago_supabase.py' -v
+        run: python -m unittest discover -s tests -p 'test_invariantes_comerciales.py' -v && python -m unittest discover -s tests -p 'test_acceso_comercial_secop.py' -v && python -m unittest discover -s tests -p 'test_conciliacion_mercadopago.py' -v && python -m unittest discover -s tests -p 'test_verificar_pago_mercadopago_servidor.py' -v && python -m unittest discover -s tests -p 'test_conexion_segura_mercadopago_supabase.py' -v && python -m unittest discover -s tests -p 'test_aplicar_activacion_comercial_controlada.py' -v
