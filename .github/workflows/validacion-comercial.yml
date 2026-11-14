@@ -6,6 +6,7 @@ on:
       - desarrollo-registro-proveedores
     paths:
       - 'tests/test_invariantes_comerciales.py'
+      - 'tests/test_activacion_privada_postgres.py'
       - 'tests/test_acceso_comercial_secop.py'
       - 'entregar_alertas_secop.py'
       - 'motor_entrega_tappad_v2.py'
