@@ -4,6 +4,7 @@ on:
     branches: [desarrollo-registro-proveedores]
     paths:
       - '.github/workflows/tappad-e2e-aislada-20261113.yml'
+      - 'prueba_e2e_aislada_20261113.py'
   workflow_dispatch:
     inputs:
       confirmar:
