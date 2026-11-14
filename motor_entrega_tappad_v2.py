@@ -105,10 +105,19 @@ def main():
         for lid in ids:
             ok,motivo=autorizar_envio_real(config,licitaciones[lid],ahora=ahora)
             if not ok: raise SystemExit("Envio bloqueado por compuerta final: "+motivo)
+    # Misma politica de acceso comercial utilizada por SECOP.
+    # Fail-closed: una suscripcion de prueba no habilita alertas de ComprasMX.
+    from entregar_alertas_secop import acceso_comercial_vigente
+    for cid, destino, ids, html in tareas:
+        if not acceso_comercial_vigente(cid):
+            raise SystemExit("Envio bloqueado: cliente sin acceso comercial vigente " + str(cid))
     if not os.environ.get("SMTP_USER") or not os.environ.get("SMTP_APP_PASSWORD"): raise SystemExit("Faltan secretos SMTP")
     if not LOGO.is_file(): raise SystemExit("Falta logo PNG")
     logo=LOGO.read_bytes()
     for cid,destino,ids,html in tareas:
+        # Revalidar inmediatamente antes de reservar el lote.
+        if not acceso_comercial_vigente(cid):
+            raise SystemExit("Envio bloqueado: vigencia comercial revocada " + str(cid))
         # Reserva atomica PostgreSQL: lote completo o ninguna reserva.
         try:
             reservado=api("POST","rpc/tappad_reservar_lote",None,{"p_cliente":cid,"p_licitaciones":ids})
