@@ -54,12 +54,17 @@ def main():
     registros=consulta("notificaciones_enviadas","cliente_id,licitacion_id,estado")
     ocupados={(r["cliente_id"],r["licitacion_id"]) for r in registros}
     ahora=datetime.now(ZoneInfo("America/Monterrey")).replace(tzinfo=None)
+    piloto = os.getenv("TAPPAD_PILOTO_REAL") == "SI"
+    pilotos = {1:"gerardotapia112188@gmail.com",4:"tappadcons@gmail.com"}
     tareas=[]
     for lote in manifiesto["proveedores"]:
         cid=lote["cliente_id"]; cliente=clientes.get(cid)
         if not cliente: raise SystemExit("Proveedor inactivo o inexistente: "+str(cid))
         destino=str(cliente.get("correo") or "").strip()
         if not destino or "@" not in destino: raise SystemExit("Correo invalido para proveedor "+str(cid))
+        if piloto and (cid not in pilotos or destino.casefold()!=pilotos[cid]):
+            print("OMITIDO: fuera de piloto",cid)
+            continue
         ids=lote["licitacion_ids"]
         if len(set(ids))!=len(ids) or not ids: raise SystemExit("Identificadores duplicados/vacios")
         for lid in ids:
@@ -109,14 +114,14 @@ def main():
     # Fail-closed: una suscripcion de prueba no habilita alertas de ComprasMX.
     from entregar_alertas_secop import acceso_comercial_vigente
     for cid, destino, ids, html in tareas:
-        if not acceso_comercial_vigente(cid):
+        if not (piloto and cid in pilotos and destino.casefold()==pilotos[cid]) and not acceso_comercial_vigente(cid):
             raise SystemExit("Envio bloqueado: cliente sin acceso comercial vigente " + str(cid))
     if not os.environ.get("SMTP_USER") or not os.environ.get("SMTP_APP_PASSWORD"): raise SystemExit("Faltan secretos SMTP")
     if not LOGO.is_file(): raise SystemExit("Falta logo PNG")
     logo=LOGO.read_bytes()
     for cid,destino,ids,html in tareas:
         # Revalidar inmediatamente antes de reservar el lote.
-        if not acceso_comercial_vigente(cid):
+        if not (piloto and cid in pilotos and destino.casefold()==pilotos[cid]) and not acceso_comercial_vigente(cid):
             raise SystemExit("Envio bloqueado: vigencia comercial revocada " + str(cid))
         # Reserva atomica PostgreSQL: lote completo o ninguna reserva.
         try:
