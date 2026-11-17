@@ -2,7 +2,7 @@
 import hashlib
 import json
 from collections import defaultdict
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from diagnosticar_vigencia_v4 import consulta
@@ -22,7 +22,14 @@ def seleccionar_recientes(licitaciones, hoy, ventana_deteccion_dias=2, antigueda
         if str(licitacion.get("fuente") or "").strip().casefold() != "comprasmx":
             continue
         publicacion = str(licitacion.get("fecha_publicacion") or "")[:10]
-        deteccion = str(licitacion.get("fecha_registro") or "")[:10]
+        registro = str(licitacion.get("fecha_registro") or "").strip()
+        try:
+            instante = datetime.fromisoformat(registro.replace("Z", "+00:00"))
+            if instante.tzinfo is None:
+                instante = instante.replace(tzinfo=timezone.utc)
+            deteccion = instante.astimezone(ZoneInfo("America/Monterrey")).date().isoformat()
+        except ValueError:
+            continue
         if desde_publicacion <= publicacion <= hoy.isoformat() and desde_deteccion <= deteccion <= hoy.isoformat():
             seleccion.append(licitacion)
     return seleccion
