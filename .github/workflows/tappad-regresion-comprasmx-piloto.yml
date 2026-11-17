@@ -1,0 +1,23 @@
+name: TAPPAD - Regresion ComprasMX sin SMTP
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - 'test_comprasmx_automatizacion_piloto.py'
+      - 'generar_manifiesto_comprasmx_automatico.py'
+      - 'control_notificaciones.py'
+      - '.github/workflows/tappad-regresion-comprasmx-piloto.yml'
+permissions:
+  contents: read
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar ventana de deteccion, duplicados y compuerta
+        run: python -m unittest -v test_comprasmx_automatizacion_piloto
