@@ -28,9 +28,12 @@ jobs:
           assert orden<posterior
           assert "--ventana-dias 2 --limite 10000 --importar" in flujo
           assert "not 1 <= args.limite <= 100000" in importador
-          assert "smtp" not in flujo.lower()
+          assert "vars.TAPPAD_COMPRASMX_PILOTO_AUTOMATICO == 'SI'" in flujo
+          assert "TAPPAD_PILOTO_REAL: SI" in flujo
+          assert "TAPPAD_ENVIO_REAL: SI" in flujo
+          assert flujo.index("python motor_entrega_tappad_v2.py --enviar-real") > flujo.index("python generar_manifiesto_comprasmx_automatico.py")
           assert "cron: '0 14 * * *'" in flujo
           assert "cron: '0 19 * * *'" in flujo
           assert "cron: '0 0 * * *'" in flujo
-          print("CADENA VALIDADA: 3 horarios; importacion completa antes de diagnostico; sin SMTP.")
+          print("CADENA VALIDADA: 3 horarios; importacion completa antes de diagnostico; con SMTP condicionado.")
           PY
