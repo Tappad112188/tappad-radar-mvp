@@ -42,7 +42,7 @@ async def main():
   return
  data=json.loads(ENTRADA.read_text(encoding="utf-8-sig"))
  hoy=datetime.now(ZoneInfo("America/Monterrey")).date().isoformat()
- registros=[r for r in data.get("registros",[]) if r.get("fecha_publicacion")==data.get("fecha_consulta") and r.get("estatus","").strip().casefold()=="vigente"]
+ registros=[r for r in data.get("registros",[]) if str(data.get("fecha_inicio") or data.get("fecha_consulta"))<=str(r.get("fecha_publicacion") or "")<=str(data.get("fecha_consulta")) and r.get("estatus","").strip().casefold()=="vigente"]
  if not data.get("filtros_aplicados") or data.get("errores") or not registros:
   print("ERROR: El archivo no contiene procedimientos válidos y filtrados.")
   return
