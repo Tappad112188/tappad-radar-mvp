@@ -82,7 +82,7 @@ def rar_bases_integras(item):
     if not siete:
         return False, "7-ZIP_NO_DISPONIBLE"
     codigo = str(item.get("codigo") or "")
-    partes = re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)(?:[-_]OP)?[-_](\\d{2,4})[-_](20\\d{2})$", codigo, re.I)
+    partes = re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)(?:[-_]OP)?[-_](\d{2,4})[-_](20\d{2})$", codigo, re.I)
     abreviado = "-".join(partes.groups()) if partes else None
     archivos = [a for a in item.get("archivos") or [] if str(a.get("nombre") or "").lower().endswith(".rar")]
     if not archivos:
@@ -100,7 +100,7 @@ def rar_bases_integras(item):
             listado = subprocess.run([siete, "l", "-slt", str(ruta)], capture_output=True,
                                     text=True, encoding="utf-8", errors="replace", timeout=90, check=True).stdout
             miembros = [x[7:].replace("\\\\", "/").rsplit("/", 1)[-1] for x in listado.splitlines() if x.startswith("Path = ")]
-            bases = [x for x in miembros if re.match(r"^BASES\\s+", x, re.I) and x.lower().endswith(".pdf")]
+            bases = [x for x in miembros if re.match(r"^BASES\s+", x, re.I) and x.lower().endswith(".pdf")]
             validas = [x for x in bases if codigo.casefold() in x.casefold() or
                        (abreviado and re.search(r"(?<![A-Za-z0-9])"+re.escape(abreviado)+r"(?![A-Za-z0-9])", x, re.I))]
             if len(validas) == 1:
@@ -153,6 +153,11 @@ def auditar_procedimiento(item):
     aviso = "Enlace de bases no confirmado sin sesion"
     docx_verificado = docx_local_integro(item)
     rar_integro, diagnostico_rar = rar_bases_integras(item)
+    hay_rar = any(str(a.get("nombre") or "").lower().endswith(".rar")
+                  for a in item.get("archivos") or [])
+    # Nunca aprobar la auditoria si existen bases RAR cuya integridad no se comprobo.
+    if hay_rar and not rar_integro:
+        errores_pendientes.append("Integridad de bases RAR no confirmada: " + diagnostico_rar)
     # El enlace debe verificarse sin sesion y el RAR local debe pasar 7z t,
     # contener exactamente unas bases identificables y no tener otros errores.
     bases_verificadas = item.get("bases_verificadas") or []
@@ -166,6 +171,7 @@ def auditar_procedimiento(item):
     return {
         "docx_local_integro": docx_verificado,
         "rar_bases_integro": rar_integro,
+        "hay_rar": hay_rar,
         "diagnostico_rar": diagnostico_rar,
         "enlace_rar_verificado": enlace_rar_verificado,
         "enlace_anonimo_no_verificado": aviso in errores,
