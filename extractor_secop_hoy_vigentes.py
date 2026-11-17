@@ -3,7 +3,7 @@ Ejecutar en Windows: py extractor_secop_hoy_vigentes.py
 No modifica Supabase, Airtable ni envía correos.
 """
 import asyncio, json, re, os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from playwright.async_api import async_playwright
@@ -31,8 +31,10 @@ def fecha_iso(s):
 
 async def main():
  hoy=datetime.now(ZoneInfo("America/Monterrey")).date()
+ inicio=hoy-timedelta(days=2)
  hoy_texto=hoy.strftime("%d/%m/%Y")
- reporte={"fuente":URL,"fecha_consulta":hoy.isoformat(),"filtros_aplicados":False,"registros":[],"errores":[]}
+ inicio_texto=inicio.strftime("%d/%m/%Y")
+ reporte={"fuente":URL,"fecha_consulta":hoy.isoformat(),"fecha_inicio":inicio.isoformat(),"filtros_aplicados":False,"registros":[],"errores":[]}
  async with async_playwright() as pw:
   browser=await pw.chromium.launch(headless=os.environ.get('TAPPAD_HEADLESS', '0') == '1')
   page=await browser.new_page(accept_downloads=False)
@@ -58,10 +60,10 @@ async def main():
     raise RuntimeError("No se identificó una única opción Vigente: "+repr(etiquetas))
    await opciones.nth(indices[0]).click(timeout=15000)
    await page.locator("#CardView_col3 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
-   print("Filtro Vigente aplicado. Ahora filtrando fecha:",hoy_texto,flush=True)
+   print("Filtro Vigente aplicado. Rango:",inicio_texto,"a",hoy_texto,flush=True)
    await page.locator("#CardView_col2 img[alt='[Filtrar]']").click(timeout=15000)
    await page.locator("#CardView_HFFDE_I").wait_for(state="visible",timeout=20000)
-   await page.locator("#CardView_HFFDE_I").fill(hoy_texto)
+   await page.locator("#CardView_HFFDE_I").fill(inicio_texto)
    await page.locator("#CardView_HFTDE_I").fill(hoy_texto)
    await page.locator("#CardView_DXHFP_TPCFCm1_O").click(timeout=15000)
    await page.locator("#CardView_col2 img[alt='[Filtrado]']").wait_for(state="attached",timeout=20000)
@@ -87,13 +89,13 @@ async def main():
      fecha=limpio(item.get("Fecha de Publicación"))
      r={"codigo":limpio(item.get("Código")),"estatus":limpio(item.get("Estatus")),"descripcion":limpio(item.get("Descripción")),"fecha_publicacion_original":fecha,"fecha_publicacion":fecha_iso(fecha),"documentos_referencia":limpio(item.get("Documentos de Procedimiento")),"enlaces":item.get("_enlaces",[]),"url_procedimiento":None,"estado_enlace":"pendiente_identificar_enlace_individual"}
      registros.append(r)
-   validos=[r for r in registros if r["fecha_publicacion"]==hoy.isoformat() and r["estatus"].casefold()=="vigente" and r["codigo"]]
+   validos=[r for r in registros if inicio.isoformat()<=r["fecha_publicacion"]<=hoy.isoformat() and r["estatus"].casefold()=="vigente" and r["codigo"]]
    rechazados=[r for r in registros if r not in validos]
    unicos={r["codigo"]:r for r in validos}
    reporte.update({"total_reportado":total_reportado,"total_extraido":len(registros),"total_validos":len(validos),"total_unicos":len(unicos),"total_rechazados":len(rechazados),"registros":list(unicos.values()),"rechazados":rechazados,"coincide_total":total_reportado is None or len(registros)==total_reportado})
    if rechazados:reporte["errores"].append("SECOP devolvió registros que no cumplen fecha, Vigente o código")
    if not reporte["coincide_total"]:reporte["errores"].append("Total extraído no coincide con paginación")
-   print("Procedimientos de hoy y Vigente:",len(unicos),"| Rechazados:",len(rechazados))
+   print("Procedimientos recientes y Vigente:",len(unicos),"| Rechazados:",len(rechazados))
   except Exception as e:
    reporte["error"]=str(e)
    print("Error:",e)
