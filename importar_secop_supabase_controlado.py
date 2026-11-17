@@ -68,17 +68,20 @@ def validar_autorizacion(lote,ids):
     if (fuente.get("fecha_consulta")!=hoy or fuente.get("filtros_aplicados") is not True
         or fuente.get("error") or fuente.get("errores") or fuente.get("coincide_total") is not True):
         raise SystemExit("IMPORTACION BLOQUEADA: extraccion diaria no validada")
+    inicio=fuente.get("fecha_inicio") or hoy
+    if not (isinstance(inicio,str) and inicio<=hoy):
+        raise SystemExit("IMPORTACION BLOQUEADA: rango de fechas invalido")
     origen=fuente.get("registros")
     if not isinstance(origen,list) or not origen:
         raise SystemExit("IMPORTACION BLOQUEADA: extraccion vacia")
     codigos=[]
     for r in origen:
-        if not isinstance(r,dict) or r.get("fecha_publicacion")!=hoy or str(r.get("estatus") or "").strip().casefold()!="vigente":
+        if not isinstance(r,dict) or not inicio<=str(r.get("fecha_publicacion") or "")<=hoy or str(r.get("estatus") or "").strip().casefold()!="vigente":
             raise SystemExit("IMPORTACION BLOQUEADA: extraccion fuera de fecha o estatus")
         codigos.append(identificador(r.get("codigo")))
     if len(codigos)!=len(set(codigos)) or set(codigos)!=set(ids):
         raise SystemExit("IMPORTACION BLOQUEADA: lote y extraccion no coinciden")
-    if any(str(r.get("fecha_publicacion") or "")[:10]!=hoy for r in lote["registros"]):
+    if any(not inicio<=str(r.get("fecha_publicacion") or "")[:10]<=hoy for r in lote["registros"]):
         raise SystemExit("IMPORTACION BLOQUEADA: publicacion del lote fuera de fecha")
     nuevos=auditoria.get("nuevos")
     existentes=auditoria.get("existentes")
