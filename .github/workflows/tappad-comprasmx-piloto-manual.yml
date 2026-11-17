@@ -1,0 +1,88 @@
+name: TAPPAD - ComprasMX piloto controlado manual
+on:
+  workflow_dispatch:
+    inputs:
+      enviar_correos:
+        description: "Escribir SI para enviar a los dos correos piloto; cualquier otro valor simula"
+        required: true
+        default: "NO"
+        type: choice
+        options:
+          - "NO"
+          - "SI"
+permissions:
+  contents: read
+concurrency:
+  group: tappad-comprasmx-piloto-controlado
+  cancel-in-progress: false
+jobs:
+  piloto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preparar manifiesto con datos reales, sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python generar_manifiesto_comprasmx_automatico.py
+      - name: Restringir manifiesto a dos cuentas piloto y verificar oportunidades
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          ruta=Path('manifiesto_notificaciones_tappad.json')
+          datos=json.loads(ruta.read_text(encoding='utf-8'))
+          if datos.get('modo') != 'SOLO_PREPARACION':
+              raise SystemExit('Modo de manifiesto no autorizado')
+          pilotos={1,4}
+          lotes=datos.get('proveedores')
+          if not isinstance(lotes,list):
+              raise SystemExit('Manifiesto malformado')
+          filtrados=[]
+          for lote in lotes:
+              if not isinstance(lote,dict):
+                  raise SystemExit('Lote malformado')
+              if lote.get('cliente_id') not in pilotos:
+                  continue
+              ids=lote.get('licitacion_ids')
+              if not isinstance(ids,list) or not ids or len(ids)!=len(set(ids)):
+                  raise SystemExit('IDs vacios o duplicados en piloto')
+              if len(ids)>25:
+                  raise SystemExit('Exceso de oportunidades: requiere revision manual')
+              filtrados.append(lote)
+          datos['proveedores']=filtrados
+          ruta.write_text(json.dumps(datos,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('PILOTO:',len(filtrados),'clientes;',sum(len(x['licitacion_ids']) for x in filtrados),'oportunidades')
+          if not filtrados:
+              print('SIN COINCIDENCIAS NUEVAS: no hay correos que enviar')
+          PY
+      - name: Validar compuertas y borradores sin SMTP
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          TAPPAD_PILOTO_REAL: SI
+        run: python motor_entrega_tappad_v2.py
+      - name: Enviar exclusivamente al piloto si se autorizo SI
+        if: ${{ inputs.enviar_correos == 'SI' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          TAPPAD_PILOTO_REAL: SI
+          TAPPAD_ENVIO_REAL: SI
+        run: |
+          python - <<'PY'
+          import os
+          if os.getenv('SMTP_USER','').strip().casefold()!='tappadcons@gmail.com':
+              raise SystemExit('Remitente SMTP no autorizado')
+          if not os.getenv('SMTP_APP_PASSWORD'):
+              raise SystemExit('Falta secreto SMTP_APP_PASSWORD')
+          PY
+          python motor_entrega_tappad_v2.py --enviar-real
