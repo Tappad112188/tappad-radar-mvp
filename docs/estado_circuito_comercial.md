@@ -37,3 +37,23 @@
 6. Requerir aprobacion explicita para habilitar cobros o activaciones reales.
 
 No copiar credenciales de produccion a GitHub, pruebas o frontend.
+
+## Auditoria de solo lectura 2026-11-17
+
+Se consultaron directamente las tablas de Supabase sin realizar escrituras:
+- Suscripcion 1, cliente 4: estado `prueba`, proveedor `mercadopago_prueba`, `fin_periodo` nulo.
+- Acceso comercial: estado `prueba`, `vigente_hasta` nulo.
+- Un pago local registrado y cero activaciones comerciales.
+
+**Interpretacion:** el pago del piloto no constituye una activacion productiva. No se debe transformar ni migrar automaticamente a `mercadopago_produccion`.
+
+### Hallazgos de codigo que impiden el cierre productivo
+
+- `worker_activacion_comercial.py` exige `--activar`, confirmacion `ACTIVAR`, variable `TAPPAD_HABILITAR_ACTIVACION_PRODUCCION=SI`, seller esperado y DSN privado. Mantener estos bloqueos.
+- `activacion_privada_postgres.py` deriva el periodo de la fecha del pago local y periodicidad del plan. Rechaza pagos con mas de siete dias y renovaciones anticipadas cuyo vencimiento anterior sea futuro. Por tanto, **no esta demostrada la gestion completa de renovaciones anticipadas ni de reintentos tardios**.
+- No se ha comprobado un worker privado desplegado con permisos PostgreSQL suficientes; una ejecucion local de pruebas no sustituye una transaccion en staging.
+- Antes de habilitar produccion se requiere validar reversos, disputas, expiracion, reintentos idempotentes, concurrencia, y que un webhook no conceda acceso por si solo.
+
+### Criterio de salida
+
+Completar worker privado, identidad de minimo privilegio y pruebas de staging; documentar politica de renovacion y cobro; comprobar conciliacion de vendedor, importe, moneda y suscripcion remota; solicitar aprobacion explicita antes de activar cobros o acceso comercial productivo. Ninguna tarea de SECOP o ComprasMX debe alterarse durante este trabajo.
