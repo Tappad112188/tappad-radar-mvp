@@ -17,8 +17,11 @@ def main():
     if (fuente.get("fecha_consulta")!=hoy or not fuente.get("filtros_aplicados")
         or fuente.get("error") or fuente.get("errores") or fuente.get("coincide_total") is False):
         raise SystemExit("Extraccion SECOP no valida para el dia actual")
+    inicio=fuente.get("fecha_inicio") or hoy
+    if not (isinstance(inicio,str) and inicio<=hoy):
+        raise SystemExit("SECOP: rango de extraccion invalido")
     registros=fuente.get("registros") or []
-    if any(x.get("fecha_publicacion")!=hoy or str(x.get("estatus","")).casefold()!="vigente" for x in registros):
+    if any(not inicio<=str(x.get("fecha_publicacion") or "")<=hoy or str(x.get("estatus","")).casefold()!="vigente" for x in registros):
         raise SystemExit("SECOP: registro fuera de fecha o no vigente")
     if not registros:
         print("SECOP: 0 publicaciones vigentes hoy. Sin escrituras ni correos.")
@@ -34,7 +37,7 @@ def main():
     if any(str(r.get("cod_expediente")).strip().casefold() not in codigos
            or str(r.get("fuente"))!="SECOP Coahuila"
            or str(r.get("estatus","")).casefold()!="vigente"
-           or str(r.get("fecha_publicacion",""))[:10]!=hoy
+           or not inicio<=str(r.get("fecha_publicacion",""))[:10]<=hoy
            for r in preparados):
         raise SystemExit("Lote SECOP no coincide con la extraccion de hoy")
     salida={"fecha_consulta":hoy,"total":len(ids),"estado":"SOLO_LECTURA",
