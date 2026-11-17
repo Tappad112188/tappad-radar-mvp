@@ -35,14 +35,14 @@ jobs:
           cp correccion-deteccion/generar_manifiesto_comprasmx_automatico.py ./generar_manifiesto_comprasmx_automatico.py
           cp correccion-deteccion/tests/test_seleccion_recientes_comprasmx.py ./tests/test_seleccion_recientes_comprasmx.py
           rm -rf correccion-deteccion
-      - name: Probar seleccion de novedades
-        run: python -m unittest discover -s tests -p test_seleccion_recientes_comprasmx.py -v
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Instalar dependencia Supabase
         run: python -m pip install 'supabase>=2,<3'
+      - name: Probar seleccion de novedades
+        run: python -m unittest discover -s tests -p test_seleccion_recientes_comprasmx.py -v
       - name: Verificar secretos y remitente autorizado
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
