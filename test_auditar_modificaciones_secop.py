@@ -19,7 +19,7 @@ class AuditoriaModificacionesTests(unittest.TestCase):
         r = auditar_procedimiento({"codigo": "ABC", "errores": ["No se capturaron descargas"]})
         self.assertEqual(r["estado"], "COBERTURA_INCOMPLETA_REVISAR")
 
-    def test_pdf_duplicado_en_zip_conserva_advertencia(self):
+    def test_pdf_duplicado_en_zip_resuelve_advertencia_de_multiples_enlaces(self):
         with tempfile.TemporaryDirectory() as carpeta:
             pdf = Path(carpeta) / "BASES.pdf"
             pdf.write_bytes(b"bases oficiales")
@@ -32,8 +32,9 @@ class AuditoriaModificacionesTests(unittest.TestCase):
                 "errores": ["Multiples enlaces de bases: requieren revision"],
             })
             self.assertTrue(resultado["bases_duplicadas_confirmadas"])
-            self.assertEqual(resultado["estado"], "COBERTURA_INCOMPLETA_REVISAR")
-            self.assertEqual(len(resultado["errores_pendientes"]), 1)
+            self.assertEqual(resultado["estado"], "SIN_INDICIOS_EN_DOCUMENTOS_CAPTURADOS")
+            self.assertEqual(resultado["errores_pendientes"], [])
+            self.assertFalse(resultado["fechas_oficialmente_validadas"])
 
     def test_pdf_en_subcarpeta_zip(self):
         with tempfile.TemporaryDirectory() as carpeta:
