@@ -101,8 +101,11 @@ def main():
                     or not datos.get("filtros_aplicados") or datos.get("errores") or datos.get("error")
                     or datos.get("coincide_total") is False):
                     raise SystemExit("Extracción inválida; revisar el reporte.")
-                if any(r.get("fecha_publicacion") != datos["fecha_consulta"] or str(r.get("estatus","")).casefold() != "vigente" for r in datos.get("registros", [])):
-                    raise SystemExit("Lote contiene publicaciones fuera de hoy o no vigentes")
+                inicio=datos.get("fecha_inicio") or datos["fecha_consulta"]
+                if not isinstance(inicio,str) or inicio>datos["fecha_consulta"]:
+                    raise SystemExit("Rango SECOP invalido")
+                if any(not inicio <= str(r.get("fecha_publicacion") or "") <= datos["fecha_consulta"] or str(r.get("estatus","")).casefold() != "vigente" for r in datos.get("registros", [])):
+                    raise SystemExit("Lote contiene publicaciones fuera del rango o no vigentes")
                 if not datos.get("registros"):
                     log.write("SIN PROCEDIMIENTOS HOY: no reutilizar documentos anteriores.\n")
                     print("Sin procedimientos nuevos vigentes hoy. Sin cambios.")
