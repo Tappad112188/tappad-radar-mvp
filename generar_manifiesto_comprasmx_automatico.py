@@ -13,19 +13,32 @@ ROOT=Path(__file__).resolve().parent
 DEST=ROOT/"borradores_gmail_tappad_v3"
 MANIFIESTO=ROOT/"manifiesto_notificaciones_tappad.json"
 
+def seleccionar_recientes(licitaciones, hoy, ventana_deteccion_dias=2, antiguedad_maxima_dias=7):
+    """Usa primera deteccion sin modificar publicacion; bloquea expedientes antiguos."""
+    desde_deteccion = (hoy - timedelta(days=ventana_deteccion_dias)).isoformat()
+    desde_publicacion = (hoy - timedelta(days=antiguedad_maxima_dias)).isoformat()
+    seleccion = []
+    for licitacion in licitaciones:
+        if str(licitacion.get("fuente") or "").strip().casefold() != "comprasmx":
+            continue
+        publicacion = str(licitacion.get("fecha_publicacion") or "")[:10]
+        deteccion = str(licitacion.get("fecha_registro") or "")[:10]
+        if desde_publicacion <= publicacion <= hoy.isoformat() and desde_deteccion <= deteccion <= hoy.isoformat():
+            seleccion.append(licitacion)
+    return seleccion
+
+
 def construir():
     hoy=datetime.now(ZoneInfo("America/Monterrey")).date()
-    desde=hoy-timedelta(days=2)
     clientes=consulta("clientes","id,empresa,correo,activo,palabras_clave",{"activo":"eq.true"})
     ubicaciones=consulta("clientes_ubicaciones","cliente_id,estado,municipio")
     giros=consulta("clientes_giros_preferencias_tappad","cliente_id,origen,clave,descripcion,activo",{"activo":"eq.true"})
-    licitaciones=consulta("licitaciones","id,numero_procedimiento,nombre_procedimiento,descripcion,fuente,entidad_federativa,estatus,fecha_publicacion,fecha_apertura,fecha_junta_aclaraciones,fecha_fallo_programado,url_procedimiento,validacion_calendario")
+    licitaciones=consulta("licitaciones","id,numero_procedimiento,nombre_procedimiento,descripcion,fuente,entidad_federativa,estatus,fecha_publicacion,fecha_registro,fecha_apertura,fecha_junta_aclaraciones,fecha_fallo_programado,url_procedimiento,validacion_calendario")
     historial=consulta("notificaciones_enviadas","cliente_id,licitacion_id,estado")
     coberturas,preferencias=defaultdict(list),defaultdict(list)
     for item in ubicaciones: coberturas[item["cliente_id"]].append(item)
     for item in giros: preferencias[item["cliente_id"]].append(item)
-    recientes=[l for l in licitaciones if str(l.get("fuente") or "").strip().casefold()=="comprasmx"
-              and desde.isoformat()<=str(l.get("fecha_publicacion") or "")[:10]<=hoy.isoformat()]
+    recientes=seleccionar_recientes(licitaciones,hoy)
     resultado=preparar_alertas(clientes,recientes,coberturas,historial,preferencias_por_cliente=preferencias)
     # La preparacion no autoriza SMTP: la compuerta final exige interruptor general.
     # Solo para construir borradores, se aplica una compuerta de vigencia simulando habilitacion.
