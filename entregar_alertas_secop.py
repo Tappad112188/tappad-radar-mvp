@@ -2,7 +2,7 @@
 No modifica codigo ni workflows de ComprasMX.
 """
 import argparse, json, os, smtplib, ssl, html, subprocess
-from datetime import datetime
+from datetime import datetime,timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -173,13 +173,13 @@ def main():
     if args.prueba_controlada and (not args.enviar_real or os.getenv("TAPPAD_SECOP_PRUEBA")!="SI"):
         raise SystemExit("Prueba controlada bloqueada: requiere --enviar-real y TAPPAD_SECOP_PRUEBA=SI")
     ahora=datetime.now(ZoneInfo("America/Monterrey"))
-    fecha=args.fecha or ahora.date().isoformat()
+    fecha=args.fecha or (ahora.date()-timedelta(days=2)).isoformat()
     datetime.strptime(fecha,"%Y-%m-%d")
     lic=consultar("licitaciones",{
         "select":"id,numero_procedimiento,nombre_procedimiento,descripcion,fecha_publicacion,fecha_junta_aclaraciones,fecha_apertura,fecha_fallo_programado,validacion_calendario,fuente,estatus",
         "fuente":"eq.SECOP Coahuila","validacion_calendario":"eq.preliminar_documental",
         "fecha_publicacion":"gte."+fecha+"T00:00:00",
-        "and":"(fecha_publicacion.lt."+fecha+"T23:59:59.999999,fecha_apertura.gt."+ahora.strftime("%Y-%m-%dT%H:%M:%S")+")",
+        "and":"(fecha_publicacion.lt."+(ahora.date()+timedelta(days=1)).isoformat()+"T00:00:00,fecha_apertura.gt."+ahora.strftime("%Y-%m-%dT%H:%M:%S")+")",
         "limit":"1000"})
     clientes=consultar("clientes",{"select":"id,empresa,correo,palabras_clave,activo","activo":"eq.true","limit":"1000"})
     ocupados=consultar("notificaciones_enviadas",{"select":"cliente_id,licitacion_id,estado","limit":"10000"})
