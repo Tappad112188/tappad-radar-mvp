@@ -1,0 +1,40 @@
+name: SECOP - validacion de ventana de recuperacion
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - 'extractor_secop_hoy_vigentes.py'
+      - 'descargar_documentos_secop_lote.py'
+      - 'auditar_secop_supabase_diario.py'
+      - 'importar_secop_supabase_controlado.py'
+      - 'ejecutar_secop_windows.py'
+      - 'entregar_alertas_secop.py'
+      - '.github/workflows/secop-validar-recuperacion.yml'
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compilar archivos SECOP sin conectarse ni enviar
+        run: |
+          python -m py_compile extractor_secop_hoy_vigentes.py descargar_documentos_secop_lote.py auditar_secop_supabase_diario.py importar_secop_supabase_controlado.py ejecutar_secop_windows.py entregar_alertas_secop.py
+      - name: Comprobar que la recuperacion y controles siguen presentes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          e=Path('extractor_secop_hoy_vigentes.py').read_text()
+          a=Path('auditar_secop_supabase_diario.py').read_text()
+          i=Path('importar_secop_supabase_controlado.py').read_text()
+          d=Path('entregar_alertas_secop.py').read_text()
+          assert 'timedelta(days=2)' in e
+          assert 'fecha_inicio' in e and 'fecha_inicio' in a and 'fecha_inicio' in i
+          assert 'timedelta(days=2)' in d
+          assert 'validar_autorizacion' in i
+          print('Verificacion estatica completada; no se realizaron envios')
+          PY
