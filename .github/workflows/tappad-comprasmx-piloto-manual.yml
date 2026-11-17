@@ -1,0 +1,55 @@
+name: TAPPAD - ComprasMX piloto controlado manual
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tappad-comprasmx-piloto-controlado
+  cancel-in-progress: false
+jobs:
+  simulacion-piloto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Obtener codigo de desarrollo sin modificar produccion
+        uses: actions/checkout@v4
+        with:
+          ref: desarrollo-registro-proveedores
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preparar manifiesto de ComprasMX sin enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+        run: python generar_manifiesto_comprasmx_automatico.py
+      - name: Restringir manifiesto a clientes piloto 1 y 4
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          ruta=Path('manifiesto_notificaciones_tappad.json')
+          datos=json.loads(ruta.read_text(encoding='utf-8'))
+          if datos.get('modo')!='SOLO_PREPARACION' or not isinstance(datos.get('proveedores'),list):
+              raise SystemExit('Manifiesto invalido')
+          lotes=[]
+          for lote in datos['proveedores']:
+              if not isinstance(lote,dict):
+                  raise SystemExit('Lote invalido')
+              if lote.get('cliente_id') not in (1,4):
+                  continue
+              ids=lote.get('licitacion_ids')
+              if not isinstance(ids,list) or not ids or len(ids)!=len(set(ids)) or len(ids)>25:
+                  raise SystemExit('Lote piloto invalido o demasiado grande')
+              lotes.append(lote)
+          datos['proveedores']=lotes
+          ruta.write_text(json.dumps(datos,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('PILOTO:',len(lotes),'clientes;',sum(len(x['licitacion_ids']) for x in lotes),'oportunidades')
+          PY
+      - name: Validar motor en modo seguro sin SMTP ni reservas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ADMIN_KEY: ${{ secrets.SUPABASE_ADMIN_KEY }}
+          TAPPAD_PILOTO_REAL: SI
+        run: python motor_entrega_tappad_v2.py
