@@ -66,7 +66,15 @@ def documentos_del_procedimiento(carpeta, codigo):
   # -slt lista las rutas internas, sin extraer archivos al disco.
   rutas=[line[7:] for line in listado.splitlines() if line.startswith("Path = ")]
   bases=[x for x in rutas if re.search(r"^BASES\s+",x.replace("\\\\","/").rsplit("/",1)[-1],re.I) and x.lower().endswith(".pdf")]
-  validas=[x for x in bases if codigo.casefold() in re.sub(r"\s+"," ",x.replace("\\\\","/").rsplit("/",1)[-1]).casefold()]
+  # SECOP suele abreviar el expediente en las bases: SIDS-IE-OP-057-2026 -> IE-057-2026.
+  # Solo aceptar una coincidencia unica por token de procedimiento y consecutivo.
+  partes=re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)[-_](?:OP[-_])?(\\d{2,4})[-_](20\\d{2})$",codigo,re.I)
+  abreviado=(partes.group(1)+"-"+partes.group(2)+"-"+partes.group(3)) if partes else None
+  def coincide_base(ruta):
+   nombre=re.sub(r"\\s+"," ",ruta.replace("\\\\","/").rsplit("/",1)[-1])
+   if codigo.casefold() in nombre.casefold():return True
+   return bool(abreviado and re.search(r"(?<![A-Za-z0-9])"+re.escape(abreviado)+r"(?![A-Za-z0-9])",nombre,re.I))
+  validas=[x for x in bases if coincide_base(x)]
   if len(validas)!=1:
    print("ADVERTENCIA: bases no coincidentes o ambiguas en",rar.name,"|",bases)
    continue
