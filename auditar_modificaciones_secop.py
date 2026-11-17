@@ -4,6 +4,8 @@ import hashlib
 import zipfile
 import re
 import unicodedata
+import subprocess
+import shutil
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent / "documentos_secop_lote"
@@ -71,6 +73,42 @@ def docx_local_integro(item):
         return False
 
 
+def rar_bases_integras(item):
+    """Verifica un RAR descargado del procedimiento y sus miembros con 7-Zip."""
+    siete = shutil.which("7z") or shutil.which("7z.exe")
+    if not siete:
+        candidato = Path("C:/Program Files/7-Zip/7z.exe")
+        siete = str(candidato) if candidato.is_file() else None
+    if not siete:
+        return False, "7-ZIP_NO_DISPONIBLE"
+    codigo = str(item.get("codigo") or "")
+    partes = re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)(?:[-_]OP)?[-_](\\d{2,4})[-_](20\\d{2})$", codigo, re.I)
+    abreviado = "-".join(partes.groups()) if partes else None
+    archivos = [a for a in item.get("archivos") or [] if str(a.get("nombre") or "").lower().endswith(".rar")]
+    if not archivos:
+        return False, "RAR_NO_DESCARGADO"
+    for archivo in archivos:
+        ruta = Path(archivo.get("ruta") or "")
+        if not ruta.is_file() or ruta.stat().st_size < 8:
+            continue
+        if ruta.open("rb").read(8) != bytes.fromhex("526172211a070100"):
+            continue
+        try:
+            prueba = subprocess.run([siete, "t", str(ruta)], capture_output=True, timeout=120, check=False)
+            if prueba.returncode != 0:
+                continue
+            listado = subprocess.run([siete, "l", "-slt", str(ruta)], capture_output=True,
+                                    text=True, encoding="utf-8", errors="replace", timeout=90, check=True).stdout
+            miembros = [x[7:].replace("\\\\", "/").rsplit("/", 1)[-1] for x in listado.splitlines() if x.startswith("Path = ")]
+            bases = [x for x in miembros if re.match(r"^BASES\\s+", x, re.I) and x.lower().endswith(".pdf")]
+            validas = [x for x in bases if codigo.casefold() in x.casefold() or
+                       (abreviado and re.search(r"(?<![A-Za-z0-9])"+re.escape(abreviado)+r"(?![A-Za-z0-9])", x, re.I))]
+            if len(validas) == 1:
+                return True, "RAR5_INTEGRO_BASES_UNICAS"
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False, "RAR_SIN_BASES_UNICAS_O_INTEGRO"
+
 def auditar_procedimiento(item):
     hallazgos = []
     vistos = set()
@@ -114,10 +152,22 @@ def auditar_procedimiento(item):
             errores_pendientes = [e for e in errores_pendientes if e != multiples]
     aviso = "Enlace de bases no confirmado sin sesion"
     docx_verificado = docx_local_integro(item)
+    rar_integro, diagnostico_rar = rar_bases_integras(item)
+    # El enlace debe verificarse sin sesion y el RAR local debe pasar 7z t,
+    # contener exactamente unas bases identificables y no tener otros errores.
+    bases_verificadas = item.get("bases_verificadas") or []
+    enlace_rar_verificado = (len(bases_verificadas) == 1
+        and bases_verificadas[0].get("estado") == "verificado_sin_sesion"
+        and item.get("estado_enlace") == "verificado_sin_sesion")
     if aviso in errores_pendientes and docx_verificado and not hallazgos and not diagnosticos:
+        errores_pendientes = [e for e in errores_pendientes if e != aviso]
+    if aviso in errores_pendientes and enlace_rar_verificado and rar_integro and not hallazgos and not diagnosticos:
         errores_pendientes = [e for e in errores_pendientes if e != aviso]
     return {
         "docx_local_integro": docx_verificado,
+        "rar_bases_integro": rar_integro,
+        "diagnostico_rar": diagnostico_rar,
+        "enlace_rar_verificado": enlace_rar_verificado,
         "enlace_anonimo_no_verificado": aviso in errores,
         "advertencias_no_bloqueantes": [aviso] if aviso in errores and docx_verificado else [],
         "codigo": item.get("codigo"),
