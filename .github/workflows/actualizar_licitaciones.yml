@@ -24,6 +24,19 @@ jobs:
         with:
           ref: 883ef02a4875e0292589d8201acaa666be5de5d7
           persist-credentials: false
+      - name: Obtener correccion acotada de deteccion
+        uses: actions/checkout@v4
+        with:
+          ref: ece61d2351721445f521fc46b98fdf429ea59445
+          path: correccion-deteccion
+          persist-credentials: false
+      - name: Aplicar solo manifiesto corregido y sus pruebas
+        run: |
+          cp correccion-deteccion/generar_manifiesto_comprasmx_automatico.py ./generar_manifiesto_comprasmx_automatico.py
+          cp correccion-deteccion/tests/test_seleccion_recientes_comprasmx.py ./tests/test_seleccion_recientes_comprasmx.py
+          rm -rf correccion-deteccion
+      - name: Probar seleccion de novedades
+        run: python -m unittest discover -s tests -p test_seleccion_recientes_comprasmx.py -v
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
