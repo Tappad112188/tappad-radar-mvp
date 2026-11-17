@@ -68,7 +68,7 @@ def documentos_del_procedimiento(carpeta, codigo):
   bases=[x for x in rutas if re.search(r"^BASES\s+",x.replace("\\\\","/").rsplit("/",1)[-1],re.I) and x.lower().endswith(".pdf")]
   # SECOP suele abreviar el expediente en las bases: SIDS-IE-OP-057-2026 -> IE-057-2026.
   # Solo aceptar una coincidencia unica por token de procedimiento y consecutivo.
-  partes=re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)[-_](?:OP[-_])?(\\d{2,4})[-_](20\\d{2})$",codigo,re.I)
+  partes=re.search(r"(?:^|-)(IE|LPN|LP|AD|IR|INV|OP)(?:[-_]OP)?[-_](\d{2,4})[-_](20\d{2})$",codigo,re.I)
   abreviado=(partes.group(1)+"-"+partes.group(2)+"-"+partes.group(3)) if partes else None
   def coincide_base(ruta):
    nombre=re.sub(r"\\s+"," ",ruta.replace("\\\\","/").rsplit("/",1)[-1])
