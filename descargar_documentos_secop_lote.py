@@ -133,6 +133,22 @@ async def main():
      else:
       item["estado_enlace"]="verificacion_fallida"
       item["errores"].append("Enlace de bases no confirmado sin sesion")
+     # Los enlaces GetFile pueden ser <a href> sin id; el selector anterior los ignoraba.
+     # Capturar descargas desde los enlaces ya asociados a la ficha abierta.
+     urls_vistas=set()
+     for doc in item["enlaces_documentos"]:
+      if not re.search(r"bases|base de procedimiento|anexos|convocatoria",doc["texto"],re.I):
+       continue
+      if doc["url"] in urls_vistas:
+       continue
+      urls_vistas.add(doc["url"])
+      try:
+       enlace_doc=page.locator("a[href]").filter(has_text=re.compile(re.escape(doc["texto"]),re.I)).first if doc["texto"] else page.locator('a[href="'+doc["url"]+'"]').first
+       async with page.expect_download(timeout=15000) as descarga:
+        await enlace_doc.click(timeout=12000)
+       await guardar(await descarga.value)
+      except Exception as e:
+       item["errores"].append("Enlace GetFile "+doc["texto"][:50]+": "+str(e)[:140])
      controles=await page.evaluate("""() => [...document.querySelectorAll('a,button,input[type=button]')].filter(e=>{const t=(e.innerText||e.value||e.title||'').trim();return /BASES|ANEXOS|resumen de conv/i.test(t) && e.id && e.offsetParent!==null}).map(e=>({id:e.id,texto:(e.innerText||e.value||e.title||'').trim()}))""")
      vistos=set()
      for control in controles:
