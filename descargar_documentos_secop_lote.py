@@ -27,7 +27,10 @@ def verificar_bases_sin_sesion(url):
    cabecera=respuesta.headers.get("Content-Disposition","").lower()
    tipo=respuesta.headers.get("Content-Type","").lower()
    firma=respuesta.read(1024)
-   archivo=firma.startswith((b"%PDF-",b"PK\\x03\\x04",b"\\xd0\\xcf\\x11\\xe0"))
+   # Firmas binarias reales: PDF, ZIP, DOC y RAR4/RAR5.
+   firmas=(b"%PDF-",bytes.fromhex("504b0304"),bytes.fromhex("d0cf11e0"),
+           bytes.fromhex("526172211a0700"),bytes.fromhex("526172211a070100"))
+   archivo=any(firma.startswith(f) for f in firmas)
    return {"estado":"verificado_sin_sesion" if archivo and respuesta.status in (200,206) else "respuesta_no_confirmada",
            "http":respuesta.status,"tipo":tipo,"adjunto":"attachment" in cabecera}
  except Exception as exc:
