@@ -36,6 +36,8 @@ declare
   v_sub public.suscripciones_tappad%rowtype;
   v_estado text;
   v_cliente bigint;
+  v_acceso public.acceso_comercial_tappad%rowtype;
+  v_activaciones_actuales bigint;
 begin
   if p_estado_remoto not in ('refunded','charged_back')
      or p_evidencia is null
@@ -75,16 +77,30 @@ begin
   -- No invalidar automaticamente periodos posteriores respaldados por otro cobro.
   select s.cliente_id into v_cliente from public.suscripciones_tappad s
     where s.id=p_suscripcion_id;
-  update public.acceso_comercial_tappad a
-     set estado='suspendido', actualizado_en=transaction_timestamp()
-   where a.cliente_id=v_cliente and a.suscripcion_id=p_suscripcion_id
-     and a.estado='habilitado'
-     and exists (
-       select 1 from public.activaciones_comerciales_tappad x
-       where x.pago_id=p_pago_id and x.suscripcion_id=p_suscripcion_id
-         and x.estado='aplicada' and x.periodo_fin>=transaction_timestamp()
-         and x.periodo_fin=a.vigente_hasta
-     );
+  -- Serializar el acceso con otras operaciones concurrentes.
+  select * into v_acceso from public.acceso_comercial_tappad a
+    where a.cliente_id=v_cliente and a.suscripcion_id=p_suscripcion_id
+    for update;
+  if found and v_acceso.estado='habilitado' then
+    select count(*) into v_activaciones_actuales
+      from public.activaciones_comerciales_tappad x
+     where x.cliente_id=v_cliente and x.suscripcion_id=p_suscripcion_id
+       and x.estado='aplicada'
+       and x.periodo_fin=v_acceso.vigente_hasta;
+    if v_activaciones_actuales=1 and exists (
+      select 1 from public.activaciones_comerciales_tappad x
+       where x.pago_id=p_pago_id and x.cliente_id=v_cliente
+         and x.suscripcion_id=p_suscripcion_id and x.estado='aplicada'
+         and x.periodo_fin=v_acceso.vigente_hasta
+         and x.periodo_inicio<=transaction_timestamp()
+         and x.periodo_fin>transaction_timestamp()
+    ) then
+      update public.acceso_comercial_tappad
+         set estado='suspendido', actualizado_en=transaction_timestamp()
+       where cliente_id=v_cliente and suscripcion_id=p_suscripcion_id
+         and estado='habilitado';
+    end if;
+  end if;
   return true;
 end;
 $$;
