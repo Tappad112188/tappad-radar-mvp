@@ -57,3 +57,11 @@ Se consultaron directamente las tablas de Supabase sin realizar escrituras:
 ### Criterio de salida
 
 Completar worker privado, identidad de minimo privilegio y pruebas de staging; documentar politica de renovacion y cobro; comprobar conciliacion de vendedor, importe, moneda y suscripcion remota; solicitar aprobacion explicita antes de activar cobros o acceso comercial productivo. Ninguna tarea de SECOP o ComprasMX debe alterarse durante este trabajo.
+
+## Cancelaciones, contracargos y vencimientos — politica de acceso (2026-11-17)
+
+El filtro de alertas SECOP `acceso_comercial_vigente` consulta en lectura la suscripcion, el acceso, la activacion y el pago asociado. Exige suscripcion `activa`, acceso `habilitado`, activacion `aplicada`, pago `pagado`, periodo no vencido y proveedor productivo permitido. Las pruebas de regresion ahora cubren suscripciones canceladas/suspendidas, pagos reembolsados/rechazados/con contracargo y activaciones revocadas.
+
+**Limitacion critica:** estas verificaciones solo surten efecto cuando el estado local se actualiza de manera confiable. No existe en este cambio un procesador de webhook ni una conciliacion remota automatica de reembolsos, disputas o cancelaciones. Un contracargo en Mercado Pago que no se refleje en `pagos_tappad` puede dejar un acceso indebidamente habilitado hasta su deteccion. No declarar completo el circuito de cancelaciones ni habilitar produccion antes de cerrar esta brecha.
+
+Politica propuesta para el cierre: recibir eventos autenticados, consultar estado actual directamente a Mercado Pago, vincular por payment_id/preapproval_id, registrar transicion de estado idempotente y auditable en backend privado, y bloquear nuevas alertas ante estados de riesgo confirmados. La cancelacion de una renovacion futura y la revocacion por reembolso/contracargo deben tratarse por separado; no revocar periodos ya pagados solo por la cancelacion de renovacion automatica sin validar las condiciones del contrato.
