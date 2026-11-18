@@ -58,6 +58,30 @@ class AccesoComercialSecop(unittest.TestCase):
     def test_vigencia_confirmada(self):
         self.assertTrue(self.evaluar())
 
+    def test_suscripcion_cancelada_bloquea_acceso(self):
+        self.suscripcion["estado"] = "cancelada"
+        self.assertFalse(self.evaluar())
+
+    def test_suscripcion_suspendida_bloquea_acceso(self):
+        self.suscripcion["estado"] = "suspendida"
+        self.assertFalse(self.evaluar())
+
+    def test_pago_reembolsado_bloquea_acceso(self):
+        self.pago = lambda: {**AccesoComercialSecop.pago(self), "estado": "reembolsado"}
+        self.assertFalse(self.evaluar())
+
+    def test_pago_contracargo_bloquea_acceso(self):
+        self.pago = lambda: {**AccesoComercialSecop.pago(self), "estado": "contracargo"}
+        self.assertFalse(self.evaluar())
+
+    def test_pago_rechazado_bloquea_acceso(self):
+        self.pago = lambda: {**AccesoComercialSecop.pago(self), "estado": "rechazado"}
+        self.assertFalse(self.evaluar())
+
+    def test_activacion_revocada_bloquea_acceso(self):
+        self.activacion = lambda: {**AccesoComercialSecop.activacion(self), "estado": "revocada"}
+        self.assertFalse(self.evaluar())
+
     def test_acceso_prueba_bloqueado(self):
         self.acceso["estado"] = "prueba"
         self.assertFalse(self.evaluar())
