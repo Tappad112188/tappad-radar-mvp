@@ -26,11 +26,38 @@ class AuditoriaTests(unittest.TestCase):
         urls=[]
         def opener(req,timeout):
             urls.append(req.full_url)
+            if "activaciones_comerciales_tappad" in req.full_url:
+                return Respuesta([])
             return Respuesta([{"id":8,"estado":"pagado","proveedor_cobro":"mercadopago_produccion"}])
         ids=pendientes(supabase_url="https://demo.supabase.co",supabase_key="key",opener=opener)
         self.assertEqual(ids,[8])
         self.assertIn("mercadopago_produccion",urls[0])
         self.assertIn("eq.pagado",urls[0])
+    def test_pago_ya_activado_no_se_reprocesa(self):
+        def opener(req,timeout):
+            if "activaciones_comerciales_tappad" in req.full_url:
+                return Respuesta([{"pago_id":8}])
+            return Respuesta([{"id":8},{"id":9}])
+        ids=pendientes(supabase_url="https://demo.supabase.co",
+                       supabase_key="key",opener=opener)
+        self.assertEqual(ids,[9])
+
+    def test_activaciones_incompletas_falla_cerrada(self):
+        def opener(req,timeout):
+            if "activaciones_comerciales_tappad" in req.full_url:
+                return Respuesta([{"pago_id":i} for i in range(1000)])
+            return Respuesta([{"id":8}])
+        with self.assertRaisesRegex(VerificacionRechazada,"activaciones_incompletas"):
+            pendientes(supabase_url="https://demo.supabase.co",
+                       supabase_key="key",opener=opener)
+
+    def test_pago_duplicado_falla_cerrada(self):
+        def opener(req,timeout):
+            return Respuesta([{"id":8},{"id":8}])
+        with self.assertRaisesRegex(VerificacionRechazada,"pagos_duplicados"):
+            pendientes(supabase_url="https://demo.supabase.co",
+                       supabase_key="key",opener=opener)
+
     @patch("conciliador_pagos_pendientes_lectura.verificar_pago_desde_supabase")
     @patch("conciliador_pagos_pendientes_lectura.pendientes",return_value=[3,4])
     def test_rechazo_no_activa_y_continua(self, obtener, verificar):
