@@ -20,11 +20,16 @@ class BorradorReversionTests(unittest.TestCase):
     def test_solo_reversiones(self):
         self.assertIn("('refunded','charged_back')", SQL)
         self.assertIn("transicion_conflictiva", SQL)
+    def test_acceso_bloqueado_y_periodo_unico(self):
+        self.assertIn("for update", SQL.lower())
+        self.assertIn("v_activaciones_actuales=1", SQL)
+        self.assertIn("x.periodo_inicio<=transaction_timestamp()", SQL)
+
     def test_registro_y_bloqueo_atomicos(self):
         self.assertIn("insert into tappad_internal.auditoria_estados_mercadopago", SQL.lower())
         self.assertIn("update public.pagos_tappad", SQL.lower())
         self.assertIn("update public.acceso_comercial_tappad", SQL.lower())
-        self.assertIn("x.periodo_fin=a.vigente_hasta", SQL)
+        self.assertIn("x.periodo_fin=v_acceso.vigente_hasta", SQL)
 
 
 if __name__=="__main__":
