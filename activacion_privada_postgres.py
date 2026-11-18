@@ -7,11 +7,12 @@ IMPORTANTE: la credencial PostgreSQL debe existir solo en un worker confiable,
 NO en frontend, GitHub Actions, ni equipo de un cliente.
 """
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from urllib.request import urlopen
 
 from conexion_segura_mercadopago_supabase import verificar_pago_desde_supabase
 from verificar_pago_mercadopago_servidor import VerificacionRechazada
+from politica_renovacion_mercadopago import evaluar_inicio_ciclo
 
 
 def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
@@ -64,13 +65,18 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             if fecha_pago.tzinfo is None:
                 raise VerificacionRechazada("fecha_pago_sin_zona")
             ahora = datetime.now(timezone.utc)
-            if fecha_pago > ahora or fecha_pago < ahora - timedelta(days=7):
-                raise VerificacionRechazada("pago_fuera_de_ventana")
-            # Una renovacion anticipada se extiende desde el vencimiento previo.
-            # La funcion SQL vuelve a comprobar continuidad y duplicados.
-            inicio = vencimiento if vencimiento is not None else fecha_pago
-            if inicio > ahora:
-                raise VerificacionRechazada("renovacion_anticipada_pendiente")
+            # Solo la decision 'aplicar' permite avanzar a la funcion SQL.
+            # Los pagos anticipados y tardios quedan pendientes de conciliacion.
+            decision, inicio = evaluar_inicio_ciclo(
+                fecha_pago=fecha_pago, vencimiento=vencimiento, ahora=ahora)
+            if decision != "aplicar":
+                motivos = {
+                    "fecha_futura": "pago_fuera_de_ventana",
+                    "revision_tardia": "pago_fuera_de_ventana",
+                    "pendiente_anticipada": "renovacion_anticipada_pendiente",
+                    "fecha_invalida": "fecha_pago_sin_zona",
+                }
+                raise VerificacionRechazada(motivos[decision])
             cursor.execute(
                 "select %s::timestamptz + case %s when 'mensual' then interval '1 month' else interval '1 year' end",
                 (inicio, periodicidad))
