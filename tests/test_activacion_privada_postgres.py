@@ -8,19 +8,23 @@ from verificar_pago_mercadopago_servidor import VerificacionRechazada
 
 
 class FakeCursor:
-    def __init__(self, accepted): self.accepted = accepted; self.executions = []
+    def __init__(self, accepted, *, fecha_pago=None, vencimiento=None):
+        self.accepted = accepted
+        self.fecha_pago = fecha_pago
+        self.vencimiento = vencimiento
+        self.executions = []
     def __enter__(self): return self
     def __exit__(self, *args): return False
     def execute(self, sql, args): self.executions.append((sql,args))
     def fetchone(self):
-        if len(self.executions)==1: return (datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",None)
+        if len(self.executions)==1: return (self.fecha_pago or datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",self.vencimiento)
         if len(self.executions)==2: return (datetime.now(timezone.utc)+timedelta(days=30),)
         return (self.accepted,)
 
 
 class FakeConnection:
-    def __init__(self, accepted=True):
-        self.cursor_obj = FakeCursor(accepted)
+    def __init__(self, accepted=True, *, fecha_pago=None, vencimiento=None):
+        self.cursor_obj = FakeCursor(accepted, fecha_pago=fecha_pago, vencimiento=vencimiento)
         self.committed = False
         self.rolled_back = False
     def __enter__(self): return self
@@ -92,6 +96,39 @@ class PuenteTests(unittest.TestCase):
                     mercadopago_token="dummy",postgres_dsn="postgresql://private",
                     inicio=datetime.now(timezone.utc),permitir=True,connect=self.connect)
         verifier.assert_not_called()
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_renovacion_anticipada_no_extiende_acceso(self, verifier):
+        verifier.return_value=self.evidence
+        self.con = FakeConnection(vencimiento=datetime.now(timezone.utc)+timedelta(days=12))
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI",
+                                     "TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"renovacion_anticipada_pendiente"):
+                self.run_bridge()
+        self.assertTrue(self.con.rolled_back)
+        self.assertEqual(len(self.con.cursor_obj.executions),1)
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_pago_tardio_no_activa_sin_politica(self, verifier):
+        verifier.return_value=self.evidence
+        self.con = FakeConnection(fecha_pago=datetime.now(timezone.utc)-timedelta(days=8))
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI",
+                                     "TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
+                self.run_bridge()
+        self.assertTrue(self.con.rolled_back)
+        self.assertEqual(len(self.con.cursor_obj.executions),1)
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_fecha_de_pago_futura_no_activa(self, verifier):
+        verifier.return_value=self.evidence
+        self.con = FakeConnection(fecha_pago=datetime.now(timezone.utc)+timedelta(days=1))
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI",
+                                     "TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
+                self.run_bridge()
+        self.assertTrue(self.con.rolled_back)
+        self.assertEqual(len(self.con.cursor_obj.executions),1)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_pago_valido_aplica_una_vez(self, verifier):
