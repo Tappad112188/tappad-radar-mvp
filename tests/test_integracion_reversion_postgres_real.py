@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import psycopg
@@ -193,6 +194,19 @@ class IntegracionWorkerPostgres(unittest.TestCase):
         with psycopg.connect(DSN) as check:
             self.assertEqual(check.execute(
                 "SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], "pagado")
+
+
+    def test_09_concurrencia_dos_workers_un_solo_pago(self):
+        """Dos conexiones simultaneas no generan doble auditoria."""
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                resultados = list(pool.map(self.ejecutar, (11, 11)))
+        self.assertEqual(sorted(x["estado"] for x in resultados),
+                         ["aplicada", "ya_conciliada"])
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=11"
+            ).fetchone()[0], 1)
 
 if __name__ == "__main__":
     unittest.main()
