@@ -1,0 +1,43 @@
+name: Integracion PostgreSQL comercial aislada
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - 'conciliar_reversion_privada_postgres.py'
+      - 'auditar_estados_remotos_mercadopago.py'
+      - 'docs/sql_conciliacion_reversion_mercadopago_borrador.sql'
+      - 'tests/test_integracion_reversion_postgres_real.py'
+      - '.github/workflows/integracion-postgres-comercial.yml'
+permissions:
+  contents: read
+jobs:
+  postgres-aislado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci_temporal
+          POSTGRES_DB: tappad_ci_pruebas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tappad_ci_pruebas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TAPPAD_TEST_POSTGRES_DSN: postgresql://postgres:postgres_ci_temporal@localhost:5432/tappad_ci_pruebas
+      TAPPAD_HABILITAR_REVERSION_PRODUCCION: 'NO'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar cliente PostgreSQL para pruebas
+        run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Ejecutar integracion real con API simulada
+        run: python -m unittest discover -s tests -p 'test_integracion_reversion_postgres_real.py' -v
