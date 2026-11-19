@@ -1,0 +1,125 @@
+"""Integracion REAL PostgreSQL del worker privado; datos ficticios y rollback.
+
+Ejecutar solo contra una BD desechable: TAPPAD_TEST_POSTGRES_DSN.
+No conecta con Mercado Pago ni Supabase.
+"""
+import os
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+from datetime import datetime, timezone, timedelta
+
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
+from conciliar_reversion_privada_postgres import conciliar_reversion_privada
+from verificar_pago_mercadopago_servidor import VerificacionRechazada
+
+DSN = os.getenv("TAPPAD_TEST_POSTGRES_DSN")
+SQL = Path(__file__).resolve().parents[1] / "docs/sql_conciliacion_reversion_mercadopago_borrador.sql"
+
+
+@unittest.skipUnless(DSN and psycopg, "Se requiere PostgreSQL desechable y psycopg")
+class IntegracionWorkerPostgres(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Exigir nombre de BD de pruebas: nunca ejecutar en produccion.
+        with psycopg.connect(DSN) as conn:
+            dbname = conn.execute("SELECT current_database()").fetchone()[0]
+            if dbname not in ("tappad_radar_pruebas", "tappad_ci_pruebas"):
+                raise RuntimeError("Base no autorizada para pruebas: " + dbname)
+            for role in ("anon", "authenticated"):
+                conn.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + role + "') THEN CREATE ROLE " + role + " NOLOGIN; END IF; END $$")
+            conn.execute("""CREATE TABLE IF NOT EXISTS public.suscripciones_tappad
+              (id bigint PRIMARY KEY, cliente_id bigint NOT NULL, proveedor_cobro text NOT NULL,
+               referencia_externa text NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS public.pagos_tappad
+              (id bigint PRIMARY KEY, suscripcion_id bigint NOT NULL REFERENCES public.suscripciones_tappad(id),
+               proveedor_cobro text NOT NULL, referencia_externa text NOT NULL, estado text NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS public.acceso_comercial_tappad
+              (cliente_id bigint PRIMARY KEY, suscripcion_id bigint NOT NULL,
+               estado text NOT NULL, vigente_hasta timestamptz, actualizado_en timestamptz)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS public.activaciones_comerciales_tappad
+              (id bigint PRIMARY KEY, cliente_id bigint NOT NULL, suscripcion_id bigint NOT NULL,
+               pago_id bigint NOT NULL, estado text NOT NULL, periodo_inicio timestamptz,
+               periodo_fin timestamptz)""")
+            conn.execute(SQL.read_text(encoding="utf-8"))
+            # Fixture fija, separada de cualquier dato productivo.
+            conn.execute("DELETE FROM tappad_internal.auditoria_estados_mercadopago")
+            conn.execute("DELETE FROM public.activaciones_comerciales_tappad")
+            conn.execute("DELETE FROM public.acceso_comercial_tappad")
+            conn.execute("DELETE FROM public.pagos_tappad")
+            conn.execute("DELETE FROM public.suscripciones_tappad")
+            conn.execute("""INSERT INTO public.suscripciones_tappad VALUES
+              (7,4,'mercadopago_produccion','sub-1'),
+              (8,5,'mercadopago_produccion','sub-2'),
+              (9,6,'mercadopago_produccion','sub-3')""")
+            conn.execute("""INSERT INTO public.pagos_tappad VALUES
+              (9,7,'mercadopago_produccion','pay-1','pagado'),
+              (10,8,'mercadopago_produccion','pay-2','pagado'),
+              (11,9,'mercadopago_produccion','pay-3','pagado')""")
+            now = datetime.now(timezone.utc)
+            conn.execute("""INSERT INTO public.acceso_comercial_tappad VALUES
+              (4,7,'habilitado',%s,now()),(5,8,'habilitado',%s,now()),
+              (6,9,'habilitado',%s,now())""", (now+timedelta(days=15),)*3)
+            conn.execute("""INSERT INTO public.activaciones_comerciales_tappad VALUES
+              (1,4,7,9,'aplicada',%s,%s),
+              (2,5,8,10,'aplicada',%s,%s),
+              (3,6,9,11,'aplicada',%s,%s)""",
+              (now-timedelta(days=15),now+timedelta(days=15))*3)
+
+    def auditar(self, sub, pay, *, token, seller_id_esperado):
+        return {"decision":"revision_revocacion_pago",
+                "estado_pago_remoto":"refunded" if pay["id"] != 10 else "charged_back",
+                "evidencia":{"origen":"consulta_directa_mercadopago",
+                             "seller_id":str(seller_id_esperado),
+                             "payment_id":pay["referencia_externa"],
+                             "preapproval_id":sub["referencia_externa"]}}
+
+    def ejecutar(self, pago, auditar=None):
+        return conciliar_reversion_privada(pago, postgres_dsn=DSN,
+             token="SIMULADO_SIN_RED", seller_id="11", permitir=True,
+             auditar=auditar or self.auditar)
+
+    def test_01_reembolso_y_suspension(self):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            self.assertEqual(self.ejecutar(9)["estado"], "aplicada")
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=9").fetchone()[0],"reembolsado")
+            self.assertEqual(conn.execute("SELECT estado FROM public.acceso_comercial_tappad WHERE cliente_id=4").fetchone()[0],"suspendido")
+            self.assertEqual(conn.execute("SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=9").fetchone()[0],1)
+
+    def test_02_idempotencia(self):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            self.assertEqual(self.ejecutar(9)["estado"], "ya_conciliada")
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=9").fetchone()[0],1)
+
+    def test_03_contracargo(self):
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            self.assertEqual(self.ejecutar(10)["estado"], "aplicada")
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=10").fetchone()[0],"contracargo")
+
+    def test_04_sin_reversion_no_escribe(self):
+        def aprobado(*args, **kwargs):
+            return {"decision":"pago_aprobado_sujeto_a_conciliacion"}
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            self.assertEqual(self.ejecutar(11, aprobado)["escrituras"],0)
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0],"pagado")
+
+    def test_05_evidencia_falsa_revierte(self):
+        def falsa(*args, **kwargs):
+            return {"decision":"revision_revocacion_pago","estado_pago_remoto":"refunded",
+                    "evidencia":{"seller_id":"999","payment_id":"pay-3","preapproval_id":"sub-3"}}
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION":"SI"}):
+            with self.assertRaises(VerificacionRechazada):
+                self.ejecutar(11, falsa)
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0],"pagado")
+
+if __name__ == "__main__":
+    unittest.main()
