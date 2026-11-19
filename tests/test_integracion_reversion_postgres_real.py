@@ -20,6 +20,7 @@ from verificar_pago_mercadopago_servidor import VerificacionRechazada
 
 DSN = os.getenv("TAPPAD_TEST_POSTGRES_DSN")
 SQL = Path(__file__).resolve().parents[1] / "docs/sql_conciliacion_reversion_mercadopago_borrador.sql"
+WORKER_DSN = None
 
 
 @unittest.skipUnless(DSN and psycopg, "Se requiere PostgreSQL desechable y psycopg")
@@ -47,6 +48,29 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                pago_id bigint NOT NULL, estado text NOT NULL, periodo_inicio timestamptz,
                periodo_fin timestamptz)""")
             conn.execute(SQL.read_text(encoding="utf-8"))
+            # Identidad real de login CI, con transición SET ROLE explícita.
+            # Solo existe en PostgreSQL desechable; no usar en producción.
+            conn.execute("""DO $ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_reversion_privada')
+                THEN CREATE ROLE tappad_reversion_privada NOLOGIN NOINHERIT NOBYPASSRLS;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_login_ci')
+                THEN CREATE ROLE tappad_login_ci LOGIN NOINHERIT NOBYPASSRLS
+                     PASSWORD 'ci_temporal_no_productivo';
+                END IF;
+            END $""")
+            conn.execute("GRANT tappad_reversion_privada TO tappad_login_ci WITH SET TRUE, INHERIT FALSE")
+            conn.execute("GRANT USAGE ON SCHEMA public, tappad_internal TO tappad_reversion_privada")
+            conn.execute("""GRANT SELECT ON public.suscripciones_tappad, public.pagos_tappad,
+                public.acceso_comercial_tappad, public.activaciones_comerciales_tappad
+                TO tappad_reversion_privada""")
+            conn.execute("GRANT UPDATE (estado) ON public.suscripciones_tappad, public.pagos_tappad TO tappad_reversion_privada")
+            conn.execute("GRANT UPDATE (estado, actualizado_en) ON public.acceso_comercial_tappad TO tappad_reversion_privada")
+            conn.execute("GRANT INSERT ON tappad_internal.auditoria_estados_mercadopago TO tappad_reversion_privada")
+            conn.execute("GRANT USAGE ON SEQUENCE tappad_internal.auditoria_estados_mercadopago_id_seq TO tappad_reversion_privada")
+            conn.execute("""GRANT EXECUTE ON FUNCTION
+                tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)
+                TO tappad_reversion_privada""")
             # Fixture fija, separada de cualquier dato productivo.
             conn.execute("DELETE FROM tappad_internal.auditoria_estados_mercadopago")
             conn.execute("DELETE FROM public.activaciones_comerciales_tappad")
@@ -71,6 +95,10 @@ class IntegracionWorkerPostgres(unittest.TestCase):
               (3,6,9,11,'aplicada',%s,%s)""",
               (now-timedelta(days=15),now+timedelta(days=15))*3)
 
+        global WORKER_DSN
+        WORKER_DSN = psycopg.conninfo.make_conninfo(
+            DSN, user="tappad_login_ci", password="ci_temporal_no_productivo")
+
     def auditar(self, sub, pay, *, token, seller_id_esperado):
         return {"decision":"revision_revocacion_pago",
                 "estado_pago_remoto":"refunded" if pay["id"] != 10 else "charged_back",
@@ -80,7 +108,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                              "preapproval_id":sub["referencia_externa"]}}
 
     def ejecutar(self, pago, auditar=None):
-        return conciliar_reversion_privada(pago, postgres_dsn=DSN,
+        return conciliar_reversion_privada(pago, postgres_dsn=WORKER_DSN,
              token="SIMULADO_SIN_RED", seller_id="11", permitir=True,
              auditar=auditar or self.auditar)
 
