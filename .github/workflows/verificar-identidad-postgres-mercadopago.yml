@@ -1,0 +1,20 @@
+name: Auditar identidad PostgreSQL Mercado Pago (solo lectura)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auditoria:
+    runs-on: ubuntu-latest
+    environment: reversion-comercial
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'psycopg[binary]==3.2.10'
+      - name: Consultar identidad y permisos sin escrituras
+        env:
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+        run: python verificar_identidad_ejecutor_postgres.py
