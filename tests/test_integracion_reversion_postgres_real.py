@@ -251,5 +251,45 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                     "SELECT has_table_privilege(%s,'tappad_internal.auditoria_estados_mercadopago','SELECT')",
                     (rol,)).fetchone()[0])
 
+
+    def test_12_reversion_rechaza_suscripcion_ajena_y_no_escribe(self):
+        """No debe permitirse revertir un pago vinculado a otra suscripcion."""
+        with psycopg.connect(DSN) as conn:
+            before = conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=10"
+            ).fetchone()[0]
+            count_before = conn.execute(
+                "SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=10"
+            ).fetchone()[0]
+            with self.assertRaises(psycopg.Error):
+                conn.execute(
+                    """SELECT tappad_internal.conciliar_reversion_pago(
+                       10,7,'refunded',%s::jsonb)""",
+                    ('{"origen":"consulta_directa_mercadopago","payment_id":"pay-2","preapproval_id":"sub-1","seller_id":"11"}',))
+            conn.rollback()
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=10"
+            ).fetchone()[0], before)
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=10"
+            ).fetchone()[0], count_before)
+
+    def test_13_reversion_conflictiva_no_sobrescribe_contracargo(self):
+        """Un pago ya marcado contracargo no puede mutar a reembolsado."""
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=10"
+            ).fetchone()[0], "contracargo")
+            with self.assertRaises(psycopg.Error):
+                conn.execute(
+                    """SELECT tappad_internal.conciliar_reversion_pago(
+                       10,8,'refunded',%s::jsonb)""",
+                    ('{"origen":"consulta_directa_mercadopago","payment_id":"pay-2","preapproval_id":"sub-2","seller_id":"11"}',))
+            conn.rollback()
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=10"
+            ).fetchone()[0], "contracargo")
+
+
 if __name__ == "__main__":
     unittest.main()
