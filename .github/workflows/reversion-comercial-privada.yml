@@ -1,0 +1,50 @@
+name: Reversion comercial privada (bloqueada por defecto)
+on:
+  workflow_dispatch:
+    inputs:
+      pago_id:
+        description: ID interno del pago a conciliar tras verificar en Mercado Pago
+        required: true
+        type: string
+      confirmar:
+        description: Escribir REVERTIR para solicitar ejecucion supervisada
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  reversion:
+    if: ${{ inputs.confirmar == 'REVERTIR' }}
+    runs-on: ubuntu-latest
+    environment: reversion-comercial
+    timeout-minutes: 5
+    concurrency:
+      group: reversion-mercadopago-${{ inputs.pago_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar driver PostgreSQL
+        run: python -m pip install 'psycopg[binary]==3.2.10'
+      - name: Conciliar reversión supervisada (apagada por defecto)
+        env:
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+          TAPPAD_HABILITAR_REVERSION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_REVERSION_PRODUCCION }}
+          PAGO_ID: ${{ inputs.pago_id }}
+        run: |
+          python - <<'PY'
+          import os
+          from conciliar_reversion_privada_postgres import conciliar_reversion_privada
+          pago = int(os.environ["PAGO_ID"])
+          resultado = conciliar_reversion_privada(
+              pago,
+              postgres_dsn=os.getenv("TAPPAD_POSTGRES_DSN"),
+              token=os.getenv("TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN"),
+              seller_id=os.getenv("TAPPAD_MERCADOPAGO_SELLER_ID"),
+              permitir=True)
+          print("Resultado:", resultado["estado"], "pago interno:", pago)
+          PY
