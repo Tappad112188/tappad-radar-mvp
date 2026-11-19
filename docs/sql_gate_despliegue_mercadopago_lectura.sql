@@ -10,8 +10,14 @@ WITH state AS (
   EXISTS(SELECT 1 FROM pg_roles WHERE rolname='tappad_reversion_privada'
     AND NOT rolcanlogin AND NOT rolbypassrls) AS rol_reversion_no_login,
   EXISTS(SELECT 1 FROM pg_proc WHERE oid =
-    to_regprocedure('tappad_internal.tappad_aplicar_activacion_comercial(bigint,jsonb)')
-    AND prosecdef) AS activacion_definer_firma_esperada,
+    to_regprocedure('tappad_internal.tappad_aplicar_activacion_comercial(bigint,bigint,bigint,timestamptz,timestamptz,jsonb)')
+    AND NOT prosecdef) AS activacion_privada_invoker_instalada,
+  COALESCE(has_function_privilege('anon',
+    to_regprocedure('tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)'),
+    'EXECUTE'),false) AS anon_puede_ejecutar_reversion,
+  COALESCE(has_function_privilege('authenticated',
+    to_regprocedure('tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)'),
+    'EXECUTE'),false) AS authenticated_puede_ejecutar_reversion,
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname IN (
       'pagos_tappad','suscripciones_tappad','acceso_comercial_tappad',
@@ -19,10 +25,13 @@ WITH state AS (
 )
 SELECT current_database() AS base,
        estado_contracargo_instalado,funcion_reversion_instalada,
-       rol_reversion_no_login,activacion_definer_firma_esperada,
+       rol_reversion_no_login,activacion_privada_invoker_instalada,
+       anon_puede_ejecutar_reversion,authenticated_puede_ejecutar_reversion,
        tablas_comerciales_con_rls,
        CASE WHEN estado_contracargo_instalado
          AND funcion_reversion_instalada AND rol_reversion_no_login
+         AND NOT anon_puede_ejecutar_reversion
+         AND NOT authenticated_puede_ejecutar_reversion
          AND tablas_comerciales_con_rls=4
          THEN 'DDL_VERIFICABLE_NO_AUTORIZA_COBROS'
          ELSE 'BLOQUEADO_PENDIENTE_MIGRACION'
