@@ -52,7 +52,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
             conn.execute("DELETE FROM public.acceso_comercial_tappad")
             conn.execute("DELETE FROM public.pagos_tappad")
             conn.execute("DELETE FROM public.suscripciones_tappad")
-            conn.execute("""INSERT INTO public.suscripciones_tappad VALUES
+            conn.execute("""INSERT INTO public.suscripciones_tappad (id,cliente_id,proveedor_cobro,referencia_externa) VALUES
               (7,4,'mercadopago_produccion','sub-1'),
               (8,5,'mercadopago_produccion','sub-2'),
               (9,6,'mercadopago_produccion','sub-3')""")
