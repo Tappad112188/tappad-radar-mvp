@@ -90,7 +90,7 @@ class WorkerTests(unittest.TestCase):
                 token="fake", seller_id="11", permitir=True,
                 connect=self.connect, auditar=approved)
         self.assertEqual(result["escrituras"], 0)
-        self.assertEqual(len(self.conn.c.calls), 4)
+        self.assertEqual(len(self.conn.c.calls), 6)
     def test_rol_incorrecto_revierte_sin_consultar_pago(self):
         self.conn.c.fetchone = lambda: ("postgres", "postgres", True, True)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
