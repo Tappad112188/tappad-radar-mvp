@@ -60,4 +60,8 @@ def auditar_estado_remoto(suscripcion, pago_local, *, token, seller_id_esperado,
         vinculo_verificado=True, vendedor_verificado=True)
     return {"pago_id_local": pago_local.get("id"),
             "suscripcion_id_local": suscripcion.get("id"),
-            "decision": decision, "modo": "SOLO_LECTURA"}
+            "decision": decision, "estado_pago_remoto": pago.get("status"),
+            "evidencia": {"origen":"consulta_directa_mercadopago",
+                         "payment_id":pid,"preapproval_id":sid,
+                         "seller_id":str(vendedor.get("id"))},
+            "modo": "SOLO_LECTURA"}
