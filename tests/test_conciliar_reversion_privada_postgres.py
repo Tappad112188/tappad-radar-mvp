@@ -13,7 +13,7 @@ class Cursor:
         self.missing = missing
     def __enter__(self): return self
     def __exit__(self, *args): return False
-    def execute(self, sql, params): self.calls.append((sql, params))
+    def execute(self, sql, params=None): self.calls.append((sql, params))
     def fetchone(self):
         n = len(self.calls)
         if n == 1: return None
