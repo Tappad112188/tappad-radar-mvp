@@ -152,12 +152,12 @@ class IntegracionWorkerPostgres(unittest.TestCase):
         """Rol NOLOGIN sin superusuario, BYPASSRLS, CREATE ni grants publicos."""
         firma = "tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)"
         with psycopg.connect(DSN) as conn:
-            conn.execute("""DO $ BEGIN
+            conn.execute("""DO $worker_role$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_worker_ci')
                 THEN CREATE ROLE tappad_worker_ci NOLOGIN NOSUPERUSER NOCREATEDB
                     NOCREATEROLE NOREPLICATION NOBYPASSRLS;
                 END IF;
-            END $""")
+            END $worker_role$""")
             # El rol se crea solamente en la base efimera de CI.
             conn.execute("GRANT USAGE ON SCHEMA tappad_internal TO tappad_worker_ci")
             for tabla in ("suscripciones_tappad", "pagos_tappad",
