@@ -61,12 +61,8 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
                 raise VerificacionRechazada("identidad_activacion_no_autorizada")
             # Nunca ejecutar una función SECURITY DEFINER heredada: omite
             # la identidad restringida aunque SET LOCAL ROLE sea correcto.
-            cursor.execute("""SELECT p.prosecdef
-                FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-                WHERE n.nspname='tappad_internal'
-                  AND p.proname='tappad_aplicar_activacion_comercial'
-                  AND pg_get_function_identity_arguments(p.oid)=
-                    'p_cliente bigint, p_suscripcion bigint, p_pago bigint, p_inicio timestamp with time zone, p_fin timestamp with time zone, p_evidencia jsonb'""")
+            cursor.execute("""SELECT prosecdef FROM pg_proc WHERE oid =
+                to_regprocedure('tappad_internal.tappad_aplicar_activacion_comercial(bigint,bigint,bigint,timestamptz,timestamptz,jsonb)')""")
             funcion = cursor.fetchone()
             if funcion is None or funcion[0] is not False:
                 raise VerificacionRechazada("funcion_activacion_no_invoker")
