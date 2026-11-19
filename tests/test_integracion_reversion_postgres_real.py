@@ -208,5 +208,46 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                 "SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago WHERE pago_id=11"
             ).fetchone()[0], 1)
 
+
+    def test_10_concurrencia_activacion_y_reversion_sin_deadlock(self):
+        """Activacion y reversion compiten por locks en orden suscripcion -> acceso -> pago."""
+        from threading import Barrier
+        barrier = Barrier(2)
+        def activacion_simulada():
+            with psycopg.connect(DSN, options="-c lock_timeout=3000 -c statement_timeout=6000") as conn:
+                barrier.wait(timeout=5)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM public.suscripciones_tappad WHERE id=9 FOR UPDATE")
+                    cur.execute("SELECT cliente_id FROM public.acceso_comercial_tappad WHERE cliente_id=6 FOR UPDATE")
+                    cur.execute("SELECT id FROM public.pagos_tappad WHERE id=11 FOR UPDATE")
+                    cur.execute("SELECT estado FROM public.pagos_tappad WHERE id=11")
+                    return cur.fetchone()[0]
+        def reversion_simulada():
+            with psycopg.connect(DSN, options="-c lock_timeout=3000 -c statement_timeout=6000") as conn:
+                barrier.wait(timeout=5)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM public.suscripciones_tappad WHERE id=9 FOR UPDATE")
+                    cur.execute("SELECT cliente_id FROM public.acceso_comercial_tappad WHERE cliente_id=6 FOR UPDATE")
+                    cur.execute("SELECT id FROM public.pagos_tappad WHERE id=11 FOR UPDATE")
+                    cur.execute("SELECT estado FROM public.pagos_tappad WHERE id=11")
+                    return cur.fetchone()[0]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a = pool.submit(activacion_simulada)
+            b = pool.submit(reversion_simulada)
+            self.assertEqual(a.result(timeout=8), "pagado")
+            self.assertEqual(b.result(timeout=8), "pagado")
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], "pagado")
+
+    def test_11_rol_publico_no_puede_escribir_tablas_de_reversion(self):
+        with psycopg.connect(DSN) as conn:
+            for rol in ("anon", "authenticated"):
+                self.assertFalse(conn.execute(
+                    "SELECT has_table_privilege(%s,'tappad_internal.auditoria_estados_mercadopago','INSERT')",
+                    (rol,)).fetchone()[0])
+                self.assertFalse(conn.execute(
+                    "SELECT has_table_privilege(%s,'tappad_internal.auditoria_estados_mercadopago','SELECT')",
+                    (rol,)).fetchone()[0])
+
 if __name__ == "__main__":
     unittest.main()
