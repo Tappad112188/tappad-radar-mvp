@@ -291,5 +291,44 @@ class IntegracionWorkerPostgres(unittest.TestCase):
             ).fetchone()[0], "contracargo")
 
 
+
+    def test_14_migracion_reversion_en_postgres_efimero(self):
+        """Ejecuta DDL de preparacion en transaccion desechable; comprueba RLS y rol."""
+        preparation = (Path(__file__).resolve().parents[1] /
+                       "docs/sql_preparacion_reversion_privada_NO_APLICAR.sql").read_text(encoding="utf-8")
+        with psycopg.connect(DSN) as conn:
+            self.assertEqual(conn.execute("SELECT current_database()").fetchone()[0],
+                             "tappad_ci_pruebas")
+            # Simular constraint anterior documentado. No tocar produccion.
+            conn.execute("""ALTER TABLE public.pagos_tappad
+                ADD CONSTRAINT pagos_tappad_estado_check
+                CHECK (estado IN ('pendiente','pagado','fallido','reembolsado','cancelado'))""")
+            conn.execute("ALTER TABLE public.suscripciones_tappad ENABLE ROW LEVEL SECURITY")
+            conn.execute("ALTER TABLE public.pagos_tappad ENABLE ROW LEVEL SECURITY")
+            conn.execute("ALTER TABLE public.acceso_comercial_tappad ENABLE ROW LEVEL SECURITY")
+            conn.execute("ALTER TABLE public.activaciones_comerciales_tappad ENABLE ROW LEVEL SECURITY")
+            # psycopg admite BEGIN/COMMIT dentro del script; DDL solo en BD efimera.
+            conn.commit()
+            try:
+                conn.execute(preparation)
+                allowed = conn.execute("""SELECT pg_get_constraintdef(oid)
+                    FROM pg_constraint WHERE conname='pagos_tappad_estado_check'
+                      AND conrelid='public.pagos_tappad'::regclass""").fetchone()[0]
+                self.assertIn("contracargo", allowed)
+                self.assertEqual(conn.execute("""SELECT rolcanlogin,rolbypassrls
+                    FROM pg_roles WHERE rolname='tappad_reversion_privada'""").fetchone(),
+                    (False, False))
+                self.assertTrue(conn.execute("""SELECT relrowsecurity FROM pg_class
+                    WHERE oid='tappad_internal.auditoria_estados_mercadopago'::regclass""").fetchone()[0])
+                self.assertFalse(conn.execute("""SELECT has_function_privilege(
+                    'anon','tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)','EXECUTE')""").fetchone()[0])
+                self.assertTrue(conn.execute("""SELECT has_function_privilege(
+                    'tappad_reversion_privada',
+                    'tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)','EXECUTE')""").fetchone()[0])
+            finally:
+                # Solo base desechable, reiniciada en cada ejecucion de Actions.
+                conn.rollback()
+
+
 if __name__ == "__main__":
     unittest.main()
