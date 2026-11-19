@@ -34,7 +34,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                 conn.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + role + "') THEN CREATE ROLE " + role + " NOLOGIN; END IF; END $$")
             conn.execute("""CREATE TABLE IF NOT EXISTS public.suscripciones_tappad
               (id bigint PRIMARY KEY, cliente_id bigint NOT NULL, proveedor_cobro text NOT NULL,
-               referencia_externa text NOT NULL)""")
+               referencia_externa text NOT NULL, estado text DEFAULT 'activa')""")
             conn.execute("""CREATE TABLE IF NOT EXISTS public.pagos_tappad
               (id bigint PRIMARY KEY, suscripcion_id bigint NOT NULL REFERENCES public.suscripciones_tappad(id),
                proveedor_cobro text NOT NULL, referencia_externa text NOT NULL, estado text NOT NULL)""")
@@ -163,6 +163,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
             for tabla in ("suscripciones_tappad", "pagos_tappad",
                           "acceso_comercial_tappad", "activaciones_comerciales_tappad"):
                 conn.execute("GRANT SELECT ON TABLE public." + tabla + " TO tappad_worker_ci")
+            conn.execute("GRANT UPDATE (estado) ON public.suscripciones_tappad TO tappad_worker_ci")
             conn.execute("GRANT UPDATE (estado) ON public.pagos_tappad TO tappad_worker_ci")
             conn.execute("GRANT UPDATE (estado, actualizado_en) ON public.acceso_comercial_tappad TO tappad_worker_ci")
             conn.execute("GRANT INSERT ON tappad_internal.auditoria_estados_mercadopago TO tappad_worker_ci")
@@ -177,7 +178,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
             self.assertFalse(conn.execute(
                 "SELECT has_table_privilege('tappad_worker_ci','public.pagos_tappad','INSERT')").fetchone()[0])
             self.assertFalse(conn.execute(
-                "SELECT has_table_privilege('tappad_worker_ci','public.suscripciones_tappad','UPDATE')").fetchone()[0])
+                "SELECT has_column_privilege('tappad_worker_ci','public.suscripciones_tappad','referencia_externa','UPDATE')").fetchone()[0])
             conn.execute("SET LOCAL ROLE tappad_worker_ci")
             self.assertEqual(conn.execute("SELECT current_user").fetchone()[0], "tappad_worker_ci")
             result = conn.execute(
