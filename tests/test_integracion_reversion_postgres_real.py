@@ -50,7 +50,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
             conn.execute(SQL.read_text(encoding="utf-8"))
             # Identidad real de login CI, con transición SET ROLE explícita.
             # Solo existe en PostgreSQL desechable; no usar en producción.
-            conn.execute("""DO $ BEGIN
+            conn.execute("""DO $ci$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_reversion_privada')
                 THEN CREATE ROLE tappad_reversion_privada NOLOGIN NOINHERIT NOBYPASSRLS;
                 END IF;
@@ -58,7 +58,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                 THEN CREATE ROLE tappad_login_ci LOGIN NOINHERIT NOBYPASSRLS
                      PASSWORD 'ci_temporal_no_productivo';
                 END IF;
-            END $""")
+            END $ci$""")
             conn.execute("GRANT tappad_reversion_privada TO tappad_login_ci WITH SET TRUE, INHERIT FALSE")
             conn.execute("GRANT USAGE ON SCHEMA public, tappad_internal TO tappad_reversion_privada")
             conn.execute("""GRANT SELECT ON public.suscripciones_tappad, public.pagos_tappad,
