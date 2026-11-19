@@ -11,6 +11,7 @@ on:
       - 'docs/sql_preparacion_reversion_privada_NO_APLICAR.sql'
       - 'tests/test_gate_lanzamiento_comercial.py'
       - 'tests/test_integracion_reversion_postgres_real.py'
+      - 'tests/test_migracion_reversion_postgres_aislada.py'
       - '.github/workflows/integracion-postgres-comercial.yml'
 permissions:
   contents: read
@@ -44,5 +45,11 @@ jobs:
         run: python -m pip install 'psycopg[binary]>=3.2,<4'
       - name: Validar compuertas de lanzamiento sin red
         run: python -m unittest discover -s tests -p 'test_gate_lanzamiento_comercial.py' -v
+      - name: Probar migraciones y permisos en PostgreSQL efimero
+        run: python -m unittest discover -s tests -p 'test_migracion_reversion_postgres_aislada.py' -v
+      - name: Reiniciar base efimera para las pruebas de integracion
+        run: |
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE tappad_ci_pruebas WITH (FORCE);'
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tappad_ci_pruebas;'
       - name: Ejecutar integracion real con API simulada
         run: python -m unittest discover -s tests -p 'test_integracion_reversion_postgres_real.py' -v
