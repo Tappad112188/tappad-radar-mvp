@@ -34,4 +34,16 @@ jobs:
             echo "::notice::Auditoria no ejecutada: faltan secretos del entorno comercial-lectura."
             exit 0
           fi
-          python conciliador_pagos_pendientes_lectura.py
+          python - <<'PY'
+          import os
+          from conciliador_pagos_pendientes_lectura import auditar
+          reporte = auditar(
+              supabase_url=os.environ["TAPPAD_SUPABASE_URL"],
+              supabase_key=os.environ["TAPPAD_SUPABASE_SERVICE_ROLE_KEY"],
+              mercadopago_token=os.environ["TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN"])
+          resultados = reporte["resultados"]
+          bloqueados = sum(x["resultado"] == "bloqueado" for x in resultados)
+          print(f"Auditoria SOLO_LECTURA: {len(resultados)} pagos, {bloqueados} bloqueados")
+          if bloqueados:
+              raise SystemExit("Auditoria requiere revision privada")
+          PY
