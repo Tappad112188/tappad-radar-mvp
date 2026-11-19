@@ -8,6 +8,8 @@ on:
       - 'conciliar_reversion_privada_postgres.py'
       - 'auditar_estados_remotos_mercadopago.py'
       - 'docs/sql_conciliacion_reversion_mercadopago_borrador.sql'
+      - 'docs/sql_preparacion_reversion_privada_NO_APLICAR.sql'
+      - 'tests/test_gate_lanzamiento_comercial.py'
       - 'tests/test_integracion_reversion_postgres_real.py'
       - '.github/workflows/integracion-postgres-comercial.yml'
 permissions:
@@ -40,5 +42,7 @@ jobs:
           python-version: '3.11'
       - name: Instalar cliente PostgreSQL para pruebas
         run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Validar compuertas de lanzamiento sin red
+        run: python -m unittest discover -s tests -p 'test_gate_lanzamiento_comercial.py' -v
       - name: Ejecutar integracion real con API simulada
         run: python -m unittest discover -s tests -p 'test_integracion_reversion_postgres_real.py' -v
