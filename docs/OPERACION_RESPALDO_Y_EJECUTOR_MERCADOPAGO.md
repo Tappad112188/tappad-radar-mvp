@@ -33,3 +33,11 @@ GitHub Actions manual, sin servicio adicional de pago:
 - [ ] Respaldo creado y restauración verificada.
 - [ ] Migración versionada y autorización de producción.
 - [ ] Definir reconciliación periódica automática antes del lanzamiento comercial.
+
+## Hallazgo bloqueante: identidad NOLOGIN frente al ejecutor actual
+
+La función SQL es `SECURITY INVOKER` y el rol `tappad_reversion_privada` se crea con `NOLOGIN`. El worker Python actual abre la conexión mediante el DSN y **no ejecuta `SET ROLE`**. Por tanto, no hay evidencia de que opere realmente bajo el rol restringido. No se debe compensar concediendo UPDATE/INSERT a `service_role` o usando credenciales administrativas permanentes.
+
+Se agregó `verificar_identidad_ejecutor_postgres.py` y el workflow manual `verificar-identidad-postgres-mercadopago.yml`. Este control es solo lectura y **fallará cerrado** si la identidad no es exactamente `tappad_reversion_privada` sin BYPASSRLS. Dado que el rol es NOLOGIN, ese resultado requiere diseñar y validar una transición explícita de rol (o mecanismo equivalente) antes de usar el worker. El control aún no está ejecutado contra un DSN real.
+
+**Respaldo:** no se ha creado ni restaurado una copia de producción; la documentación del procedimiento no equivale a un respaldo probado. **No desplegar** hasta cerrar ambos puntos.
