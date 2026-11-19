@@ -88,7 +88,7 @@ class WorkerTests(unittest.TestCase):
                 token="fake", seller_id="11", permitir=True,
                 connect=self.connect, auditar=approved)
         self.assertEqual(result["escrituras"], 0)
-        self.assertEqual(len(self.conn.c.calls), 3)
+        self.assertEqual(len(self.conn.c.calls), 4)
     def test_pago_inexistente_revierte(self):
         self.conn = Conn(missing=True)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
