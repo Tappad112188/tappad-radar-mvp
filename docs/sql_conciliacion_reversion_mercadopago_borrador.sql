@@ -39,13 +39,14 @@ declare
   v_acceso public.acceso_comercial_tappad%rowtype;
   v_activaciones_actuales bigint;
 begin
-  if p_estado_remoto not in ('refunded','charged_back')
+  if p_estado_remoto is null
+     or p_estado_remoto not in ('refunded','charged_back')
      or p_evidencia is null
      or jsonb_typeof(p_evidencia) <> 'object'
      or p_evidencia->>'origen' <> 'consulta_directa_mercadopago'
-     or p_evidencia->>'payment_id' is null
-     or p_evidencia->>'preapproval_id' is null
-     or p_evidencia->>'seller_id' is null then
+     or nullif(btrim(p_evidencia->>'payment_id'),'') is null
+     or nullif(btrim(p_evidencia->>'preapproval_id'),'') is null
+     or nullif(btrim(p_evidencia->>'seller_id'),'') is null then
     raise exception 'evidencia_de_reversion_invalida';
   end if;
   select * into strict v_sub from public.suscripciones_tappad
