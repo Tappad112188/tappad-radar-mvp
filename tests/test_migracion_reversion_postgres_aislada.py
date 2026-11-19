@@ -25,15 +25,21 @@ class MigracionReversionAislada(unittest.TestCase):
                     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{role}')
                     THEN CREATE ROLE {role} NOLOGIN; END IF;
                 END $r$""")
+            # Entidades padre ficticias para reproducir FKs productivas.
+            conn.execute("CREATE TABLE public.clientes (id bigint primary key)")
+            conn.execute("CREATE TABLE public.planes_tappad (id bigint primary key)")
+            conn.execute("INSERT INTO public.clientes (id) VALUES (700)")
+            conn.execute("INSERT INTO public.planes_tappad (id) VALUES (1)")
             # Tablas con nombres y columnas comerciales; sin datos reales.
             conn.execute("""CREATE TABLE public.suscripciones_tappad (
-                id bigint primary key, cliente_id bigint not null, plan_id bigint not null default 1,
+                id bigint primary key, cliente_id bigint not null references public.clientes(id) ON DELETE RESTRICT,
+                plan_id bigint not null default 1 references public.planes_tappad(id) ON DELETE RESTRICT,
                 proveedor_cobro text, referencia_externa text, estado text not null,
                 CONSTRAINT suscripciones_tappad_estado_check CHECK
                 (estado IN ('pendiente','prueba','activa','vencida','cancelada','suspendida')))""")
             conn.execute("""CREATE TABLE public.pagos_tappad (
                 id bigint primary key,
-                suscripcion_id bigint not null references public.suscripciones_tappad(id),
+                suscripcion_id bigint not null references public.suscripciones_tappad(id) ON DELETE RESTRICT,
                 proveedor_cobro text, referencia_externa text, estado text not null,
                 monto_mxn numeric not null default 0 CHECK (monto_mxn >= 0),
                 fecha_pago timestamptz, creado_en timestamptz not null default now(),
@@ -41,7 +47,8 @@ class MigracionReversionAislada(unittest.TestCase):
                 CONSTRAINT pagos_tappad_estado_check CHECK (
                   estado IN ('pendiente','pagado','fallido','reembolsado','cancelado')))""")
             conn.execute("""CREATE TABLE public.acceso_comercial_tappad (
-                cliente_id bigint primary key, suscripcion_id bigint,
+                cliente_id bigint primary key references public.clientes(id),
+                suscripcion_id bigint references public.suscripciones_tappad(id),
                 estado text not null, vigente_hasta timestamptz,
                 origen text not null default 'evaluacion_manual',
                 habilitado_desde timestamptz,
@@ -52,8 +59,9 @@ class MigracionReversionAislada(unittest.TestCase):
                 (estado <> 'habilitado' OR
                 (habilitado_desde IS NOT NULL AND vigente_hasta IS NOT NULL)))""")
             conn.execute("""CREATE TABLE public.activaciones_comerciales_tappad (
-                id bigint primary key, cliente_id bigint not null,
-                suscripcion_id bigint not null, pago_id bigint not null,
+                id bigint primary key, cliente_id bigint not null references public.clientes(id),
+                suscripcion_id bigint not null references public.suscripciones_tappad(id),
+                pago_id bigint not null references public.pagos_tappad(id),
                 estado text not null, periodo_inicio timestamptz not null,
                 periodo_fin timestamptz not null,
                 evidencia_proveedor jsonb not null default '{}'::jsonb,
