@@ -231,13 +231,15 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                     cur.execute("SELECT id FROM public.pagos_tappad WHERE id=11 FOR UPDATE")
                     cur.execute("SELECT estado FROM public.pagos_tappad WHERE id=11")
                     return cur.fetchone()[0]
+        with psycopg.connect(DSN) as baseline_conn:
+            estado_inicial = baseline_conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0]
         with ThreadPoolExecutor(max_workers=2) as pool:
             a = pool.submit(activacion_simulada)
             b = pool.submit(reversion_simulada)
-            self.assertEqual(a.result(timeout=8), "pagado")
-            self.assertEqual(b.result(timeout=8), "pagado")
+            self.assertEqual(a.result(timeout=8), estado_inicial)
+            self.assertEqual(b.result(timeout=8), estado_inicial)
         with psycopg.connect(DSN) as conn:
-            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], "pagado")
+            self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], estado_inicial)
 
     def test_11_rol_publico_no_puede_escribir_tablas_de_reversion(self):
         with psycopg.connect(DSN) as conn:
