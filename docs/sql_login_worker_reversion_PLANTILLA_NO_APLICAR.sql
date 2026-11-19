@@ -1,0 +1,13 @@
+-- PLANTILLA EXCLUSIVAMENTE PARA REVISION. NO EJECUTAR EN PRODUCCION.
+-- Requiere migración de reversión, respaldo probado y autorización DDL.
+-- La contraseña se debe suministrar por canal seguro, nunca por GitHub/SQL versionado.
+-- Un administrador debe crear el LOGIN con secreto generado fuera del repositorio.
+-- CREATE ROLE tappad_login_reversion LOGIN NOINHERIT NOBYPASSRLS
+--   NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD '<SECRETO_FUERA_DEL_REPOSITORIO>';
+-- PostgreSQL 17: la membresía permite SET ROLE, pero no hereda privilegios.
+-- GRANT tappad_reversion_privada TO tappad_login_reversion WITH SET TRUE, INHERIT FALSE;
+-- REVOKE ALL ON SCHEMA public FROM tappad_login_reversion;
+-- No otorgar privilegios DML directos al login.
+-- Verificar TLS, rotación, secreto de entorno y el preflight del ejecutor.
+-- No aplicar este archivo como migración; no contiene credenciales ni comandos activos.
+SELECT 'NO_APLICAR_PLANTILLA' AS estado;
