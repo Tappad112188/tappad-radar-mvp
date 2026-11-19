@@ -17,6 +17,11 @@ class BorradorReversionTests(unittest.TestCase):
         self.assertIn("consulta_directa_mercadopago", SQL)
         self.assertIn("payment_id", SQL)
         self.assertIn("preapproval_id", SQL)
+    def test_rechaza_nulos_y_referencias_vacias(self):
+        self.assertIn("p_estado_remoto is null", SQL.lower())
+        for campo in ("payment_id", "preapproval_id", "seller_id"):
+            self.assertIn("nullif(btrim(p_evidencia->>\'" + campo + "\'),\'\') is null", SQL.lower())
+
     def test_solo_reversiones(self):
         self.assertIn("('refunded','charged_back')", SQL)
         self.assertIn("transicion_conflictiva", SQL)
