@@ -5,7 +5,7 @@ cargados por backend. Nunca usa payload de webhook como fuente de verdad.
 No modifica Supabase, no cobra ni revoca acceso.
 """
 from urllib.request import urlopen
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from verificar_pago_mercadopago_servidor import _get_json, VerificacionRechazada
 from politica_estados_mercadopago import clasificar_estado_remoto
 
@@ -37,10 +37,24 @@ def auditar_estado_remoto(suscripcion, pago_local, *, token, seller_id_esperado,
         raise VerificacionRechazada("identidad_remota_inconsistente")
     if str(pago.get("collector_id") or "") != str(seller_id_esperado):
         raise VerificacionRechazada("vendedor_pago_inconsistente")
-    if str(pago.get("preapproval_id") or "") != sid:
-        # Un pago sin preapproval_id directo necesita la consulta adicional
-        # de authorized_payments. No asumir vinculo por coincidencia de IDs.
-        raise VerificacionRechazada("vinculo_pago_no_verificable")
+    vinculo_directo = str(pago.get("preapproval_id") or "") == sid
+    if not vinculo_directo:
+        # No aceptar un preapproval_id contradictorio: solo completar ausentes.
+        if pago.get("preapproval_id"):
+            raise VerificacionRechazada("vinculo_pago_no_verificable")
+        consulta = "/authorized_payments/search?" + urlencode(
+            {"preapproval_id": sid, "limit": "100", "offset": "0"})
+        autorizados = _get_json(consulta, token, opener=opener)
+        filas = autorizados.get("results")
+        if not isinstance(filas, list):
+            raise VerificacionRechazada("autorizaciones_invalidas")
+        vinculados = [
+            x for x in filas if isinstance(x, dict)
+            and str(x.get("preapproval_id") or x.get("subscription_id") or "") == sid
+            and str((x.get("payment") or {}).get("id") or x.get("payment_id") or "") == pid
+        ]
+        if len(vinculados) != 1 or vinculados[0].get("status") not in ("processed", "approved"):
+            raise VerificacionRechazada("vinculo_pago_no_verificable")
     decision = clasificar_estado_remoto(
         estado_pago=pago.get("status"), estado_suscripcion=sub.get("status"),
         vinculo_verificado=True, vendedor_verificado=True)
