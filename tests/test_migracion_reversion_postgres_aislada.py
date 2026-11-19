@@ -131,6 +131,39 @@ class MigracionReversionAislada(unittest.TestCase):
                 "suspendido")
             self.assertEqual(conn.execute("""SELECT count(*) FROM
                 tappad_internal.auditoria_estados_mercadopago WHERE pago_id=700""").fetchone()[0], 1)
+            # Renovacion: revertir el pago anterior no debe suspender
+            # el acceso respaldado por el ciclo mas reciente.
+            conn.execute("""INSERT INTO public.pagos_tappad
+                (id,suscripcion_id,proveedor_cobro,referencia_externa,estado)
+                VALUES (701,700,'mercadopago_produccion','pay-ci-701','pagado')""")
+            conn.execute("""INSERT INTO public.activaciones_comerciales_tappad
+                (id,cliente_id,suscripcion_id,pago_id,estado,periodo_inicio,periodo_fin)
+                VALUES (701,700,700,701,'aplicada',
+                    now()-interval '1 day',now()+interval '60 days')""")
+            conn.execute("""UPDATE public.acceso_comercial_tappad
+                SET estado='habilitado', vigente_hasta=now()+interval '60 days'
+                WHERE cliente_id=700""")
+            conn.execute("SET ROLE tappad_reversion_privada")
+            historical = conn.execute("""SELECT tappad_internal.conciliar_reversion_pago(
+                700,700,'refunded',%s::jsonb)""", (evidence,)).fetchone()[0]
+            conn.execute("RESET ROLE")
+            self.assertFalse(historical)
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.acceso_comercial_tappad WHERE cliente_id=700").fetchone()[0],
+                "habilitado")
+            evidence_new = '{"origen":"consulta_directa_mercadopago","payment_id":"pay-ci-701","preapproval_id":"sub-ci-700","seller_id":"seller-ci"}'
+            conn.execute("SET ROLE tappad_reversion_privada")
+            latest = conn.execute("""SELECT tappad_internal.conciliar_reversion_pago(
+                701,700,'charged_back',%s::jsonb)""", (evidence_new,)).fetchone()[0]
+            conn.execute("RESET ROLE")
+            self.assertTrue(latest)
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.acceso_comercial_tappad WHERE cliente_id=700").fetchone()[0],
+                "suspendido")
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=701").fetchone()[0],
+                "contracargo")
+
 
 
 if __name__ == "__main__":
