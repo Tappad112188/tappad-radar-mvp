@@ -17,8 +17,9 @@ class Cursor:
     def fetchone(self):
         n = len(self.calls)
         if n == 1: return None if self.missing else (7,)
-        if n == 2: return (7, "mercadopago_produccion", "sub-1")
-        if n == 3: return (9, 7, "mercadopago_produccion", "pay-1")
+        if n == 2: return (7, 4, "mercadopago_produccion", "sub-1")
+        if n == 3: return (4,)
+        if n == 4: return (9, 7, "mercadopago_produccion", "pay-1")
         return (self.applied,)
 
 
@@ -62,7 +63,7 @@ class WorkerTests(unittest.TestCase):
             result = self.run_worker(permitir=True)
         self.assertEqual(result["estado"], "aplicada")
         self.assertTrue(self.conn.committed)
-        self.assertEqual(len(self.conn.c.calls), 4)
+        self.assertEqual(len(self.conn.c.calls), 5)
     def test_idempotente(self):
         self.conn = Conn(applied=False)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
@@ -78,7 +79,7 @@ class WorkerTests(unittest.TestCase):
                     token="fake", seller_id="11", permitir=True,
                     connect=self.connect, auditar=bad)
         self.assertTrue(self.conn.rolled_back)
-        self.assertEqual(len(self.conn.c.calls), 3)
+        self.assertEqual(len(self.conn.c.calls), 4)
     def test_sin_reversion_no_escribe(self):
         def approved(*args, **kwargs):
             return {"decision": "pago_aprobado_sujeto_a_conciliacion"}
