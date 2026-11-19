@@ -27,7 +27,7 @@ def conciliar_reversion_privada(pago_id, *, postgres_dsn, token, seller_id,
         connect = psycopg.connect
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
-            # Mismo orden de bloqueo que el SQL de conciliacion: suscripcion, pago.
+            # Mismo orden que activacion y SQL: suscripcion, acceso, pago.
             # La consulta inicial no bloquea: el ID se obtiene exclusivamente del
             # registro local, nunca de un webhook sin verificar.
             cursor.execute(
@@ -38,10 +38,16 @@ def conciliar_reversion_privada(pago_id, *, postgres_dsn, token, seller_id,
                 raise VerificacionRechazada("pago_no_encontrado")
             sid_local = row[0]
             cursor.execute(
-                """SELECT id, proveedor_cobro, referencia_externa
+                """SELECT id, cliente_id, proveedor_cobro, referencia_externa
                    FROM public.suscripciones_tappad WHERE id=%s FOR UPDATE""",
                 (sid_local,))
             subrow = cursor.fetchone()
+            if subrow is None:
+                raise VerificacionRechazada("suscripcion_no_encontrada")
+            cursor.execute(
+                """SELECT cliente_id FROM public.acceso_comercial_tappad
+                   WHERE cliente_id=%s FOR UPDATE""", (subrow[1],))
+            cursor.fetchone()
             cursor.execute(
                 """SELECT id, suscripcion_id, proveedor_cobro, referencia_externa
                    FROM public.pagos_tappad WHERE id=%s AND suscripcion_id=%s
@@ -50,7 +56,7 @@ def conciliar_reversion_privada(pago_id, *, postgres_dsn, token, seller_id,
             payrow = cursor.fetchone()
             if subrow is None or payrow is None:
                 raise VerificacionRechazada("relacion_local_invalida")
-            sub = dict(zip(("id", "proveedor_cobro", "referencia_externa"), subrow))
+            sub = dict(zip(("id", "cliente_id", "proveedor_cobro", "referencia_externa"), subrow))
             pay = dict(zip(("id", "suscripcion_id", "proveedor_cobro",
                             "referencia_externa"), payrow))
             resultado = auditar(sub, pay, token=token, seller_id_esperado=seller_id)
