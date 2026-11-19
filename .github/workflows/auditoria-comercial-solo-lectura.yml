@@ -1,6 +1,10 @@
 name: Mercado Pago - auditoria privada SOLO LECTURA
 on:
   workflow_dispatch:
+  push:
+    branches: [desarrollo-registro-proveedores]
+    paths:
+      - '.github/workflows/auditoria-comercial-solo-lectura.yml'
   schedule:
     - cron: '17 */6 * * *'
 permissions:
@@ -31,12 +35,31 @@ jobs:
         shell: bash
         run: |
           if [[ -z "$TAPPAD_SUPABASE_URL" || -z "$TAPPAD_SUPABASE_SERVICE_ROLE_KEY" || -z "$TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN" ]]; then
-            echo "::notice::Auditoria no ejecutada: faltan secretos del entorno comercial-lectura."
-            exit 0
+            echo "::error::Auditoria no ejecutada: faltan secretos del entorno comercial-lectura."
+            exit 1
           fi
           python - <<'PY'
           import os
+          import json
+          from urllib.request import Request, urlopen
           from conciliador_pagos_pendientes_lectura import auditar
+          from urllib.parse import urlencode
+          sb = os.environ["TAPPAD_SUPABASE_URL"].rstrip("/")
+          sk = os.environ["TAPPAD_SUPABASE_SERVICE_ROLE_KEY"]
+          mp = os.environ["TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN"]
+          if not (sb.startswith("https://") and sb.endswith(".supabase.co")):
+              raise SystemExit("URL de Supabase no valida")
+          req = Request(sb + "/rest/v1/pagos_tappad?select=id&limit=1", headers={"apikey":sk,"Authorization":"Bearer "+sk})
+          with urlopen(req, timeout=20) as response:
+              if not isinstance(json.load(response), list):
+                  raise SystemExit("Respuesta de Supabase no valida")
+          print("Conexion Supabase: verificada (GET)")
+          req = Request("https://api.mercadopago.com/users/me", headers={"Authorization":"Bearer "+mp})
+          with urlopen(req, timeout=20) as response:
+              info = json.load(response)
+              if not isinstance(info, dict) or not info.get("id"):
+                  raise SystemExit("Respuesta de Mercado Pago no valida")
+          print("Conexion Mercado Pago: verificada (GET)")
           reporte = auditar(
               supabase_url=os.environ["TAPPAD_SUPABASE_URL"],
               supabase_key=os.environ["TAPPAD_SUPABASE_SERVICE_ROLE_KEY"],
