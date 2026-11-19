@@ -118,7 +118,7 @@ class PuenteTests(unittest.TestCase):
             with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
-        self.assertEqual(len(self.con.cursor_obj.executions),1)
+        self.assertEqual(len(self.con.cursor_obj.executions),3)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_fecha_de_pago_futura_no_activa(self, verifier):
@@ -129,7 +129,7 @@ class PuenteTests(unittest.TestCase):
             with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
-        self.assertEqual(len(self.con.cursor_obj.executions),1)
+        self.assertEqual(len(self.con.cursor_obj.executions),3)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_rol_administrativo_bloqueado(self, verifier):
