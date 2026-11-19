@@ -73,5 +73,40 @@ class MigracionReversionAislada(unittest.TestCase):
                 'tappad_reversion_privada','public.pagos_tappad','referencia_externa','UPDATE')""").fetchone()[0])
 
 
+            # Ejecutar la funcion con los privilegios reales del rol privado,
+            # no como postgres (que omite RLS).
+            conn.execute("""INSERT INTO public.suscripciones_tappad
+                (id,cliente_id,proveedor_cobro,referencia_externa,estado)
+                VALUES (700,700,'mercadopago_produccion','sub-ci-700','activa')""")
+            conn.execute("""INSERT INTO public.pagos_tappad
+                (id,suscripcion_id,proveedor_cobro,referencia_externa,estado)
+                VALUES (700,700,'mercadopago_produccion','pay-ci-700','pagado')""")
+            conn.execute("""INSERT INTO public.acceso_comercial_tappad
+                (cliente_id,suscripcion_id,estado,vigente_hasta,actualizado_en)
+                VALUES (700,700,'habilitado',now()+interval '30 days',now())""")
+            conn.execute("""INSERT INTO public.activaciones_comerciales_tappad
+                (id,cliente_id,suscripcion_id,pago_id,estado,periodo_inicio,periodo_fin)
+                SELECT 700,700,700,700,'aplicada',now()-interval '1 day',
+                       vigente_hasta FROM public.acceso_comercial_tappad
+                WHERE cliente_id=700""")
+            evidence = '{"origen":"consulta_directa_mercadopago","payment_id":"pay-ci-700","preapproval_id":"sub-ci-700","seller_id":"seller-ci"}'
+            conn.execute("SET ROLE tappad_reversion_privada")
+            first = conn.execute("""SELECT tappad_internal.conciliar_reversion_pago(
+                700,700,'refunded',%s::jsonb)""", (evidence,)).fetchone()[0]
+            second = conn.execute("""SELECT tappad_internal.conciliar_reversion_pago(
+                700,700,'refunded',%s::jsonb)""", (evidence,)).fetchone()[0]
+            self.assertTrue(first)
+            self.assertFalse(second)
+            conn.execute("RESET ROLE")
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=700").fetchone()[0],
+                "reembolsado")
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.acceso_comercial_tappad WHERE cliente_id=700").fetchone()[0],
+                "suspendido")
+            self.assertEqual(conn.execute("""SELECT count(*) FROM
+                tappad_internal.auditoria_estados_mercadopago WHERE pago_id=700""").fetchone()[0], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
