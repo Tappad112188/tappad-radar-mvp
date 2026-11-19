@@ -51,6 +51,11 @@ begin
   end if;
   select * into strict v_sub from public.suscripciones_tappad
     where id=p_suscripcion_id for update;
+  -- Orden de bloqueo compartido con la activacion productiva:
+  -- suscripcion -> acceso del cliente -> pago.
+  v_cliente := v_sub.cliente_id;
+  select * into v_acceso from public.acceso_comercial_tappad a
+    where a.cliente_id=v_cliente for update;
   select * into strict v_pago from public.pagos_tappad
     where id=p_pago_id and suscripcion_id=p_suscripcion_id for update;
   if v_sub.proveedor_cobro <> 'mercadopago_produccion'
@@ -76,13 +81,9 @@ begin
   values (p_pago_id,p_suscripcion_id,v_pago.estado,v_estado,p_estado_remoto,p_evidencia);
   -- Suspender solamente si el acceso actual se sustenta en ESTE pago.
   -- No invalidar automaticamente periodos posteriores respaldados por otro cobro.
-  select s.cliente_id into v_cliente from public.suscripciones_tappad s
-    where s.id=p_suscripcion_id;
-  -- Serializar el acceso con otras operaciones concurrentes.
-  select * into v_acceso from public.acceso_comercial_tappad a
-    where a.cliente_id=v_cliente and a.suscripcion_id=p_suscripcion_id
-    for update;
-  if found and v_acceso.estado='habilitado' then
+  if v_acceso.cliente_id is not null
+     and v_acceso.suscripcion_id=p_suscripcion_id
+     and v_acceso.estado='habilitado' then
     select count(*) into v_activaciones_actuales
       from public.activaciones_comerciales_tappad x
      where x.cliente_id=v_cliente and x.suscripcion_id=p_suscripcion_id
