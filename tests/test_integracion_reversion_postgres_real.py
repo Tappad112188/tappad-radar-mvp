@@ -147,5 +147,51 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                 "SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0],
                 "pagado")
 
+
+    def test_08_rol_privado_minimo_sin_privilegios_admin(self):
+        """Rol NOLOGIN sin superusuario, BYPASSRLS, CREATE ni grants publicos."""
+        firma = "tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)"
+        with psycopg.connect(DSN) as conn:
+            conn.execute("""DO $ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_worker_ci')
+                THEN CREATE ROLE tappad_worker_ci NOLOGIN NOSUPERUSER NOCREATEDB
+                    NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+                END IF;
+            END $""")
+            # El rol se crea solamente en la base efimera de CI.
+            conn.execute("GRANT USAGE ON SCHEMA tappad_internal TO tappad_worker_ci")
+            for tabla in ("suscripciones_tappad", "pagos_tappad",
+                          "acceso_comercial_tappad", "activaciones_comerciales_tappad"):
+                conn.execute("GRANT SELECT ON TABLE public." + tabla + " TO tappad_worker_ci")
+            conn.execute("GRANT UPDATE (estado) ON public.pagos_tappad TO tappad_worker_ci")
+            conn.execute("GRANT UPDATE (estado, actualizado_en) ON public.acceso_comercial_tappad TO tappad_worker_ci")
+            conn.execute("GRANT INSERT ON tappad_internal.auditoria_estados_mercadopago TO tappad_worker_ci")
+            conn.execute("GRANT USAGE ON SEQUENCE tappad_internal.auditoria_estados_mercadopago_id_seq TO tappad_worker_ci")
+            conn.execute("GRANT EXECUTE ON FUNCTION " + firma + " TO tappad_worker_ci")
+            props = conn.execute("""SELECT rolsuper, rolcreatedb, rolcreaterole,
+                                     rolbypassrls, rolcanlogin
+                                     FROM pg_roles WHERE rolname='tappad_worker_ci'""").fetchone()
+            self.assertEqual(props, (False, False, False, False, False))
+            self.assertFalse(conn.execute(
+                "SELECT has_schema_privilege('tappad_worker_ci','public','CREATE')").fetchone()[0])
+            self.assertFalse(conn.execute(
+                "SELECT has_table_privilege('tappad_worker_ci','public.pagos_tappad','INSERT')").fetchone()[0])
+            self.assertFalse(conn.execute(
+                "SELECT has_table_privilege('tappad_worker_ci','public.suscripciones_tappad','UPDATE')").fetchone()[0])
+            conn.execute("SET LOCAL ROLE tappad_worker_ci")
+            self.assertEqual(conn.execute("SELECT current_user").fetchone()[0], "tappad_worker_ci")
+            result = conn.execute(
+                """SELECT tappad_internal.conciliar_reversion_pago(
+                   11,9,'refunded',%s::jsonb)""",
+                ('{"origen":"consulta_directa_mercadopago","payment_id":"pay-3","preapproval_id":"sub-3","seller_id":"11"}',)).fetchone()[0]
+            self.assertTrue(result)
+            conn.execute("RESET ROLE")
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], "reembolsado")
+            conn.rollback()
+        with psycopg.connect(DSN) as check:
+            self.assertEqual(check.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0], "pagado")
+
 if __name__ == "__main__":
     unittest.main()
