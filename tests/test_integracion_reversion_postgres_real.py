@@ -121,5 +121,31 @@ class IntegracionWorkerPostgres(unittest.TestCase):
         with psycopg.connect(DSN) as conn:
             self.assertEqual(conn.execute("SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0],"pagado")
 
+
+    def test_06_roles_publicos_sin_permiso_ejecucion(self):
+        firma = "tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)"
+        with psycopg.connect(DSN) as conn:
+            for rol in ("anon", "authenticated"):
+                tiene = conn.execute(
+                    "SELECT has_function_privilege(%s,%s,'EXECUTE')",
+                    (rol, firma)).fetchone()[0]
+                self.assertFalse(tiene, f"Permiso indebido: {rol}")
+                esquema = conn.execute(
+                    "SELECT has_schema_privilege(%s,'tappad_internal','USAGE')",
+                    (rol,)).fetchone()[0]
+                self.assertFalse(esquema, f"Esquema privado accesible: {rol}")
+
+    def test_07_funcion_rechaza_estado_nulo_sin_escribir(self):
+        with psycopg.connect(DSN) as conn:
+            with self.assertRaises(psycopg.Error):
+                conn.execute(
+                    """SELECT tappad_internal.conciliar_reversion_pago(
+                       11,9,NULL,%s::jsonb)""",
+                    ('{"origen":"consulta_directa_mercadopago","payment_id":"pay-3","preapproval_id":"sub-3","seller_id":"11"}',))
+            conn.rollback()
+            self.assertEqual(conn.execute(
+                "SELECT estado FROM public.pagos_tappad WHERE id=11").fetchone()[0],
+                "pagado")
+
 if __name__ == "__main__":
     unittest.main()
