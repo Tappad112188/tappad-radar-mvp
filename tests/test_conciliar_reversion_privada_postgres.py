@@ -49,24 +49,24 @@ class WorkerTests(unittest.TestCase):
                 "evidencia": {"origen": "consulta_directa_mercadopago",
                              "seller_id": "11", "payment_id": "pay-1",
                              "preapproval_id": "sub-1"}}
-    def run(self, **kwargs):
+    def run_worker(self, **kwargs):
         return conciliar_reversion_privada(
             9, postgres_dsn="local-test", token="fake", seller_id="11",
             connect=self.connect, auditar=self.auditar, **kwargs)
     def test_bloqueado_por_defecto(self):
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "NO"}):
-            self.assertEqual(self.run(permitir=True)["escrituras"], 0)
+            self.assertEqual(self.run_worker(permitir=True)["escrituras"], 0)
         self.assertEqual(self.conn.c.calls, [])
     def test_reembolso_aplicado(self):
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
-            result = self.run(permitir=True)
+            result = self.run_worker(permitir=True)
         self.assertEqual(result["estado"], "aplicada")
         self.assertTrue(self.conn.committed)
         self.assertEqual(len(self.conn.c.calls), 4)
     def test_idempotente(self):
         self.conn = Conn(applied=False)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
-            self.assertEqual(self.run(permitir=True)["estado"], "ya_conciliada")
+            self.assertEqual(self.run_worker(permitir=True)["estado"], "ya_conciliada")
     def test_evidencia_invalida_revierte(self):
         def bad(*args, **kwargs):
             return {"decision": "revision_revocacion_pago",
@@ -92,7 +92,7 @@ class WorkerTests(unittest.TestCase):
         self.conn = Conn(missing=True)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
             with self.assertRaisesRegex(VerificacionRechazada, "pago_no_encontrado"):
-                self.run(permitir=True)
+                self.run_worker(permitir=True)
         self.assertTrue(self.conn.rolled_back)
 
 
