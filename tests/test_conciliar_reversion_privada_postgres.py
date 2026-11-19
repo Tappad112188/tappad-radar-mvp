@@ -16,10 +16,12 @@ class Cursor:
     def execute(self, sql, params): self.calls.append((sql, params))
     def fetchone(self):
         n = len(self.calls)
-        if n == 1: return None if self.missing else (7,)
-        if n == 2: return (7, 4, "mercadopago_produccion", "sub-1")
-        if n == 3: return (4,)
-        if n == 4: return (9, 7, "mercadopago_produccion", "pay-1")
+        if n == 1: return None
+        if n == 2: return ('tappad_reversion_privada', 'tappad_worker_login', False, True)
+        if n == 3: return None if self.missing else (7,)
+        if n == 4: return (7, 4, "mercadopago_produccion", "sub-1")
+        if n == 5: return (4,)
+        if n == 6: return (9, 7, "mercadopago_produccion", "pay-1")
         return (self.applied,)
 
 
@@ -63,7 +65,7 @@ class WorkerTests(unittest.TestCase):
             result = self.run_worker(permitir=True)
         self.assertEqual(result["estado"], "aplicada")
         self.assertTrue(self.conn.committed)
-        self.assertEqual(len(self.conn.c.calls), 5)
+        self.assertEqual(len(self.conn.c.calls), 7)
     def test_idempotente(self):
         self.conn = Conn(applied=False)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
@@ -79,7 +81,7 @@ class WorkerTests(unittest.TestCase):
                     token="fake", seller_id="11", permitir=True,
                     connect=self.connect, auditar=bad)
         self.assertTrue(self.conn.rolled_back)
-        self.assertEqual(len(self.conn.c.calls), 4)
+        self.assertEqual(len(self.conn.c.calls), 6)
     def test_sin_reversion_no_escribe(self):
         def approved(*args, **kwargs):
             return {"decision": "pago_aprobado_sujeto_a_conciliacion"}
@@ -89,6 +91,14 @@ class WorkerTests(unittest.TestCase):
                 connect=self.connect, auditar=approved)
         self.assertEqual(result["escrituras"], 0)
         self.assertEqual(len(self.conn.c.calls), 4)
+    def test_rol_incorrecto_revierte_sin_consultar_pago(self):
+        self.conn.c.fetchone = lambda: ("postgres", "postgres", True, True)
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
+            with self.assertRaisesRegex(VerificacionRechazada, "identidad_postgres_no_autorizada"):
+                self.run_worker(permitir=True)
+        self.assertTrue(self.conn.rolled_back)
+        self.assertEqual(len(self.conn.c.calls), 2)
+
     def test_pago_inexistente_revierte(self):
         self.conn = Conn(missing=True)
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_REVERSION_PRODUCCION": "SI"}):
