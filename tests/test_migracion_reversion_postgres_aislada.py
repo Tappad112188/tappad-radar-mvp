@@ -27,23 +27,40 @@ class MigracionReversionAislada(unittest.TestCase):
                 END $r$""")
             # Tablas con nombres y columnas comerciales; sin datos reales.
             conn.execute("""CREATE TABLE public.suscripciones_tappad (
-                id bigint primary key, cliente_id bigint not null,
-                proveedor_cobro text, referencia_externa text, estado text not null)""")
+                id bigint primary key, cliente_id bigint not null, plan_id bigint not null default 1,
+                proveedor_cobro text, referencia_externa text, estado text not null,
+                CONSTRAINT suscripciones_tappad_estado_check CHECK
+                (estado IN ('pendiente','prueba','activa','vencida','cancelada','suspendida')))""")
             conn.execute("""CREATE TABLE public.pagos_tappad (
                 id bigint primary key,
                 suscripcion_id bigint not null references public.suscripciones_tappad(id),
                 proveedor_cobro text, referencia_externa text, estado text not null,
+                monto_mxn numeric not null default 0 CHECK (monto_mxn >= 0),
+                fecha_pago timestamptz, creado_en timestamptz not null default now(),
+                UNIQUE (proveedor_cobro,referencia_externa),
                 CONSTRAINT pagos_tappad_estado_check CHECK (
                   estado IN ('pendiente','pagado','fallido','reembolsado','cancelado')))""")
             conn.execute("""CREATE TABLE public.acceso_comercial_tappad (
                 cliente_id bigint primary key, suscripcion_id bigint,
                 estado text not null, vigente_hasta timestamptz,
-                actualizado_en timestamptz not null)""")
+                origen text not null default 'evaluacion_manual',
+                habilitado_desde timestamptz,
+                actualizado_en timestamptz not null,
+                CONSTRAINT acceso_comercial_tappad_estado_check CHECK
+                (estado IN ('sin_verificar','habilitado','suspendido','prueba')),
+                CONSTRAINT acceso_comercial_no_habilitar_prueba CHECK
+                (estado <> 'habilitado' OR
+                (habilitado_desde IS NOT NULL AND vigente_hasta IS NOT NULL)))""")
             conn.execute("""CREATE TABLE public.activaciones_comerciales_tappad (
                 id bigint primary key, cliente_id bigint not null,
                 suscripcion_id bigint not null, pago_id bigint not null,
-                estado text not null, periodo_inicio timestamptz,
-                periodo_fin timestamptz)""")
+                estado text not null, periodo_inicio timestamptz not null,
+                periodo_fin timestamptz not null,
+                evidencia_proveedor jsonb not null default '{}'::jsonb,
+                UNIQUE(pago_id),
+                CONSTRAINT activaciones_periodo_valido CHECK(periodo_fin > periodo_inicio),
+                CONSTRAINT activaciones_comerciales_tappad_estado_check CHECK
+                (estado IN ('pendiente_revision','aplicada','rechazada')))""")
             for table in ("suscripciones_tappad", "pagos_tappad",
                           "acceso_comercial_tappad", "activaciones_comerciales_tappad"):
                 conn.execute("ALTER TABLE public." + table + " ENABLE ROW LEVEL SECURITY")
@@ -82,8 +99,8 @@ class MigracionReversionAislada(unittest.TestCase):
                 (id,suscripcion_id,proveedor_cobro,referencia_externa,estado)
                 VALUES (700,700,'mercadopago_produccion','pay-ci-700','pagado')""")
             conn.execute("""INSERT INTO public.acceso_comercial_tappad
-                (cliente_id,suscripcion_id,estado,vigente_hasta,actualizado_en)
-                VALUES (700,700,'habilitado',now()+interval '30 days',now())""")
+                (cliente_id,suscripcion_id,estado,vigente_hasta,actualizado_en,habilitado_desde)
+                VALUES (700,700,'habilitado',now()+interval '30 days',now(),now()-interval '1 day')""")
             conn.execute("""INSERT INTO public.activaciones_comerciales_tappad
                 (id,cliente_id,suscripcion_id,pago_id,estado,periodo_inicio,periodo_fin)
                 SELECT 700,700,700,700,'aplicada',now()-interval '1 day',
