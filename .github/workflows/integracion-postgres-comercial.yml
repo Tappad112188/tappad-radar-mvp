@@ -6,6 +6,7 @@ on:
     branches: [desarrollo-registro-proveedores]
     paths:
       - 'conciliar_reversion_privada_postgres.py'
+      - 'tests/test_conciliar_reversion_privada_postgres.py'
       - 'auditar_estados_remotos_mercadopago.py'
       - 'docs/sql_conciliacion_reversion_mercadopago_borrador.sql'
       - 'docs/sql_preparacion_reversion_privada_NO_APLICAR.sql'
@@ -47,6 +48,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_gate_lanzamiento_comercial.py' -v
       - name: Probar migraciones y permisos en PostgreSQL efimero
         run: python -m unittest discover -s tests -p 'test_migracion_reversion_postgres_aislada.py' -v
+      - name: Validar identidad y seguridad del worker sin red
+        run: python -m unittest discover -s tests -p 'test_conciliar_reversion_privada_postgres.py' -v
       - name: Reiniciar base efimera para las pruebas de integracion
         run: |
           PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE tappad_ci_pruebas WITH (FORCE);'
