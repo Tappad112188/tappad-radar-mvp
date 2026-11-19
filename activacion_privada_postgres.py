@@ -49,6 +49,16 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
     # El contexto DB-API revierte la transaccion ante cualquier excepcion.
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
+            # Solo un LOGIN dedicado puede asumir el rol privado NOLOGIN.
+            cursor.execute("SET LOCAL ROLE tappad_activador_privado")
+            cursor.execute("""SELECT current_user, session_user,
+                (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user),
+                (SELECT rolcanlogin FROM pg_roles WHERE rolname=session_user)""")
+            identidad = cursor.fetchone()
+            if (not identidad or identidad[0] != "tappad_activador_privado"
+                    or identidad[1] in ("postgres", "service_role", "anon", "authenticated")
+                    or identidad[2] is not False or identidad[3] is not True):
+                raise VerificacionRechazada("identidad_activacion_no_autorizada")
             cursor.execute(
                 """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
                 FROM public.pagos_tappad p
