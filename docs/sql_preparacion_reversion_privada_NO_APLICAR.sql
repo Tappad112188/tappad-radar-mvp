@@ -35,7 +35,7 @@ $roles$;
 
 -- El esquema y funcion de reversion deben existir antes de ejecutar.
 ALTER TABLE tappad_internal.auditoria_estados_mercadopago ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON tappad_internal.auditoria_estados_mercadop
+REVOKE ALL ON tappad_internal.auditoria_estados_mercadopago
   FROM PUBLIC, anon, authenticated;
 GRANT USAGE ON SCHEMA tappad_internal TO tappad_reversion_privada;
 GRANT SELECT ON public.suscripciones_tappad,public.pagos_tappad,
@@ -46,7 +46,7 @@ GRANT UPDATE (estado) ON public.suscripciones_tappad TO tappad_reversion_privada
 GRANT UPDATE (estado) ON public.pagos_tappad TO tappad_reversion_privada;
 GRANT UPDATE (estado,actualizado_en) ON public.acceso_comercial_tappad TO tappad_reversion_privada;
 GRANT INSERT ON tappad_internal.auditoria_estados_mercadop TO tappad_reversion_privada;
-GRANT USAGE ON SEQUENCE tappad_internal.auditoria_estados_mercadop_id_seq TO tappad_reversion_privada;
+GRANT USAGE ON SEQUENCE tappad_internal.auditoria_estados_mercadopago_id_seq TO tappad_reversion_privada;
 GRANT EXECUTE ON FUNCTION tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)
   TO tappad_reversion_privada;
 
