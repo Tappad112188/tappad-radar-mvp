@@ -13,7 +13,7 @@ Fecha: 2026-11-18. Rama: desarrollo-registro-proveedores.
    columnas y constraints. Ningun cambio aplicado a produccion.
 5. Preparacion de SQL de migracion para estado 'contracargo', rol de reversion
    NOLOGIN, GRANT y politicas RLS. Archivo NO_APLICAR, no ejecutado.
-6. Compuerta estatica de lanzamiento en CI.
+6. Compuerta estatica de lanzamiento en CI.\n7. Dos workers concurrentes sobre un mismo pago: prueba PostgreSQL 17 aprobada,\n   una sola auditoria y un unico cambio efectivo.
 
 ## Bloqueantes REALES descubiertos
 - La restriccion productiva pagos_tappad_estado_check **NO admite
@@ -30,8 +30,7 @@ Fecha: 2026-11-18. Rama: desarrollo-registro-proveedores.
 - La integracion de la API Mercado Pago en pruebas es simulada; falta
   comprobacion end-to-end contra un cobro real autorizado, sin crear
   cargos no solicitados.
-- Falta validacion de concurrencia simultanea entre activacion y
-  reversion en dos conexiones PostgreSQL, con timeouts y reintentos.
+- La concurrencia de dos reversiones sobre el mismo pago esta aprobada;\n  falta prueba cruzada activacion vs reversion con timeouts y reintentos.
 - Renovaciones anticipadas siguen en pendiente hasta vencimiento:
   se requiere politica operativa de reintento, observabilidad y alertas.
 
