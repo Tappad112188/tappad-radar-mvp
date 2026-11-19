@@ -1,4 +1,5 @@
 name: Integracion PostgreSQL comercial aislada
+# Verificacion previa a migracion productiva solicitada el 2026-11-18
 on:
   workflow_dispatch:
   push:
