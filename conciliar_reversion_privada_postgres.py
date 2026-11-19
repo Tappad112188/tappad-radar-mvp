@@ -27,6 +27,18 @@ def conciliar_reversion_privada(pago_id, *, postgres_dsn, token, seller_id,
         connect = psycopg.connect
     with connect(postgres_dsn) as conn:
         with conn.cursor() as cursor:
+            # SET LOCAL ROLE solo tiene efecto durante esta transaccion.
+            # Requiere membresia SET ROLE otorgada al login dedicado.
+            # Nunca usar credenciales postgres/service_role como sustituto.
+            cursor.execute("SET LOCAL ROLE tappad_reversion_privada")
+            cursor.execute("""SELECT current_user, session_user,
+                (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user),
+                (SELECT rolcanlogin FROM pg_roles WHERE rolname=session_user)""")
+            identidad = cursor.fetchone()
+            if (not identidad or identidad[0] != "tappad_reversion_privada"
+                    or identidad[1] in ("postgres", "service_role", "anon", "authenticated")
+                    or identidad[2] is not False or identidad[3] is not True):
+                raise VerificacionRechazada("identidad_postgres_no_autorizada")
             # Mismo orden que activacion y SQL: suscripcion, acceso, pago.
             # La consulta inicial no bloquea: el ID se obtiene exclusivamente del
             # registro local, nunca de un webhook sin verificar.
