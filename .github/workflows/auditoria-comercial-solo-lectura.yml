@@ -1,4 +1,5 @@
 name: Mercado Pago - auditoria privada SOLO LECTURA
+# Reejecucion de validacion de credenciales tras correccion de URL
 on:
   workflow_dispatch:
   push:
