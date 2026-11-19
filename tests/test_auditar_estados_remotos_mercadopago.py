@@ -52,6 +52,21 @@ class AuditorRemotoTests(unittest.TestCase):
         with self.assertRaises(VerificacionRechazada): self.auditar()
     def test_vinculo_ausente_rechazado(self):
         self.remotos["/v1/payments/pay-1"].pop("preapproval_id")
+        self.remotos["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {"results":[]}
+        with self.assertRaises(VerificacionRechazada): self.auditar()
+    def test_vinculo_recurrente_verificado_por_autorizaciones(self):
+        self.remotos["/v1/payments/pay-1"].pop("preapproval_id")
+        self.remotos["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {
+            "results":[{"preapproval_id":"sub-1","payment":{"id":"pay-1"},"status":"processed"}]}
+        self.assertEqual(self.auditar()["decision"],"pago_aprobado_sujeto_a_conciliacion")
+        self.assertEqual(len(self.consultas),4)
+    def test_vinculo_recurrente_duplicado_rechazado(self):
+        self.remotos["/v1/payments/pay-1"].pop("preapproval_id")
+        row={"preapproval_id":"sub-1","payment":{"id":"pay-1"},"status":"processed"}
+        self.remotos["/authorized_payments/search?preapproval_id=sub-1&limit=100&offset=0"] = {"results":[row,row]}
+        with self.assertRaises(VerificacionRechazada): self.auditar()
+    def test_vinculo_directo_contradictorio_rechazado(self):
+        self.remotos["/v1/payments/pay-1"]["preapproval_id"]="otra-sub"
         with self.assertRaises(VerificacionRechazada): self.auditar()
     def test_entorno_prueba_rechazado_antes_de_red(self):
         self.sub["proveedor_cobro"]="mercadopago_prueba"
