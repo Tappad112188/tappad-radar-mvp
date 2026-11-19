@@ -45,11 +45,23 @@ jobs:
           from urllib.request import Request, urlopen
           from conciliador_pagos_pendientes_lectura import auditar
           from urllib.parse import urlencode
-          sb = os.environ["TAPPAD_SUPABASE_URL"].rstrip("/")
+          from urllib.parse import urlsplit
+          raw_sb = os.environ["TAPPAD_SUPABASE_URL"]
+          sb = raw_sb.strip().rstrip("/")
+          parsed = urlsplit(sb)
+          expected_host = "rgzjrziulhobgjfhwvfw.supabase.co"
+          if not (parsed.scheme == "https" and parsed.hostname == expected_host and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment and parsed.path in ("", "/")):
+              hints = []
+              if raw_sb != raw_sb.strip(): hints.append("espacios_exteriores")
+              if parsed.scheme != "https": hints.append("esquema_no_https")
+              if parsed.hostname != expected_host: hints.append("host_incorrecto")
+              if parsed.path not in ("", "/"): hints.append("ruta_adicional")
+              if parsed.query or parsed.fragment: hints.append("parametros_adicionales")
+              if not hints: hints.append("formato_invalido")
+              raise SystemExit("URL Supabase invalida; diagnostico: " + ",".join(hints))
           sk = os.environ["TAPPAD_SUPABASE_SERVICE_ROLE_KEY"]
           mp = os.environ["TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN"]
-          if not (sb.startswith("https://") and sb.endswith(".supabase.co")):
-              raise SystemExit("URL de Supabase no valida")
+
           req = Request(sb + "/rest/v1/pagos_tappad?select=id&limit=1", headers={"apikey":sk,"Authorization":"Bearer "+sk})
           with urlopen(req, timeout=20) as response:
               if not isinstance(json.load(response), list):
