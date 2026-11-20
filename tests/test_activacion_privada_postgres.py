@@ -18,8 +18,9 @@ class FakeCursor:
     def execute(self, sql, args=None): self.executions.append((sql,args))
     def fetchone(self):
         if len(self.executions)==2: return ("tappad_activador_privado", "tappad_login_ci", False, True)
-        if len(self.executions)==3: return (self.fecha_pago or datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",self.vencimiento)
-        if len(self.executions)==4: return (datetime.now(timezone.utc)+timedelta(days=30),)
+        if len(self.executions)==3: return (False,)
+        if len(self.executions)==4: return (self.fecha_pago or datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",self.vencimiento)
+        if len(self.executions)==5: return (datetime.now(timezone.utc)+timedelta(days=30),)
         return (self.accepted,)
 
 
@@ -107,7 +108,7 @@ class PuenteTests(unittest.TestCase):
             with self.assertRaisesRegex(VerificacionRechazada,"renovacion_anticipada_pendiente"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
-        self.assertEqual(len(self.con.cursor_obj.executions),3)
+        self.assertEqual(len(self.con.cursor_obj.executions),4)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_pago_tardio_no_activa_sin_politica(self, verifier):
@@ -118,7 +119,7 @@ class PuenteTests(unittest.TestCase):
             with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
-        self.assertEqual(len(self.con.cursor_obj.executions),3)
+        self.assertEqual(len(self.con.cursor_obj.executions),4)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_fecha_de_pago_futura_no_activa(self, verifier):
@@ -129,7 +130,7 @@ class PuenteTests(unittest.TestCase):
             with self.assertRaisesRegex(VerificacionRechazada,"pago_fuera_de_ventana"):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
-        self.assertEqual(len(self.con.cursor_obj.executions),3)
+        self.assertEqual(len(self.con.cursor_obj.executions),4)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_rol_administrativo_bloqueado(self, verifier):
@@ -143,14 +144,29 @@ class PuenteTests(unittest.TestCase):
         self.assertEqual(len(self.con.cursor_obj.executions),2)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_funcion_security_definer_rechazada(self, verifier):
+        verifier.return_value=self.evidence
+        original=self.con.cursor_obj.fetchone
+        def responder():
+            if len(self.con.cursor_obj.executions)==3: return (True,)
+            return original()
+        self.con.cursor_obj.fetchone=responder
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI",
+                                     "TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            with self.assertRaisesRegex(VerificacionRechazada,"funcion_activacion_no_invoker"):
+                self.run_bridge()
+        self.assertTrue(self.con.rolled_back)
+        self.assertEqual(len(self.con.cursor_obj.executions),3)
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_pago_valido_aplica_una_vez(self, verifier):
         verifier.return_value=self.evidence
         with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
             self.assertEqual(self.run_bridge()["aplicacion"],"aplicada")
         self.assertTrue(self.con.committed)
-        self.assertEqual(len(self.con.cursor_obj.executions),5)
+        self.assertEqual(len(self.con.cursor_obj.executions),6)
         self.assertIn("tappad_internal.tappad_aplicar_activacion_comercial",
-                      self.con.cursor_obj.executions[4][0])
+                      self.con.cursor_obj.executions[5][0])
 
 
 if __name__=="__main__":
