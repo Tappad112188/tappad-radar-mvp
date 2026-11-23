@@ -20,8 +20,8 @@ class ActivacionInvoker(unittest.TestCase):
             CREATE TABLE public.acceso_comercial_tappad(cliente_id bigint primary key, suscripcion_id bigint, estado text, origen text, habilitado_desde timestamptz, vigente_hasta timestamptz, ultima_verificacion timestamptz, actualizado_en timestamptz);
             CREATE TABLE public.activaciones_comerciales_tappad(id bigint generated always as identity primary key, cliente_id bigint, suscripcion_id bigint, pago_id bigint unique, periodo_inicio timestamptz, periodo_fin timestamptz, estado text, evidencia_proveedor jsonb);
             INSERT INTO public.planes_tappad VALUES (1,true,'mensual',100);
-            INSERT INTO public.suscripciones_tappad VALUES (1,1,1,'mercadopago_produccion','sub','pendiente',null,null);
-            INSERT INTO public.pagos_tappad VALUES (1,1,'mercadopago_produccion','pay','pagado',100,now()-interval '1 minute');""")
+            INSERT INTO public.suscripciones_tappad VALUES (1,1,1,'mercadopago_produccion','sub','prueba',null,null);
+            INSERT INTO public.pagos_tappad VALUES (1,1,'mercadopago_produccion','pay','pagado',100,now()-interval '9 days');""")
             for table in ("planes","suscripciones","pagos","acceso_comercial","activaciones_comerciales"):
                 name=table+"_tappad"
                 c.execute("ALTER TABLE public."+name+" ENABLE ROW LEVEL SECURITY")
@@ -30,7 +30,7 @@ class ActivacionInvoker(unittest.TestCase):
                     c.execute("CREATE POLICY lectura ON public."+name+" FOR SELECT TO tappad_activador_privado USING (true)")
             c.execute(SQL.read_text(encoding="utf-8"))
             c.execute("SET LOCAL ROLE tappad_activador_privado")
-            call="SELECT tappad_internal.tappad_aplicar_activacion_comercial(1,1,1,now()-interval '1 minute',now()-interval '1 minute'+interval '1 month',%s::jsonb)"
+            call="SELECT tappad_internal.tappad_aplicar_activacion_comercial(1,1,1,now()-interval '9 days',now()-interval '9 days'+interval '1 month',%s::jsonb)"
             import json
             evidence=dict(verificacion_remota="confirmada",entorno="produccion",seller_id="11",payment_id="pay",preapproval_id="sub")
             for key in evidence:
