@@ -51,7 +51,7 @@ def verificar_pago_desde_supabase(pago_id, *, supabase_url, supabase_key,
     sub = _filas(supabase_url, supabase_key, "suscripciones_tappad",
                 {"select": "id,cliente_id,plan_id,estado,proveedor_cobro,referencia_externa",
                  "id": "eq." + str(pago["suscripcion_id"])}, opener=db_opener)
-    if sub.get("estado") not in ("pendiente", "activa"):
+    if sub.get("estado") not in ("pendiente", "activa", "prueba"):
         raise VerificacionRechazada("suscripcion_no_admisible")
     plan = _filas(supabase_url, supabase_key, "planes_tappad",
                  {"select": "id,precio_mxn,activo,periodicidad",
