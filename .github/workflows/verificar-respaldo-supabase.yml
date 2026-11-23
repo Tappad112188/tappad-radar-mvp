@@ -26,10 +26,12 @@ jobs:
         env:
           TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
           PGCONNECT_TIMEOUT: '15'
+          TAPPAD_BACKUP_PASSPHRASE: ${{ secrets.TAPPAD_BACKUP_PASSPHRASE }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "${TAPPAD_POSTGRES_DSN:-}" || { echo 'BLOQUEADO: falta DSN de lectura para respaldo'; exit 1; }
+          test "${#TAPPAD_BACKUP_PASSPHRASE}" -ge 40 || { echo 'BLOQUEADO: falta clave de cifrado independiente de al menos 40 caracteres'; exit 1; }
           umask 077
           backup_dir="$(mktemp -d)"
           trap 'rm -rf "$backup_dir"' EXIT
@@ -74,3 +76,18 @@ jobs:
           local_sql --tuples-only --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" > "$backup_dir/resultado.txt"
           test "$(tr -d '[:space:]' < "$backup_dir/resultado.txt")" = 21
           echo 'RESTAURACION_PARCIAL_APLICACION_CON_AUTH_SIMULADO_VALIDADA; NO ES RESPALDO INTEGRAL NI COPIA RETENIDA'
+          # Cifrar antes de conservar cualquier dato fuera del directorio temporal.
+          export GNUPGHOME="$backup_dir/gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          mkdir -p "$RUNNER_TEMP/tappad-backup-cifrado"
+          encrypted="$RUNNER_TEMP/tappad-backup-cifrado/tappad-aplicacion.dump.gpg"
+          printf '%s\n' "$TAPPAD_BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$encrypted" "$backup_dir/backup.dump"
+          printf '%s\n' "$TAPPAD_BACKUP_PASSPHRASE" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --decrypt "$encrypted" 2>/dev/null | cmp -s "$backup_dir/backup.dump" -
+          echo 'CIFRADO_Y_DESCIFRADO_VERIFICADOS'
+      - name: Conservar exclusivamente respaldo cifrado
+        uses: actions/upload-artifact@v4
+        with:
+          name: tappad-respaldo-aplicacion-cifrado
+          path: ${{ runner.temp }}/tappad-backup-cifrado/tappad-aplicacion.dump.gpg
+          if-no-files-found: error
+          retention-days: 7
