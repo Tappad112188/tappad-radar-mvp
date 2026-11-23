@@ -20,7 +20,7 @@ class FakeCursor:
         if len(self.executions)==2: return ("tappad_activador_privado", "tappad_login_activacion", False, True)
         if len(self.executions)==3: return (False,)
         if len(self.executions) in (4,5): return (7,)
-        if len(self.executions)==6: return (self.fecha_pago or datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",self.vencimiento)
+        if len(self.executions)==6: return (self.fecha_pago or datetime.now(timezone.utc)-timedelta(minutes=2),"mensual",self.vencimiento,getattr(self,"estado","activa"))
         if len(self.executions)==7: return (datetime.now(timezone.utc)+timedelta(days=30),)
         return (self.accepted,)
 
@@ -121,6 +121,16 @@ class PuenteTests(unittest.TestCase):
                 self.run_bridge()
         self.assertTrue(self.con.rolled_back)
         self.assertEqual(len(self.con.cursor_obj.executions),6)
+
+    @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
+    def test_pago_tardio_prueba_respeta_fecha_original(self, verifier):
+        verifier.return_value=self.evidence
+        fecha=datetime.now(timezone.utc)-timedelta(days=9)
+        self.con=FakeConnection(fecha_pago=fecha)
+        self.con.cursor_obj.estado="prueba"
+        with patch.dict(os.environ, {"TAPPAD_HABILITAR_ACTIVACION_PRODUCCION":"SI","TAPPAD_MERCADOPAGO_SELLER_ID":"11"}):
+            self.assertEqual(self.run_bridge()["aplicacion"],"aplicada")
+        self.assertEqual(self.con.cursor_obj.executions[7][1][3],fecha)
 
     @patch("activacion_privada_postgres.verificar_pago_desde_supabase")
     def test_fecha_de_pago_futura_no_activa(self, verifier):
