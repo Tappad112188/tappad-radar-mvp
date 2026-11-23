@@ -7,14 +7,14 @@ on:
         required: true
         type: string
       confirmar:
-        description: Escribir ACTIVAR para autorizar la ejecucion
+        description: Escribir VERIFICAR para solo lectura o ACTIVAR para activar
         required: true
         type: string
 permissions:
   contents: read
 jobs:
   activar:
-    if: ${{ inputs.confirmar == 'ACTIVAR' }}
+    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR') }}
     runs-on: ubuntu-latest
     environment: activacion-comercial
     timeout-minutes: 5
@@ -42,7 +42,33 @@ jobs:
           missing=[x for x in required if not os.getenv(x)]
           if missing: raise SystemExit('Faltan secretos del entorno: '+', '.join(missing))
           PY
+      - name: Verificar registro historico sin escrituras
+        if: ${{ inputs.confirmar == 'VERIFICAR' }}
+        env:
+          TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
+          TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+          PAGO_ID: ${{ inputs.pago_id }}
+        run: |
+          python - <<'PY'
+          import os
+          from conexion_segura_mercadopago_supabase import _filas
+          from verificar_pago_mercadopago_servidor import verificar_pago_servidor
+          url=os.environ['TAPPAD_SUPABASE_URL']
+          key=os.environ['TAPPAD_SUPABASE_SERVICE_ROLE_KEY']
+          p=_filas(url,key,'pagos_tappad',{'id':'eq.'+str(int(os.environ['PAGO_ID']))})
+          s=_filas(url,key,'suscripciones_tappad',{'id':'eq.'+str(p['suscripcion_id'])})
+          pl=_filas(url,key,'planes_tappad',{'id':'eq.'+str(s['plan_id'])})
+          if p['proveedor_cobro'] != 'mercadopago_prueba' or s['proveedor_cobro'] != 'mercadopago_prueba' or s['estado'] != 'prueba' or pl['activo'] is not True:
+              raise SystemExit('Registro historico no admisible')
+          e=verificar_pago_servidor(dict(s,proveedor_cobro='mercadopago_produccion'),dict(p,proveedor_cobro='mercadopago_produccion'),importe_esperado=pl['precio_mxn'],periodicidad=pl['periodicidad'],token=os.environ['TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN'])
+          if e['seller_id'] != os.environ['TAPPAD_MERCADOPAGO_SELLER_ID']:
+              raise SystemExit('Vendedor inesperado')
+          print('PAGO_PRODUCTIVO_VERIFICADO; SIN_ESCRITURAS; pago interno:',p['id'])
+          PY
       - name: Ejecutar una activacion privada
+        if: ${{ inputs.confirmar == 'ACTIVAR' }}
         env:
           TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_ACTIVACION_PRODUCCION }}
           TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
