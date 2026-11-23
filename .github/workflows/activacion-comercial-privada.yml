@@ -1,0 +1,67 @@
+name: Activacion comercial privada (bloqueada por defecto)
+on:
+  workflow_dispatch:
+    inputs:
+      pago_id:
+        description: ID interno del pago conciliado
+        required: true
+        type: string
+      confirmar:
+        description: Escribir ACTIVAR para autorizar la ejecucion
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  activar:
+    if: ${{ inputs.confirmar == 'ACTIVAR' && github.ref == 'refs/heads/desarrollo-registro-proveedores' }}
+    runs-on: ubuntu-latest
+    environment: activacion-comercial
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar driver PostgreSQL
+        run: python -m pip install 'psycopg[binary]==3.2.10'
+      - name: Validar secretos sin imprimirlos
+        env:
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+          TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
+          TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+        run: |
+          python - <<'PY'
+          import os
+          required=('TAPPAD_POSTGRES_DSN','TAPPAD_SUPABASE_URL',
+                    'TAPPAD_SUPABASE_SERVICE_ROLE_KEY',
+                    'TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN',
+                    'TAPPAD_MERCADOPAGO_SELLER_ID')
+          missing=[x for x in required if not os.getenv(x)]
+          if missing: raise SystemExit('Faltan secretos del entorno: '+', '.join(missing))
+          PY
+      - name: Ejecutar una activacion privada
+        env:
+          TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_ACTIVACION_PRODUCCION }}
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+          TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
+          TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+          PAGO_ID: ${{ inputs.pago_id }}
+        run: |
+          python - <<'PY'
+          import os
+          from activacion_privada_postgres import activar_conexion_privada
+          pago=int(os.environ['PAGO_ID'])
+          resultado=activar_conexion_privada(
+            pago,
+            supabase_url=os.environ['TAPPAD_SUPABASE_URL'],
+            supabase_key=os.environ['TAPPAD_SUPABASE_SERVICE_ROLE_KEY'],
+            mercadopago_token=os.environ['TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN'],
+            postgres_dsn=os.environ['TAPPAD_POSTGRES_DSN'],
+            permitir=True)
+          print('Resultado:',resultado['aplicacion'],'pago interno:',pago)
+          PY
