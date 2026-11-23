@@ -29,7 +29,7 @@ class VerificadorTests(unittest.TestCase):
             "/preapproval/sub-1": {"id": "sub-1", "status": "authorized",
                 "auto_recurring": {"currency_id": "MXN", "frequency_type": "months",
                                    "frequency": 1, "transaction_amount": 449}},
-            "/v1/payments/pay-1": {"id": "pay-1", "status": "approved",
+            "/v1/payments/pay-1": {"id": "pay-1", "status": "approved", "live_mode": True,
                 "currency_id": "MXN", "transaction_amount": 449,
                 "date_approved": "2026-11-13T23:00:00Z",
                 "collector_id": 11, "preapproval_id": "sub-1"}
@@ -46,6 +46,12 @@ class VerificadorTests(unittest.TestCase):
     def test_evidencia_valida(self):
         self.assertEqual(self.verificar()["payment_id"], "pay-1")
         self.assertEqual(len(self.visits), 3)
+    def test_live_mode_obligatorio(self):
+        for valor in (False, None, "true"):
+            self.responses["/v1/payments/pay-1"]["live_mode"] = valor
+            with self.assertRaisesRegex(VerificacionRechazada, "pago_remoto_no_productivo"):
+                self.verificar()
+
     def test_vendedor_de_prueba(self):
         self.responses["/users/me"]["tags"] = ["test_user"]
         with self.assertRaises(VerificacionRechazada): self.verificar()
