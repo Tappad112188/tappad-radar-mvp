@@ -53,10 +53,10 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             cursor.execute("SET LOCAL ROLE tappad_activador_privado")
             cursor.execute("""SELECT current_user, session_user,
                 (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user),
-                (SELECT rolcanlogin FROM pg_roles WHERE rolname=session_user)""")
+                (SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname=session_user)""")
             identidad = cursor.fetchone()
             if (not identidad or identidad[0] != "tappad_activador_privado"
-                    or identidad[1] in ("postgres", "service_role", "anon", "authenticated")
+                    or identidad[1] != "tappad_login_activacion"
                     or identidad[2] is not False or identidad[3] is not True):
                 raise VerificacionRechazada("identidad_activacion_no_autorizada")
             # Nunca ejecutar una función SECURITY DEFINER heredada: omite
@@ -66,6 +66,11 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             funcion = cursor.fetchone()
             if funcion is None or funcion[0] is not False:
                 raise VerificacionRechazada("funcion_activacion_no_invoker")
+            cursor.execute("SELECT id FROM public.suscripciones_tappad WHERE id=%s AND cliente_id=%s FOR UPDATE", (evidencia["suscripcion_id"], evidencia["cliente_id"]))
+            if cursor.fetchone() is None:
+                raise VerificacionRechazada("suscripcion_no_encontrada")
+            cursor.execute("SELECT cliente_id FROM public.acceso_comercial_tappad WHERE cliente_id=%s FOR UPDATE", (evidencia["cliente_id"],))
+            cursor.fetchone()
             cursor.execute(
                 """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
                 FROM public.pagos_tappad p
@@ -73,7 +78,7 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
                 JOIN public.planes_tappad pl ON pl.id=s.plan_id
                 LEFT JOIN public.acceso_comercial_tappad a ON a.cliente_id=s.cliente_id
                 WHERE p.id=%s AND s.id=%s AND s.cliente_id=%s
-                FOR UPDATE OF p,s""",
+                FOR UPDATE OF p""",
                 (evidencia["pago_id"], evidencia["suscripcion_id"], evidencia["cliente_id"]))
             ciclo = cursor.fetchone()
             if not ciclo or ciclo[0] is None or ciclo[1] not in ("mensual", "anual"):
