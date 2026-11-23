@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   restauracion:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: respaldo-supabase
     timeout-minutes: 20
     services:
@@ -20,13 +20,8 @@ jobs:
           --health-cmd "pg_isready -U postgres -d restauracion_tappad"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
-      - name: Instalar cliente PostgreSQL 17
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
+      - name: Verificar herramientas PostgreSQL 17
+        run: docker run --rm postgres:17 pg_dump --version
       - name: Verificar copia lógica y restauración aislada
         env:
           TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
@@ -39,13 +34,13 @@ jobs:
           backup_dir="$(mktemp -d)"
           trap 'rm -rf "$backup_dir"' EXIT
           # No registrar DSN, contraseñas ni contenido del volcado.
-          pg_dump --dbname="$TAPPAD_POSTGRES_DSN" --format=custom --no-owner --no-acl --file="$backup_dir/backup.dump"
+          docker run --rm --network host -e TAPPAD_POSTGRES_DSN -e PGCONNECT_TIMEOUT postgres:17 sh -c 'exec pg_dump --dbname="$TAPPAD_POSTGRES_DSN" --format=custom --no-owner --no-acl' > "$backup_dir/backup.dump"
           test -s "$backup_dir/backup.dump"
-          pg_restore --list "$backup_dir/backup.dump" > "$backup_dir/objetos.txt"
+          docker run --rm -i postgres:17 pg_restore --list < "$backup_dir/backup.dump" > "$backup_dir/objetos.txt"
           test -s "$backup_dir/objetos.txt"
           # La restauración de una BD Supabase completa puede requerir extensiones,
           # roles y servicios propios; nunca afirmar éxito si falla.
           export PGPASSWORD=temporal_ci
           pg_restore --host=localhost --port=5432 --username=postgres --dbname=restauracion_tappad             --no-owner --no-acl --exit-on-error "$backup_dir/backup.dump"
-          psql --host=localhost --port=5432 --username=postgres --dbname=restauracion_tappad             --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only             --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"             > "$backup_dir/resultado.txt"
+          docker run --rm --network host -e PGPASSWORD postgres:17 psql --host=localhost --port=5432 --username=postgres --dbname=restauracion_tappad             --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only             --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"             > "$backup_dir/resultado.txt"
           echo 'RESTAURACION_AISLADA_VALIDADA (copia temporal destruida al terminar)'
