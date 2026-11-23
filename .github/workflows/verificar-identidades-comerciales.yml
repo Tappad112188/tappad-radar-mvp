@@ -1,0 +1,52 @@
+name: Verificar identidades comerciales
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - entorno: activacion-comercial
+            login: tappad_login_activacion
+            rol: tappad_activador_privado
+            funcion: tappad_internal.tappad_aplicar_activacion_comercial(bigint,bigint,bigint,timestamptz,timestamptz,jsonb)
+          - entorno: reversion-comercial
+            login: tappad_login_reversion
+            rol: tappad_reversion_privada
+            funcion: tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.entorno }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'psycopg[binary]==3.2.10'
+      - name: Verificar identidad sin escrituras
+        env:
+          DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+          LOGIN: ${{ matrix.login }}
+          ROL: ${{ matrix.rol }}
+          FUNCION: ${{ matrix.funcion }}
+        run: |
+          python - <<'PY'
+          import os, psycopg
+          from psycopg import sql
+          try:
+              with psycopg.connect(os.environ['DSN'], connect_timeout=15) as c:
+                  c.execute('SET TRANSACTION READ ONLY')
+                  c.execute(sql.SQL('SET LOCAL ROLE {}').format(sql.Identifier(os.environ['ROL'])))
+                  r=c.execute("""SELECT session_user, current_user,
+                      (SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname=session_user),
+                      (SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname=current_user),
+                      EXISTS(SELECT 1 FROM pg_proc WHERE oid=to_regprocedure(%s) AND NOT prosecdef),
+                      has_function_privilege(current_user,%s,'EXECUTE')""",(os.environ['FUNCION'],os.environ['FUNCION'])).fetchone()
+                  assert r == (os.environ['LOGIN'],os.environ['ROL'],True,True,True,True), 'identidad_no_aprobada'
+                  c.rollback()
+              print('IDENTIDAD_PRIVADA_VERIFICADA:',os.environ['ROL'])
+          except Exception as e:
+              raise SystemExit('VERIFICACION_FALLIDA: '+type(e).__name__) from None
+          PY
