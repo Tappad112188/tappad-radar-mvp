@@ -34,7 +34,7 @@ jobs:
           backup_dir="$(mktemp -d)"
           trap 'rm -rf "$backup_dir"' EXIT
           # No registrar DSN, contraseñas ni contenido del volcado.
-          docker run --rm --network host -e TAPPAD_POSTGRES_DSN -e PGCONNECT_TIMEOUT postgres:17 sh -c 'exec pg_dump --dbname="$TAPPAD_POSTGRES_DSN" --format=custom --no-owner --no-acl' > "$backup_dir/backup.dump"
+          docker run --rm --network host -e TAPPAD_POSTGRES_DSN -e PGCONNECT_TIMEOUT postgres:17 sh -c 'exec pg_dump --dbname="$TAPPAD_POSTGRES_DSN" --format=custom --no-owner --no-acl --schema=public --schema=tappad_internal --enable-row-security --inserts' > "$backup_dir/backup.dump"
           test -s "$backup_dir/backup.dump"
           docker run --rm -i postgres:17 pg_restore --list < "$backup_dir/backup.dump" > "$backup_dir/objetos.txt"
           test -s "$backup_dir/objetos.txt"
@@ -43,4 +43,4 @@ jobs:
           export PGPASSWORD=temporal_ci
           docker run --rm -i --network host -e PGPASSWORD postgres:17 pg_restore --host=localhost --port=5432 --username=postgres --dbname=restauracion_tappad --no-owner --no-acl --exit-on-error < "$backup_dir/backup.dump"
           docker run --rm --network host -e PGPASSWORD postgres:17 psql --host=localhost --port=5432 --username=postgres --dbname=restauracion_tappad             --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only             --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"             > "$backup_dir/resultado.txt"
-          echo 'RESTAURACION_AISLADA_VALIDADA (copia temporal destruida al terminar)'
+          echo 'RESTAURACION_ESQUEMAS_APLICACION_VALIDADA (copia temporal destruida al terminar)'
