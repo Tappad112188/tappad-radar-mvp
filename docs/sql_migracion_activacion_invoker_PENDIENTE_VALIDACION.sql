@@ -109,6 +109,7 @@ GRANT UPDATE (id) ON public.pagos_tappad TO tappad_activador_privado;
 GRANT UPDATE (estado,fin_periodo,actualizado_en) ON public.suscripciones_tappad TO tappad_activador_privado;
 GRANT INSERT (cliente_id,suscripcion_id,pago_id,periodo_inicio,periodo_fin,estado,evidencia_proveedor) ON public.activaciones_comerciales_tappad TO tappad_activador_privado;
 GRANT INSERT, UPDATE ON public.acceso_comercial_tappad TO tappad_activador_privado;
+CREATE POLICY tappad_activador_lock_pagos ON public.pagos_tappad FOR UPDATE TO tappad_activador_privado USING (true) WITH CHECK (false);
 CREATE POLICY tappad_activador_select_activaciones ON public.activaciones_comerciales_tappad FOR SELECT TO tappad_activador_privado USING (true);
 CREATE POLICY tappad_activador_insert_activaciones ON public.activaciones_comerciales_tappad FOR INSERT TO tappad_activador_privado WITH CHECK (estado='aplicada');
 CREATE POLICY tappad_activador_update_suscripciones ON public.suscripciones_tappad FOR UPDATE TO tappad_activador_privado USING (true) WITH CHECK (estado='activa');
