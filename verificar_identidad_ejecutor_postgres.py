@@ -18,9 +18,9 @@ def verificar_identidad(*, dsn, connect=None):
             cur.execute("SET LOCAL ROLE tappad_reversion_privada")
             cur.execute("""SELECT current_user, session_user,
                 current_setting('search_path'),
-                (SELECT rolcanlogin FROM pg_roles WHERE rolname=session_user),
+                (SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname=session_user),
                 (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user),
-                to_regprocedure('tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)') IS NOT NULL,
+                EXISTS (SELECT 1 FROM pg_proc WHERE oid=to_regprocedure('tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)') AND NOT prosecdef),
                 COALESCE(has_function_privilege(current_user,
                   to_regprocedure('tappad_internal.conciliar_reversion_pago(bigint,bigint,text,jsonb)'),
                   'EXECUTE'),false)""")
@@ -37,7 +37,7 @@ def verificar_identidad(*, dsn, connect=None):
         "puede_ejecutar_reversion": execute,
         "apto_para_reversion": bool(installed and execute and bypass is False and login is True
                                    and role == "tappad_reversion_privada"
-                                   and session not in ("postgres", "service_role", "anon", "authenticated")),
+                                   and session == "tappad_login_reversion"),
     }
 
 
