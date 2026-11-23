@@ -36,7 +36,7 @@ BEGIN
  IF NOT FOUND OR v_plan.activo IS DISTINCT FROM true OR v_plan.periodicidad NOT IN ('mensual','anual') THEN RETURN false; END IF;
  -- Una renovacion solo extiende el periodo previo; nunca lo acorta
  -- ni crea un hueco o solapamiento entre ciclos.
- SELECT vigente_hasta INTO v_fin_anterior
+ SELECT CASE WHEN estado='prueba' THEN NULL ELSE vigente_hasta END INTO v_fin_anterior
  FROM public.acceso_comercial_tappad
  WHERE cliente_id=p_cliente FOR UPDATE;
  IF v_fin_anterior IS NOT NULL THEN
@@ -46,7 +46,7 @@ BEGIN
    END IF;
  ELSE
    -- Primer ciclo: inicio no puede ser futuro ni arbitrariamente antiguo.
-   IF p_inicio < transaction_timestamp() - interval '7 days' THEN
+   IF v_sub.estado <> 'prueba' AND p_inicio < transaction_timestamp() - interval '7 days' THEN
      RETURN false;
    END IF;
  END IF;
@@ -61,6 +61,7 @@ BEGIN
     OR nullif(btrim(v_pago.referencia_externa),'') IS NULL
     OR v_pago.monto_mxn IS DISTINCT FROM v_plan.precio_mxn
     OR v_pago.fecha_pago IS NULL OR v_pago.fecha_pago > transaction_timestamp()
+    OR (v_fin_anterior IS NULL AND p_inicio IS DISTINCT FROM v_pago.fecha_pago)
 
     OR p_evidencia->>'payment_id' IS DISTINCT FROM v_pago.referencia_externa
     OR p_evidencia->>'preapproval_id' IS DISTINCT FROM v_sub.referencia_externa THEN
