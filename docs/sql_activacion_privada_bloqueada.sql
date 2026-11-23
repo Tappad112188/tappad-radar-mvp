@@ -21,15 +21,15 @@ BEGIN
     OR p_inicio IS NULL OR p_fin IS NULL OR p_evidencia IS NULL
     OR p_inicio > transaction_timestamp()
     OR p_fin <= transaction_timestamp() OR p_fin <= p_inicio
-    OR p_evidencia->>'verificacion_remota' <> 'confirmada'
-    OR p_evidencia->>'entorno' <> 'produccion'
+    OR p_evidencia->>'verificacion_remota' IS DISTINCT FROM 'confirmada'
+    OR p_evidencia->>'entorno' IS DISTINCT FROM 'produccion'
     OR nullif(p_evidencia->>'seller_id','') IS NULL THEN
    RETURN false;
  END IF;
  SELECT * INTO v_sub FROM public.suscripciones_tappad
   WHERE id=p_suscripcion AND cliente_id=p_cliente
   FOR UPDATE;
- IF NOT FOUND OR v_sub.proveedor_cobro <> 'mercadopago_produccion'
+ IF NOT FOUND OR v_sub.proveedor_cobro IS DISTINCT FROM 'mercadopago_produccion'
     OR v_sub.estado NOT IN ('pendiente','activa') OR
     nullif(btrim(v_sub.referencia_externa),'') IS NULL THEN RETURN false; END IF;
  SELECT * INTO v_plan FROM public.planes_tappad WHERE id=v_sub.plan_id;
@@ -57,13 +57,13 @@ BEGIN
  SELECT * INTO v_pago FROM public.pagos_tappad
   WHERE id=p_pago AND suscripcion_id=p_suscripcion FOR UPDATE;
  IF NOT FOUND OR v_pago.estado <> 'pagado'
-    OR v_pago.proveedor_cobro <> 'mercadopago_produccion'
+    OR v_pago.proveedor_cobro IS DISTINCT FROM 'mercadopago_produccion'
     OR nullif(btrim(v_pago.referencia_externa),'') IS NULL
     OR v_pago.monto_mxn <> v_plan.precio_mxn
     OR v_pago.fecha_pago IS NULL OR v_pago.fecha_pago > transaction_timestamp()
 
-    OR p_evidencia->>'payment_id' <> v_pago.referencia_externa
-    OR p_evidencia->>'preapproval_id' <> v_sub.referencia_externa THEN
+    OR p_evidencia->>'payment_id' IS DISTINCT FROM v_pago.referencia_externa
+    OR p_evidencia->>'preapproval_id' IS DISTINCT FROM v_sub.referencia_externa THEN
    RETURN false;
  END IF;
  -- La clave UNIQUE(pago_id) protege contra aplicaciones duplicadas.
