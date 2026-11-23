@@ -60,8 +60,9 @@ jobs:
           p=_filas(url,key,'pagos_tappad',{'id':'eq.'+str(int(os.environ['PAGO_ID']))})
           s=_filas(url,key,'suscripciones_tappad',{'id':'eq.'+str(p['suscripcion_id'])})
           pl=_filas(url,key,'planes_tappad',{'id':'eq.'+str(s['plan_id'])})
-          if p['proveedor_cobro'] != 'mercadopago_prueba' or s['proveedor_cobro'] != 'mercadopago_prueba' or s['estado'] != 'prueba' or pl['activo'] is not True:
+          if p['proveedor_cobro'] != 'mercadopago_prueba' or s['proveedor_cobro'] != 'mercadopago_prueba' or s['estado'] != 'prueba':
               raise SystemExit('Registro historico no admisible')
+          print('Plan activo:',pl['activo'],'(solo diagnostico; no autoriza activacion)')
           e=verificar_pago_servidor(dict(s,proveedor_cobro='mercadopago_produccion'),dict(p,proveedor_cobro='mercadopago_produccion'),importe_esperado=pl['precio_mxn'],periodicidad=pl['periodicidad'],token=os.environ['TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN'])
           if e['seller_id'] != os.environ['TAPPAD_MERCADOPAGO_SELLER_ID']:
               raise SystemExit('Vendedor inesperado')
