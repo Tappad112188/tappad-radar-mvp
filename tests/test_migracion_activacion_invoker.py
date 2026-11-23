@@ -40,6 +40,10 @@ class ActivacionInvoker(unittest.TestCase):
             self.assertTrue(c.execute(call,(json.dumps(evidence),)).fetchone()[0])
             self.assertFalse(c.execute(call,(json.dumps(evidence),)).fetchone()[0])
             self.assertEqual(c.execute("SELECT count(*) FROM public.activaciones_comerciales_tappad").fetchone()[0],1)
+            with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                with c.transaction():
+                    c.execute("UPDATE public.pagos_tappad SET id=id WHERE id=1")
+            self.assertEqual(c.execute("SELECT estado FROM public.pagos_tappad WHERE id=1").fetchone()[0],"pagado")
             c.execute("RESET ROLE")
             for role in ("anon","authenticated","service_role"):
                 self.assertFalse(c.execute("SELECT has_function_privilege(%s,'tappad_internal.tappad_aplicar_activacion_comercial(bigint,bigint,bigint,timestamptz,timestamptz,jsonb)','EXECUTE')",(role,)).fetchone()[0])
