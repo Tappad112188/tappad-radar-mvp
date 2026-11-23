@@ -17,7 +17,7 @@ class Cursor:
     def fetchone(self):
         n = len(self.calls)
         if n == 1: return None
-        if n == 2: return ('tappad_reversion_privada', 'tappad_worker_login', False, True)
+        if n == 2: return ('tappad_reversion_privada', 'tappad_login_reversion', False, True)
         if n == 3: return None if self.missing else (7,)
         if n == 4: return (7, 4, "mercadopago_produccion", "sub-1")
         if n == 5: return (4,)
