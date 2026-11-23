@@ -54,12 +54,12 @@ class IntegracionWorkerPostgres(unittest.TestCase):
                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_reversion_privada')
                 THEN CREATE ROLE tappad_reversion_privada NOLOGIN NOINHERIT NOBYPASSRLS;
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_login_ci')
-                THEN CREATE ROLE tappad_login_ci LOGIN NOINHERIT NOBYPASSRLS
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tappad_login_reversion')
+                THEN CREATE ROLE tappad_login_reversion LOGIN NOINHERIT NOBYPASSRLS
                      PASSWORD 'ci_temporal_no_productivo';
                 END IF;
             END $ci$""")
-            conn.execute("GRANT tappad_reversion_privada TO tappad_login_ci WITH SET TRUE, INHERIT FALSE")
+            conn.execute("GRANT tappad_reversion_privada TO tappad_login_reversion WITH SET TRUE, INHERIT FALSE")
             conn.execute("GRANT USAGE ON SCHEMA public, tappad_internal TO tappad_reversion_privada")
             conn.execute("""GRANT SELECT ON public.suscripciones_tappad, public.pagos_tappad,
                 public.acceso_comercial_tappad, public.activaciones_comerciales_tappad
@@ -97,7 +97,7 @@ class IntegracionWorkerPostgres(unittest.TestCase):
 
         global WORKER_DSN
         WORKER_DSN = psycopg.conninfo.make_conninfo(
-            DSN, user="tappad_login_ci", password="ci_temporal_no_productivo")
+            DSN, user="tappad_login_reversion", password="ci_temporal_no_productivo")
 
     def auditar(self, sub, pay, *, token, seller_id_esperado):
         return {"decision":"revision_revocacion_pago",
