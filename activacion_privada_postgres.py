@@ -72,7 +72,7 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             cursor.execute("SELECT cliente_id FROM public.acceso_comercial_tappad WHERE cliente_id=%s FOR UPDATE", (evidencia["cliente_id"],))
             cursor.fetchone()
             cursor.execute(
-                """SELECT p.fecha_pago, pl.periodicidad, a.vigente_hasta
+                """SELECT p.fecha_pago, pl.periodicidad, CASE WHEN a.estado='prueba' THEN NULL ELSE a.vigente_hasta END, s.estado
                 FROM public.pagos_tappad p
                 JOIN public.suscripciones_tappad s ON s.id=p.suscripcion_id
                 JOIN public.planes_tappad pl ON pl.id=s.plan_id
@@ -83,7 +83,7 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             ciclo = cursor.fetchone()
             if not ciclo or ciclo[0] is None or ciclo[1] not in ("mensual", "anual"):
                 raise VerificacionRechazada("ciclo_no_verificable")
-            fecha_pago, periodicidad, vencimiento = ciclo
+            fecha_pago, periodicidad, vencimiento, estado_suscripcion = ciclo
             if fecha_pago.tzinfo is None:
                 raise VerificacionRechazada("fecha_pago_sin_zona")
             ahora = datetime.now(timezone.utc)
@@ -91,6 +91,8 @@ def activar_conexion_privada(pago_id, *, supabase_url, supabase_key,
             # Los pagos anticipados y tardios quedan pendientes de conciliacion.
             decision, inicio = evaluar_inicio_ciclo(
                 fecha_pago=fecha_pago, vencimiento=vencimiento, ahora=ahora)
+            if decision == "revision_tardia" and estado_suscripcion == "prueba" and vencimiento is None:
+                decision, inicio = "aplicar", fecha_pago
             if decision != "aplicar":
                 motivos = {
                     "fecha_futura": "pago_fuera_de_ventana",
