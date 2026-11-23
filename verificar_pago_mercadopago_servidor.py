@@ -77,6 +77,8 @@ def verificar_pago_servidor(suscripcion, pago_local, *, importe_esperado,
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise VerificacionRechazada("importe_suscripcion_invalido") from exc
     pago = _get_json("/v1/payments/" + quote(pid, safe=""), token, opener=opener)
+    if pago.get("live_mode") is not True:
+        raise VerificacionRechazada("pago_remoto_no_productivo")
     if str(pago.get("collector_id") or "") != str(vendedor.get("id")):
         raise VerificacionRechazada("vendedor_pago_inconsistente")
     # En pagos recurrentes la vinculacion puede venir de authorized_payments,
