@@ -5,6 +5,8 @@ on:
   push:
     branches: [desarrollo-registro-proveedores]
     paths:
+      - 'tests/test_migracion_activacion_invoker.py'
+      - 'docs/sql_migracion_activacion_invoker_PENDIENTE_VALIDACION.sql'
       - 'activacion_privada_postgres.py'
       - 'tests/test_activacion_privada_postgres.py'
       - 'docs/sql_activacion_privada_bloqueada.sql'
@@ -61,3 +63,9 @@ jobs:
           PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tappad_ci_pruebas;'
       - name: Ejecutar integracion real con API simulada
         run: python -m unittest discover -s tests -p 'test_integracion_reversion_postgres_real.py' -v
+      - name: Reiniciar base para migracion activacion
+        run: |
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE tappad_ci_pruebas WITH (FORCE);'
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tappad_ci_pruebas;'
+      - name: Probar migracion invoker y RLS de activacion
+        run: python -m unittest discover -s tests -p 'test_migracion_activacion_invoker.py' -v
