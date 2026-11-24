@@ -7,16 +7,19 @@ on:
         required: true
         type: string
       confirmar:
-        description: PLANES para inventario, VERIFICAR para historico o ACTIVAR
+        description: PLANES, CREAR_PLANES, VERIFICAR o ACTIVAR
         required: true
         type: string
 permissions:
   contents: read
 jobs:
   activar:
-    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES') }}
+    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES' || inputs.confirmar == 'CREAR_PLANES') }}
     runs-on: ubuntu-latest
     environment: activacion-comercial
+    concurrency:
+      group: tappad-activacion-comercial
+      cancel-in-progress: false
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +51,13 @@ jobs:
           TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
           TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
         run: python preflight_planes_productivos.py
+      - name: Crear planes productivos sin suscripciones
+        if: ${{ inputs.confirmar == 'CREAR_PLANES' }}
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+        run: python crear_planes_productivos.py
       - name: Verificar registro historico sin escrituras
         if: ${{ inputs.confirmar == 'VERIFICAR' }}
         env:
