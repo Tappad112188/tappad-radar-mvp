@@ -7,14 +7,14 @@ on:
         required: true
         type: string
       confirmar:
-        description: Escribir VERIFICAR para solo lectura o ACTIVAR para activar
+        description: PLANES para inventario, VERIFICAR para historico o ACTIVAR
         required: true
         type: string
 permissions:
   contents: read
 jobs:
   activar:
-    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR') }}
+    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES') }}
     runs-on: ubuntu-latest
     environment: activacion-comercial
     timeout-minutes: 5
@@ -42,6 +42,12 @@ jobs:
           missing=[x for x in required if not os.getenv(x)]
           if missing: raise SystemExit('Faltan secretos del entorno: '+', '.join(missing))
           PY
+      - name: Inventario de planes productivos
+        if: ${{ inputs.confirmar == 'PLANES' }}
+        env:
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+        run: python preflight_planes_productivos.py
       - name: Verificar registro historico sin escrituras
         if: ${{ inputs.confirmar == 'VERIFICAR' }}
         env:
