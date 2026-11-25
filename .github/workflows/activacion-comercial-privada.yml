@@ -7,14 +7,14 @@ on:
         required: true
         type: string
       confirmar:
-        description: PLANES, CREAR_PLANES, VERIFICAR o ACTIVAR
+        description: PLANES, CREAR_PLANES, VERIFICAR, ACTIVAR, PILOTO_LECTURA o PILOTO_APLICAR
         required: true
         type: string
 permissions:
   contents: read
 jobs:
   activar:
-    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES' || inputs.confirmar == 'CREAR_PLANES') }}
+    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES' || inputs.confirmar == 'CREAR_PLANES' || inputs.confirmar == 'PILOTO_LECTURA' || inputs.confirmar == 'PILOTO_APLICAR') }}
     runs-on: ubuntu-latest
     environment: activacion-comercial
     concurrency:
@@ -108,3 +108,20 @@ jobs:
             permitir=True)
           print('Resultado:',resultado['aplicacion'],'pago interno:',pago)
           PY
+
+      - name: Conciliar piloto
+        if: ${{ inputs.confirmar == 'PILOTO_LECTURA' || inputs.confirmar == 'PILOTO_APLICAR' }}
+        env:
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+          TAPPAD_SUPABASE_URL: ${{ secrets.TAPPAD_SUPABASE_URL }}
+          TAPPAD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TAPPAD_SUPABASE_SERVICE_ROLE_KEY }}
+          TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN: ${{ secrets.TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN }}
+          TAPPAD_MERCADOPAGO_SELLER_ID: ${{ secrets.TAPPAD_MERCADOPAGO_SELLER_ID }}
+          TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_ACTIVACION_PRODUCCION }}
+          TAPPAD_HABILITAR_CONCILIACION_PILOTO: ${{ inputs.confirmar == 'PILOTO_APLICAR' && 'SI' || 'NO' }}
+        run: |
+          if [ "$TAPPAD_HABILITAR_CONCILIACION_PILOTO" = SI ]; then
+            python conciliar_pagos_productivos_piloto.py --aplicar
+          else
+            python conciliar_pagos_productivos_piloto.py
+          fi
