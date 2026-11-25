@@ -41,13 +41,14 @@ Deno.serve(async req=>{
  const valid=remote.id===mapping.mercadopago_plan_id&&remote.status==="active"&&String(remote.collector_id)===String(seller.id)&&a?.currency_id==="MXN"&&Number(a.transaction_amount)===Number(plan.precio_mxn)&&a.frequency_type==="months"&&Number(a.frequency)===(plan.id===1?1:12)&&Number(plan.precio_mxn)===(plan.id===1?449:4490);
  return {plan_id:plan.id,verified:valid};
  }));
- return reply({ok:checks.every(c=>c.verified),checks,checkout_enabled:false,mode:"remote_read_only_preflight"},checks.every(c=>c.verified)?200:502);
+ return reply({ok:checks.every(c=>c.verified),checks,checkout_enabled:false,pilot_checkout_enabled:Number(clientId)===4&&user.email?.toLowerCase()==="tappadcons@gmail.com",mode:"remote_read_only_preflight"},checks.every(c=>c.verified)?200:502);
  }catch{return reply({error:"provider_verification_failed"},502);}
  }
  let body:any;try{body=await req.json()}catch{return reply({error:"invalid_json"},400);}
  if(body?.confirm!=="CREAR_CHECKOUT_PRODUCTIVO"||![1,3].includes(body.plan_id))return reply({error:"explicit_confirmation_required"},400);
  const plan=plans?.find(p=>p.id===body.plan_id);
- if(!plan?.activo||Deno.env.get("TAPPAD_CHECKOUT_ENABLED")!=="SI")return reply({error:"checkout_not_released"},409);
+ const pilot=Number(clientId)===4&&user.email?.toLowerCase()==="tappadcons@gmail.com"&&body.plan_id===1;
+ if(!plan||!pilot)return reply({error:"checkout_not_released"},409);
  let seller:any;try{seller=await mp("/users/me");if(!seller.id||seller.site_id!=="MLM"||!Array.isArray(seller.tags)||seller.tags.includes("test_user"))throw Error("seller_invalid");
  const {data:m,error:me}=await db.from("mercadopago_planes_tappad").select("mercadopago_plan_id").eq("entorno","produccion").eq("plan_id",plan.id).single();
  if(me||!m||!/^[a-zA-Z0-9_-]+$/.test(m.mercadopago_plan_id))throw Error("mapping_invalid");
