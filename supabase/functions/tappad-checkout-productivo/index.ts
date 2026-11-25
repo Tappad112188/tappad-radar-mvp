@@ -23,8 +23,25 @@ Deno.serve(async req=>{
  if(ce||!client?.activo||String(client.correo).toLowerCase()!==user.email.toLowerCase())return reply({error:"buyer_client_mismatch"},403);
  const token=Deno.env.get("MERCADOPAGO_PROD_ACCESS_TOKEN");
  if(!token)return reply({error:"configuration_missing"},503);
+ const mp=async(path:string)=>{const r=await fetch("https://api.mercadopago.com"+path,{headers:{Authorization:"Bearer "+token},signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error("provider_http_"+r.status);return await r.json();};
  const {data:plans,error:pe}=await db.from("planes_tappad").select("id,codigo,precio_mxn,periodicidad,activo").in("id",[1,3]);
  if(pe)return reply({error:"plan_lookup_failed"},500);
- if(req.method==="GET")return reply({ok:true,plans,checkout_enabled:false,mode:"deployment_preflight"});
+ if(req.method==="GET"){
+ try {
+ const seller=await mp("/users/me");
+ if(!seller.id||seller.site_id!=="MLM"||!Array.isArray(seller.tags)||seller.tags.includes("test_user"))return reply({error:"seller_invalid"},502);
+ const {data:maps,error:me}=await db.from("mercadopago_planes_tappad").select("plan_id,mercadopago_plan_id").eq("entorno","produccion").in("plan_id",[1,3]);
+ if(me||maps?.length!==2||plans?.length!==2)return reply({error:"mapping_invalid"},409);
+ const checks=await Promise.all(plans.map(async plan=>{
+ const mapping=maps.find(m=>m.plan_id===plan.id);
+ if(!mapping||!/^[a-zA-Z0-9_-]+$/.test(mapping.mercadopago_plan_id))throw new Error("mapping_invalid");
+ const remote=await mp("/preapproval_plan/"+mapping.mercadopago_plan_id);
+ const a=remote.auto_recurring;
+ const valid=remote.id===mapping.mercadopago_plan_id&&remote.status==="active"&&String(remote.collector_id)===String(seller.id)&&a?.currency_id==="MXN"&&Number(a.transaction_amount)===Number(plan.precio_mxn)&&a.frequency_type==="months"&&Number(a.frequency)===(plan.id===1?1:12)&&Number(plan.precio_mxn)===(plan.id===1?449:4490);
+ return {plan_id:plan.id,verified:valid};
+ }));
+ return reply({ok:checks.every(c=>c.verified),checks,checkout_enabled:false,mode:"remote_read_only_preflight"},checks.every(c=>c.verified)?200:502);
+ }catch{return reply({error:"provider_verification_failed"},502);}
+ }
  return reply({error:"checkout_not_released"},409);
 });
