@@ -140,7 +140,8 @@ jobs:
                       cur.execute("SET LOCAL ROLE tappad_activador_privado")
                       cur.execute("SELECT session_user,current_user")
                       assert cur.fetchone()==("tappad_login_activacion","tappad_activador_privado")
-                      fecha=datetime.now(timezone.utc)
+                      cur.execute("SELECT transaction_timestamp() - interval '1 minute'")
+                      fecha=cur.fetchone()[0]
                       pid="99999999999999999999999999999999"
                       cur.execute("SELECT tappad_internal.registrar_pago_piloto(%s,%s)",(pid,fecha))
                       a=cur.fetchone()[0]
