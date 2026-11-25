@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   piloto:
-    if: ${{ github.ref == 'refs/heads/main' && vars.TAPPAD_PILOTO_AUTOMATICO == 'SI' }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment: conciliacion-piloto-automatica
     concurrency:
@@ -15,6 +15,14 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 5
     steps:
+      - name: Comprobar habilitacion del entorno
+        env:
+          HABILITADO: ${{ vars.TAPPAD_PILOTO_AUTOMATICO }}
+        run: |
+          if [ "$HABILITADO" != SI ]; then
+            echo "Conciliacion deshabilitada"
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: d544f33b57c4866444e7fdd0bc83986216b3c6a7
@@ -33,7 +41,14 @@ jobs:
           TAPPAD_HABILITAR_ACTIVACION_PRODUCCION: ${{ secrets.TAPPAD_HABILITAR_ACTIVACION_PRODUCCION }}
           TAPPAD_HABILITAR_CONCILIACION_PILOTO: ${{ secrets.TAPPAD_HABILITAR_CONCILIACION_PILOTO }}
         run: |
-          if [ "$TAPPAD_HABILITAR_CONCILIACION_PILOTO" = SI ]; then
+          python - <<'PY'
+          import os, psycopg
+          with psycopg.connect(os.environ["TAPPAD_POSTGRES_DSN"], connect_timeout=10) as c:
+              c.execute("SET LOCAL ROLE tappad_activador_privado")
+              assert c.execute("SELECT session_user,current_user").fetchone()==("tappad_login_activacion","tappad_activador_privado")
+              print("IDENTIDAD_TECNICA_OK")
+          PY
+          if [ "$TAPPAD_HABILITAR_CONCILIACION_PILOTO" = SI ] && [ "$TAPPAD_HABILITAR_ACTIVACION_PRODUCCION" = SI ]; then
             python conciliar_pagos_productivos_piloto.py --aplicar
           else
             python conciliar_pagos_productivos_piloto.py
