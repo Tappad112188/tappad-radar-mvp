@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   activar:
-    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES' || inputs.confirmar == 'CREAR_PLANES' || inputs.confirmar == 'PILOTO_LECTURA' || inputs.confirmar == 'PILOTO_APLICAR') }}
+    if: ${{ (inputs.confirmar == 'ACTIVAR' || inputs.confirmar == 'VERIFICAR' || inputs.confirmar == 'PLANES' || inputs.confirmar == 'CREAR_PLANES' || inputs.confirmar == 'PILOTO_LECTURA' || inputs.confirmar == 'PILOTO_APLICAR' || inputs.confirmar == 'PILOTO_SQL') }}
     runs-on: ubuntu-latest
     environment: activacion-comercial
     concurrency:
@@ -125,3 +125,28 @@ jobs:
           else
             python conciliar_pagos_productivos_piloto.py
           fi
+
+      - name: Prueba SQL piloto con identidad real y rollback
+        if: ${{ inputs.confirmar == 'PILOTO_SQL' }}
+        env:
+          TAPPAD_POSTGRES_DSN: ${{ secrets.TAPPAD_POSTGRES_DSN }}
+        run: |
+          python - <<'PY'
+          import os, psycopg
+          from datetime import datetime, timezone
+          with psycopg.connect(os.environ["TAPPAD_POSTGRES_DSN"]) as conn:
+              try:
+                  with conn.cursor() as cur:
+                      cur.execute("SET LOCAL ROLE tappad_activador_privado")
+                      cur.execute("SELECT session_user,current_user")
+                      assert cur.fetchone()==("tappad_login_activacion","tappad_activador_privado")
+                      fecha=datetime.now(timezone.utc)
+                      pid="99999999999999999999999999999999"
+                      cur.execute("SELECT tappad_internal.registrar_pago_piloto(%s,%s)",(pid,fecha))
+                      a=cur.fetchone()[0]
+                      cur.execute("SELECT tappad_internal.registrar_pago_piloto(%s,%s)",(pid,fecha))
+                      assert a==cur.fetchone()[0]
+                      print("IDENTIDAD_Y_REGISTRO_IDEMPOTENTE_OK")
+              finally:
+                  conn.rollback()
+          PY
