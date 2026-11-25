@@ -32,6 +32,10 @@ class ConcurrenciaPiloto(unittest.TestCase):
             c.execute((ROOT/"sql_activacion_exclusiva_piloto.sql").read_text())
             c.commit()
             c.execute((ROOT/"sql_registro_pago_piloto.sql").read_text())
+            c.execute("ALTER TABLE public.pagos_tappad ADD CONSTRAINT pagos_tappad_estado_check CHECK (estado IN ('pendiente','pagado','fallido','reembolsado','cancelado'))")
+            c.execute((ROOT/"sql_conciliacion_reversion_mercadopago_borrador.sql").read_text())
+            c.commit()
+            c.execute((ROOT/"sql_preparacion_reversion_privada_NO_APLICAR.sql").read_text())
             fecha,fin=c.execute("SELECT now()-interval '1 minute',now()-interval '1 minute'+interval '1 month'").fetchone()
         def carrera(fn):
             barrier=threading.Barrier(2)
@@ -54,3 +58,44 @@ class ConcurrenciaPiloto(unittest.TestCase):
             self.assertEqual(c.execute("SELECT count(*) FROM public.pagos_tappad").fetchone()[0],1)
             self.assertEqual(c.execute("SELECT count(*) FROM public.activaciones_comerciales_tappad").fetchone()[0],1)
             self.assertEqual(c.execute("SELECT estado,vigente_hasta FROM public.acceso_comercial_tappad WHERE cliente_id=4").fetchone(),("habilitado",fin))
+
+        # Ejecutar las funciones reales bajo roles privados distintos.
+        # Forzar ambos ordenes de adquisicion del lock de suscripcion.
+        for remoto,estado in (("refunded","reembolsado"),("charged_back","contracargo")):
+            for primero in ("activacion","reversion"):
+                with self.subTest(remoto=remoto,primero=primero):
+                    with psycopg.connect(DSN) as c:
+                        c.execute("DELETE FROM tappad_internal.auditoria_estados_mercadopago")
+                        c.execute("DELETE FROM public.activaciones_comerciales_tappad")
+                        c.execute("DELETE FROM public.acceso_comercial_tappad")
+                        c.execute("UPDATE public.suscripciones_tappad SET estado='pendiente',fin_periodo=NULL WHERE id=5")
+                        c.execute("UPDATE public.pagos_tappad SET estado='pagado' WHERE id=%s",(ids[0],))
+                    locked=threading.Event()
+                    ready=threading.Event()
+                    def ejecutar(tipo):
+                        with psycopg.connect(DSN) as c:
+                            rol="tappad_activador_privado" if tipo=="activacion" else "tappad_reversion_privada"
+                            c.execute("SET LOCAL ROLE "+rol)
+                            c.execute("SET LOCAL statement_timeout='10s'")
+                            if tipo==primero:
+                                c.execute("SELECT id FROM public.suscripciones_tappad WHERE id=5 FOR UPDATE")
+                                locked.set()
+                                if not ready.wait(5): raise RuntimeError("segundo worker ausente")
+                            else:
+                                if not locked.wait(5): raise RuntimeError("primer lock ausente")
+                                ready.set()
+                            if tipo=="activacion":
+                                return c.execute("SELECT tappad_internal.tappad_aplicar_activacion_comercial(4,5,%s,%s,%s,%s::jsonb)",(ids[0],fecha,fin,ev)).fetchone()[0]
+                            evidencia=json.loads(ev)
+                            evidencia["origen"]="consulta_directa_mercadopago"
+                            return c.execute("SELECT tappad_internal.conciliar_reversion_pago(%s,5,%s,%s::jsonb)",(ids[0],remoto,json.dumps(evidencia))).fetchone()[0]
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        a=pool.submit(ejecutar,"activacion")
+                        b=pool.submit(ejecutar,"reversion")
+                        self.assertEqual(a.result(timeout=20),primero=="activacion")
+                        self.assertTrue(b.result(timeout=20))
+                    with psycopg.connect(DSN) as c:
+                        self.assertEqual(c.execute("SELECT estado FROM public.pagos_tappad WHERE id=%s",(ids[0],)).fetchone()[0],estado)
+                        self.assertEqual(c.execute("SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago").fetchone()[0],1)
+                        self.assertEqual(c.execute("SELECT count(*) FROM public.acceso_comercial_tappad WHERE estado='habilitado'").fetchone()[0],0)
+                        self.assertEqual(c.execute("SELECT count(*) FROM public.activaciones_comerciales_tappad").fetchone()[0],int(primero=="activacion"))
