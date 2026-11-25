@@ -4,7 +4,8 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
 DECLARE s public.suscripciones_tappad%ROWTYPE;
 a public.mercadopago_intentos_contratacion_tappad%ROWTYPE;
 BEGIN
- PERFORM 1 FROM public.clientes WHERE id=p_cliente AND activo IS TRUE FOR UPDATE;
+ PERFORM pg_catalog.pg_advisory_xact_lock(784221, p_cliente::integer);
+ PERFORM 1 FROM public.clientes WHERE id=p_cliente AND activo IS TRUE;
  IF NOT FOUND THEN RAISE EXCEPTION 'cliente_no_habilitado'; END IF;
  PERFORM 1 FROM public.planes_tappad p JOIN public.mercadopago_planes_tappad m ON m.plan_id=p.id AND m.entorno='produccion' WHERE p.id=p_plan AND (p.activo IS TRUE OR (p_cliente=4 AND p_plan=1)) AND ((p.periodicidad='mensual' AND p.precio_mxn=449) OR (p.periodicidad='anual' AND p.precio_mxn=4490));
  IF NOT FOUND THEN RAISE EXCEPTION 'plan_no_habilitado'; END IF;
