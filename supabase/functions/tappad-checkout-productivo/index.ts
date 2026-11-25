@@ -1,3 +1,4 @@
+import {buildCheckout,verifyCheckout} from "./checkout.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {createClient} from "npm:@supabase/supabase-js@2.57.0";
 const cors={"Access-Control-Allow-Origin":"https://tappad112188.github.io","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info","Access-Control-Allow-Methods":"GET,POST,OPTIONS","Vary":"Origin"};
@@ -43,5 +44,31 @@ Deno.serve(async req=>{
  return reply({ok:checks.every(c=>c.verified),checks,checkout_enabled:false,mode:"remote_read_only_preflight"},checks.every(c=>c.verified)?200:502);
  }catch{return reply({error:"provider_verification_failed"},502);}
  }
- return reply({error:"checkout_not_released"},409);
+ let body:any;try{body=await req.json()}catch{return reply({error:"invalid_json"},400);}
+ if(body?.confirm!=="CREAR_CHECKOUT_PRODUCTIVO"||![1,3].includes(body.plan_id))return reply({error:"explicit_confirmation_required"},400);
+ const plan=plans?.find(p=>p.id===body.plan_id);
+ if(!plan?.activo||Deno.env.get("TAPPAD_CHECKOUT_ENABLED")!=="SI")return reply({error:"checkout_not_released"},409);
+ let seller:any;try{seller=await mp("/users/me");if(!seller.id||seller.site_id!=="MLM"||!Array.isArray(seller.tags)||seller.tags.includes("test_user"))throw Error("seller_invalid");
+ const {data:m,error:me}=await db.from("mercadopago_planes_tappad").select("mercadopago_plan_id").eq("entorno","produccion").eq("plan_id",plan.id).single();
+ if(me||!m||!/^[a-zA-Z0-9_-]+$/.test(m.mercadopago_plan_id))throw Error("mapping_invalid");
+ const r=await mp("/preapproval_plan/"+m.mercadopago_plan_id),a=r.auto_recurring;
+ if(r.id!==m.mercadopago_plan_id||r.status!=="active"||String(r.collector_id)!==String(seller.id)||a?.currency_id!=="MXN"||Number(a.transaction_amount)!==Number(plan.precio_mxn)||a.frequency_type!=="months"||Number(a.frequency)!==(plan.id===1?1:12))throw Error("plan_invalid");
+ }catch{return reply({error:"provider_verification_failed"},502);}
+ const {data:attempt,error:re}=await db.rpc("tappad_reservar_checkout_productivo",{p_cliente:clientId,p_plan:plan.id});
+ if(re||!attempt)return reply({error:"reservation_failed"},409);
+ const expected=buildCheckout(plan,user.email,attempt.referencia);
+ if(attempt.estado==="creado"&&attempt.preapproval_id){
+ try{const remote=await mp("/preapproval/"+encodeURIComponent(attempt.preapproval_id));const checked=verifyCheckout(remote,expected,String(seller.id));return reply({ok:true,checkout_url:checked.checkout_url,reused:true});}catch{return reply({error:"existing_checkout_requires_review"},409);}
+ }
+ const {data:claim,error:cl}=await db.from("mercadopago_intentos_contratacion_tappad").update({estado:"en_proceso",actualizado_en:new Date().toISOString()}).eq("id",attempt.intento_id).eq("estado","preparado").select("id").maybeSingle();
+ if(cl||!claim)return reply({error:"attempt_requires_review_or_in_progress"},409);
+ try{
+ const response=await fetch("https://api.mercadopago.com/preapproval",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json","X-Idempotency-Key":attempt.referencia},body:JSON.stringify(expected),signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw Error("provider_creation_failed");
+ const checked=verifyCheckout(await response.json(),expected,String(seller.id));
+ const {error:finish}=await db.rpc("tappad_finalizar_checkout_productivo",{p_intento:attempt.intento_id,p_preapproval:checked.id});
+ if(finish)throw Error("local_link_failed");
+ return reply({ok:true,checkout_url:checked.checkout_url,reused:false});
+ }catch{await db.from("mercadopago_intentos_contratacion_tappad").update({estado:"requiere_revision",actualizado_en:new Date().toISOString()}).eq("id",attempt.intento_id).eq("estado","en_proceso");return reply({error:"attempt_requires_review"},502);}
+
 });
