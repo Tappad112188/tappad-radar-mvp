@@ -57,7 +57,12 @@ def conciliar(*, aplicar=False):
                     raise VerificacionRechazada("identidad_invalida")
                 cur.execute("SELECT tappad_internal.registrar_pago_piloto(%s,%s)",(pid,fecha))
                 pago_id=cur.fetchone()[0]
-        activar_conexion_privada(pago_id,supabase_url=url,supabase_key=key,mercadopago_token=token,postgres_dsn=dsn,permitir=True)
+                cur.execute("SELECT 1 FROM public.activaciones_comerciales_tappad WHERE pago_id=%s AND estado='aplicada'",(pago_id,))
+                if cur.fetchone():
+                    continue
+        resultado=activar_conexion_privada(pago_id,supabase_url=url,supabase_key=key,mercadopago_token=token,postgres_dsn=dsn,permitir=True)
+        if resultado.get("aplicacion")!="aplicada":
+            raise VerificacionRechazada("activacion_no_aplicada")
     return {"estado":"conciliado","pagos_verificados":len(candidatos)}
 
 if __name__=="__main__":
