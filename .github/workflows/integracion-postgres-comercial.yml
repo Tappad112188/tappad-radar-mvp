@@ -5,6 +5,9 @@ on:
   push:
     branches: [desarrollo-registro-proveedores]
     paths:
+      - 'tests/test_concurrencia_piloto.py'
+      - 'docs/sql_registro_pago_piloto.sql'
+      - 'docs/sql_activacion_exclusiva_piloto.sql'
       - 'tests/test_migracion_activacion_invoker.py'
       - 'docs/sql_migracion_activacion_invoker_PENDIENTE_VALIDACION.sql'
       - 'activacion_privada_postgres.py'
@@ -69,3 +72,9 @@ jobs:
           PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tappad_ci_pruebas;'
       - name: Probar migracion invoker y RLS de activacion
         run: python -m unittest discover -s tests -p 'test_migracion_activacion_invoker.py' -v
+      - name: Reiniciar base para concurrencia piloto
+        run: |
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE tappad_ci_pruebas WITH (FORCE);'
+          PGPASSWORD=postgres_ci_temporal psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tappad_ci_pruebas;'
+      - name: Probar concurrencia de registro y activacion piloto
+        run: python -m unittest discover -s tests -p 'test_concurrencia_piloto.py' -v
