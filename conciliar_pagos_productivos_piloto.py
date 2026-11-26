@@ -8,6 +8,8 @@ from conexion_segura_mercadopago_supabase import _filas
 from activacion_privada_postgres import activar_conexion_privada
 
 def conciliar(*, aplicar=False):
+    if aplicar and (os.environ.get("TAPPAD_HABILITAR_CONCILIACION_PILOTO")!="SI" or os.environ.get("TAPPAD_HABILITAR_ACTIVACION_PRODUCCION")!="SI"):
+        raise VerificacionRechazada("escrituras_bloqueadas")
     url=os.environ["TAPPAD_SUPABASE_URL"]
     key=os.environ["TAPPAD_SUPABASE_SERVICE_ROLE_KEY"]
     token=os.environ["TAPPAD_MERCADOPAGO_PROD_ACCESS_TOKEN"]
@@ -16,8 +18,11 @@ def conciliar(*, aplicar=False):
     sid=sub["referencia_externa"]
     if sid!="dbc554730f1141a48cf73881a4e9eb96":
         raise VerificacionRechazada("referencia_piloto_invalida")
+    vendedor=_get_json("/users/me",token)
+    if str(vendedor.get("id"))!=seller or vendedor.get("site_id")!="MLM" or "test_user" in (vendedor.get("tags") or []):
+        raise VerificacionRechazada("vendedor_no_verificado")
     pre=_get_json("/preapproval/"+quote(sid,safe=""),token)
-    if str(pre.get("collector_id"))!=seller:
+    if str(pre.get("id"))!=sid or str(pre.get("collector_id"))!=seller:
         raise VerificacionRechazada("vendedor_invalido")
     if pre.get("status")!="authorized":
         return {"estado":"esperando_autorizacion","pagos":0}
