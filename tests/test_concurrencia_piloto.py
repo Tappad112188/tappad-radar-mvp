@@ -59,6 +59,24 @@ class ConcurrenciaPiloto(unittest.TestCase):
             self.assertEqual(c.execute("SELECT count(*) FROM public.activaciones_comerciales_tappad").fetchone()[0],1)
             self.assertEqual(c.execute("SELECT estado,vigente_hasta FROM public.acceso_comercial_tappad WHERE cliente_id=4").fetchone(),("habilitado",fin))
 
+        # Evaluar la misma compuerta usada por ambos motores sobre filas reales.
+        from unittest.mock import patch
+        from entregar_alertas_secop import acceso_comercial_vigente
+        import entregar_alertas_secop as entrega
+        def elegible():
+            def api(metodo, tabla, params=None, datos=None):
+                self.assertEqual(metodo,"GET")
+                self.assertIn(tabla,("acceso_comercial_tappad","suscripciones_tappad","activaciones_comerciales_tappad","pagos_tappad"))
+                from psycopg.rows import dict_row
+                with psycopg.connect(DSN,row_factory=dict_row) as c:
+                    rows=c.execute("SELECT * FROM public."+tabla).fetchall()
+                for k,v in (params or {}).items():
+                    if v.startswith("eq."):
+                        rows=[r for r in rows if str(r.get(k))==v[3:]]
+                return rows
+            with patch.object(entrega,"api",api),patch.dict(os.environ,{"TAPPAD_PROVEEDORES_COMERCIALES":"mercadopago_produccion"}):
+                return acceso_comercial_vigente(4,fecha)
+        self.assertTrue(elegible())
         # Ejecutar las funciones reales bajo roles privados distintos.
         # Forzar ambos ordenes de adquisicion del lock de suscripcion.
         for remoto,estado in (("refunded","reembolsado"),("charged_back","contracargo")):
@@ -98,4 +116,5 @@ class ConcurrenciaPiloto(unittest.TestCase):
                         self.assertEqual(c.execute("SELECT estado FROM public.pagos_tappad WHERE id=%s",(ids[0],)).fetchone()[0],estado)
                         self.assertEqual(c.execute("SELECT count(*) FROM tappad_internal.auditoria_estados_mercadopago").fetchone()[0],1)
                         self.assertEqual(c.execute("SELECT count(*) FROM public.acceso_comercial_tappad WHERE estado='habilitado'").fetchone()[0],0)
+                        self.assertFalse(elegible())
                         self.assertEqual(c.execute("SELECT count(*) FROM public.activaciones_comerciales_tappad").fetchone()[0],int(primero=="activacion"))
